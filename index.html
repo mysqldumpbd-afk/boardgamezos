@@ -12,9 +12,10 @@
   <!-- FUENTES -->
   <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Exo+2:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet"/>
 
-  <!-- FIREBASE -->
+  <!-- FIREBASE — Compat SDK (app + database + auth) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <!-- REACT -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -26,9 +27,12 @@
 </head>
 <body>
   <div id="root"></div>
+
+  <!-- Orden de carga: globals → builder → juegos → shell -->
   <script src="app.js"></script>
-  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="builder.jsx"></script>
   <script type="text/babel" src="strike.jsx"></script>
   <script type="text/babel" src="generic.jsx"></script>
+  <script type="text/babel" src="components.jsx"></script>
 </body>
 </html>

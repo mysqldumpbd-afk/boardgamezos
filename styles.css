@@ -1,18 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════
-   styles.css — BOARDGAMEZ OS v1.1  (+4pt font, saved configs)
+   styles.css — BOARDGAMEZ OS v1.3
    ═══════════════════════════════════════════════════════════════ */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 #root{height:100dvh;overflow-y:auto;overflow-x:hidden}
 :root{
-  --bg:#080810;--bg2:#0D0D1C;--bg3:#12122A;
+  --bg:#080810;--bg2:#0D0D1C;
   --surface:rgba(255,255,255,.04);--border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
-  --cyan:#00F5FF;--orange:#FF6B35;--gold:#FFD447;--green:#00FF9D;--red:#FF3B5C;--purple:#9B5DE5;
+  --cyan:#00F5FF;--orange:#FF6B35;--gold:#FFD447;--green:#00FF9D;
+  --red:#FF3B5C;--purple:#9B5DE5;--blue:#4A90FF;
   --glow-c:0 0 24px rgba(0,245,255,.35);--glow-o:0 0 24px rgba(255,107,53,.4);
   --glow-g:0 0 24px rgba(255,212,71,.4);--glow-gr:0 0 24px rgba(0,255,157,.35);
   --font-display:'Black Ops One',sans-serif;--font-ui:'Orbitron',sans-serif;
   --font-body:'Exo 2',sans-serif;--font-label:'Rajdhani',sans-serif;
-  /* +4pt = base 20px */
   --fs-base:1.18rem;--fs-sm:1rem;--fs-xs:0.88rem;--fs-label:0.84rem;--fs-micro:0.72rem;
 }
 body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(--fs-base)}
@@ -41,6 +41,15 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .os-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(0,255,157,.6);animation:osBlink 2s ease-in-out infinite}
 @keyframes osBlink{0%,100%{opacity:1}50%{opacity:.3}}
 
+/* ROOM CODE BADGE in header */
+.room-code-badge{
+  font-family:var(--font-display);font-size:.85rem;letter-spacing:3px;
+  color:var(--cyan);background:rgba(0,245,255,.1);
+  border:1px solid rgba(0,245,255,.3);
+  padding:4px 10px;border-radius:8px;
+  text-shadow:var(--glow-c);
+}
+
 /* HERO */
 .os-hero{text-align:center;padding:24px 16px 20px}
 .os-hero-title{font-family:var(--font-display);font-size:2.8rem;letter-spacing:3px;line-height:.95;
@@ -48,6 +57,19 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 20px rgba(0,245,255,.3));margin-bottom:6px}
 .os-hero-sub{font-family:var(--font-ui);font-size:.7rem;color:rgba(0,245,255,.5);letter-spacing:5px;text-transform:uppercase}
+
+/* PROFILE SETUP */
+.profile-setup{
+  background:linear-gradient(135deg,rgba(0,245,255,.06),rgba(155,93,229,.04));
+  border:1px solid rgba(0,245,255,.25);border-radius:18px;padding:20px 16px;
+}
+.profile-avatar{
+  width:80px;height:80px;border-radius:20px;
+  background:rgba(0,245,255,.08);border:2px solid rgba(0,245,255,.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:3rem;cursor:pointer;transition:all .2s;margin:0 auto 12px;
+}
+.profile-avatar:hover{border-color:var(--cyan);transform:scale(1.05)}
 
 /* OS CARDS */
 .os-card{border-radius:16px;border:1px solid var(--border2);background:var(--surface);
@@ -96,8 +118,28 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .btn-red{background:linear-gradient(135deg,var(--red),#CC2244);color:white;box-shadow:0 0 20px rgba(255,59,92,.35)}
 .btn-green{background:linear-gradient(135deg,var(--green),#00CC7A);color:var(--bg);box-shadow:var(--glow-gr)}
 .btn-gold{background:linear-gradient(135deg,var(--gold),#FFA500);color:var(--bg);box-shadow:var(--glow-g)}
+.btn-gold:hover{box-shadow:0 0 35px rgba(255,212,71,.6)}
 .btn-purple{background:linear-gradient(135deg,var(--purple),#7040B0);color:white}
+.btn-back{background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.3);color:var(--red);font-size:var(--fs-sm)}
+.btn-back:hover{background:rgba(230,57,70,.22);color:#fff}
 .btn-sm{padding:9px 14px;font-size:var(--fs-xs);border-radius:9px;width:auto;margin-bottom:0}
+
+/* ELIM BUTTON — huge, unmissable */
+.btn-elim-big{
+  width:100%;border:none;border-radius:16px;cursor:pointer;
+  background:linear-gradient(135deg,#FF3B5C,#CC1133);
+  color:white;font-family:var(--font-display);font-size:1.4rem;letter-spacing:2px;
+  padding:22px 20px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  user-select:none;transition:all .15s;
+  box-shadow:0 8px 32px rgba(255,59,92,.5);
+  animation:elimPulse 2s ease-in-out infinite;
+}
+.btn-elim-big:active{transform:scale(.96)}
+@keyframes elimPulse{
+  0%,100%{box-shadow:0 8px 32px rgba(255,59,92,.4)}
+  50%{box-shadow:0 8px 48px rgba(255,59,92,.75)}
+}
 
 /* INPUTS */
 .os-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
@@ -114,8 +156,7 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
   font-size:var(--fs-base);font-weight:700;outline:none;cursor:pointer;
   appearance:none;-webkit-appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300F5FF' stroke-width='2' fill='none'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;
-  margin-bottom:8px}
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:40px;margin-bottom:8px}
 .os-select:focus{border-color:var(--cyan)}
 .os-select option{background:#0D0D1C;color:#fff}
 
@@ -163,13 +204,26 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .survival-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:15px 16px;display:flex;align-items:center;gap:12px;transition:all .3s}
 .survival-card.in-game{border-color:rgba(0,255,157,.25);background:rgba(0,255,157,.04)}
 .survival-card.eliminated{opacity:.4;border-color:rgba(255,59,92,.2)}
-.survival-card.winner-card{border-color:rgba(255,212,71,.6);background:linear-gradient(135deg,rgba(255,212,71,.12),rgba(255,107,53,.06));box-shadow:0 0 30px rgba(255,212,71,.2);animation:winnerGlow 2s ease-in-out infinite}
+.survival-card.winner-card{border-color:rgba(255,212,71,.6);background:linear-gradient(135deg,rgba(255,212,71,.12),rgba(255,107,53,.06));animation:winnerGlow 2s ease-in-out infinite}
 @keyframes winnerGlow{0%,100%{box-shadow:0 0 20px rgba(255,212,71,.2)}50%{box-shadow:0 0 40px rgba(255,212,71,.5)}}
 .survival-info{flex:1}
 .survival-name{font-weight:700;font-size:var(--fs-base);font-family:var(--font-body)}
 .survival-time{font-family:var(--font-label);font-size:var(--fs-micro);font-weight:600;color:rgba(255,255,255,.4);letter-spacing:1px;margin-top:2px}
 .survival-time.live{color:var(--green);animation:timeBlink 1s ease-in-out infinite}
 @keyframes timeBlink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* LIVE SCOREBOARD */
+.live-score-row{
+  display:flex;align-items:center;gap:12px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:12px 14px;margin-bottom:6px;
+  transition:all .3s;
+}
+.live-score-row.first{
+  border-color:rgba(255,212,71,.5);
+  background:linear-gradient(135deg,rgba(255,212,71,.1),rgba(255,107,53,.05));
+}
+.live-score-row.eliminated-row{opacity:.4;}
 
 /* ALERTS */
 .os-alert{border-radius:11px;padding:12px 14px;display:flex;align-items:flex-start;gap:9px;margin-bottom:11px;font-weight:700;font-size:var(--fs-sm);font-family:var(--font-body)}

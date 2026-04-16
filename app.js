@@ -1,6 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// app.js — BOARDGAMEZ OS v1.1
-// Firebase, Demo store, Sounds, Stats Engine, Saved Configs
+// app.js — BOARDGAMEZ OS v1.3
 // ═══════════════════════════════════════════════════════════════
 firebase.initializeApp({
   apiKey:"AIzaSyAPRdb6SiBBYM5VRB5XOtsIGY8gN_KT1NU",
@@ -11,7 +10,29 @@ firebase.initializeApp({
   messagingSenderId:"108883235402",
   appId:"1:108883235402:web:365b118fa7c7bc57f84cb3"
 });
-const _db=firebase.database();
+const _db   = firebase.database();
+const _auth = firebase.auth();
+
+// ── AUTH ────────────────────────────────────────────────────────
+const _gProvider = new firebase.auth.GoogleAuthProvider();
+async function authSignInGoogle(){ return _auth.signInWithPopup(_gProvider); }
+async function authSignInEmail(e,p){ return _auth.signInWithEmailAndPassword(e,p); }
+async function authSignUpEmail(e,p){ return _auth.createUserWithEmailAndPassword(e,p); }
+async function authSignOut(){ return _auth.signOut(); }
+function authOnChange(cb){ return _auth.onAuthStateChanged(cb); }
+
+// ── PLAYER PROFILE (localStorage) ───────────────────────────────
+const PROFILE_KEY = 'bgos_profile';
+function getProfile(){
+  try{ return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null'); }catch{ return null; }
+}
+function saveProfile(profile){
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+function hasProfile(){
+  const p = getProfile();
+  return p && p.name && p.name.trim().length > 0;
+}
 
 // ── DEMO STORE ──────────────────────────────────────────────────
 const _DS={},_DL={};
@@ -28,12 +49,34 @@ function makeDB(demo){
   };
 }
 
+// ── GAME TEMPLATES ───────────────────────────────────────────────
+async function saveGameTemplate(uid,template){
+  const id=template.id||('gt_'+uid());
+  const data={...template,id,uid,updatedAt:Date.now(),createdAt:template.createdAt||Date.now()};
+  await _db.ref(`gameTemplates/${uid}/${id}`).set(data);
+  return data;
+}
+async function loadGameTemplates(uid){
+  const snap=await _db.ref(`gameTemplates/${uid}`).once('value');
+  const val=snap.val();
+  if(!val) return [];
+  return Object.values(val).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+}
+async function deleteGameTemplate(uid,id){
+  await _db.ref(`gameTemplates/${uid}/${id}`).remove();
+}
+
 // ── CONSTANTS ───────────────────────────────────────────────────
 const EMOJIS=[
   "🐀","🐂","🐅","🐇","🐉","🐍","🐎","🐏","🐒","🐓","🐕","🐖",
   "🦁","🐻","🐼","🦊","🦋","🦅","🐬","🦈","🦜","🦩","🐙","🦖",
   "🦝","🦦","🦥","🐿️","🦔","🐲","🎯","⚡","🔥","💎","👑","🌟",
   "🚀","🎮","🎲","🃏","🎳","⚔️","🛡️","🏆"
+];
+const GAME_EMOJIS=[
+  "🎮","🎲","🃏","🎯","🎳","⚔️","🛡️","🏆","🎰","🧩",
+  "♟️","🎴","🀄","🎭","🎪","🎠","🚀","🔥","💎","👑",
+  "⚡","🌟","🐉","🦁","🐺","🦊","🐸","🤖","👾","🌈"
 ];
 const COLORS=[
   "#E63946","#2EC4B6","#F5C800","#3BB273","#7B2D8B","#FF6B35",
@@ -64,13 +107,14 @@ function beep(f=440,d=.08,t='sine',v=.3){
   o.start();o.stop(a.currentTime+d);}catch(e){}
 }
 function snd(t){
-  if(t==='tap') beep(600,.05,'sine',.18);
+  if(t==='tap')   beep(600,.05,'sine',.18);
   else if(t==='score'){beep(520,.08,'sine',.28);setTimeout(()=>beep(660,.1,'sine',.28),100);}
   else if(t==='round'){beep(440,.1,'square',.2);setTimeout(()=>beep(550,.1,'square',.2),120);setTimeout(()=>beep(660,.15,'square',.25),240);}
   else if(t==='winner'){[0,150,300,450].forEach((d,i)=>setTimeout(()=>beep(440+i*110,.15,'sine',.35),d));}
   else if(t==='join'){beep(500,.08,'sine',.25);setTimeout(()=>beep(700,.1,'sine',.3),100);}
   else if(t==='elim'){beep(300,.15,'square',.3);setTimeout(()=>beep(200,.2,'square',.25),160);}
-  else if(t==='save'){beep(600,.06,'sine',.2);setTimeout(()=>beep(800,.08,'sine',.2),80);setTimeout(()=>beep(1000,.1,'sine',.2),160);}
+  else if(t==='save'){beep(600,.06,'sine',.2);setTimeout(()=>beep(800,.08,'sine',.2),80);setTimeout(()=>beep(1000,.12,'sine',.22),180);}
+  else if(t==='delete'){beep(300,.08,'sine',.2);setTimeout(()=>beep(200,.1,'sine',.18),90);}
   else if(t==='victory'){
     const m=[523,523,523,392,523,659,392,330,440,494,466,440,392,523,659,784];
     const d=[.15,.15,.15,.2,.3,.5,.3,.2,.15,.15,.15,.15,.2,.2,.2,.5];
@@ -81,16 +125,16 @@ function snd(t){
 // ── STATS ENGINE ────────────────────────────────────────────────
 async function saveSession(sessionData,demo=false){
   const db=makeDB(demo);
-  const{sessionId,gameType,players}=sessionData;
+  const{sessionId,players}=sessionData;
   const existing=await db.get(`sessions/${sessionId}/saved`);
-  if(existing===true){console.log("Stats: ya guardada");return;}
+  if(existing===true) return;
   await db.set(`sessions/${sessionId}`,{...sessionData,saved:true});
   for(const p of players){
     const pKey=p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
     const position=p.finalPosition||1;
     const won=position===1;
     await db.set(`players/${pKey}/sessions/${sessionId}`,{
-      sessionId,gameType,gameTitle:sessionData.gameTitle,
+      sessionId,gameType:sessionData.gameType,gameTitle:sessionData.gameTitle,
       customTitle:sessionData.customTitle||sessionData.gameTitle,
       date:sessionData.startedAt,finalPosition:position,
       totalPlayers:players.length,won,
@@ -113,7 +157,6 @@ async function saveSession(sessionData,demo=false){
     });
   }
 }
-
 async function loadLeaderboard(demo=false){
   const db=makeDB(demo);
   const data=await db.get("players");
@@ -127,32 +170,12 @@ async function loadRecentSessions(limit=20,demo=false){
   return Object.values(data).filter(s=>s.saved).sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).slice(0,limit);
 }
 
-// ── SAVED CONFIGS (localStorage) ────────────────────────────────
-const SAVED_CONFIGS_KEY='bgos_saved_configs';
-
-function getSavedConfigs(){
-  try{return JSON.parse(localStorage.getItem(SAVED_CONFIGS_KEY)||'[]');}catch{return [];}
-}
-function saveConfig(name,config){
-  const configs=getSavedConfigs();
-  const id='cfg_'+uid();
-  const newCfg={id,name,config,savedAt:Date.now()};
-  configs.unshift(newCfg);
-  // Máximo 10 configs guardadas
-  localStorage.setItem(SAVED_CONFIGS_KEY,JSON.stringify(configs.slice(0,10)));
-  return newCfg;
-}
-function deleteConfig(id){
-  const configs=getSavedConfigs().filter(c=>c.id!==id);
-  localStorage.setItem(SAVED_CONFIGS_KEY,JSON.stringify(configs));
-}
-
-// ── CONFIG DESCRIPTOR ────────────────────────────────────────────
-function describeConfig(config){
-  const mode=config.mode==='points'?'Puntos':config.mode==='wins'?'Victorias':'Supervivencia';
-  const rounds=config.useRounds?(config.rounds==='libre'?'∞ rondas':`${config.rounds} rondas`):'Rondas libres';
-  const target=config.mode==='points'&&config.useTarget?`· Meta ${config.targetScore}pts`:'';
-  return `${mode} · ${rounds} ${target}`.trim();
+// ── TEMPLATE DESCRIPTOR ──────────────────────────────────────────
+function describeTemplate(t){
+  const cfg=t.config||{};
+  const mode=cfg.victoryMode==='points'?'Puntos':cfg.victoryMode==='wins'?'Victorias':cfg.victoryMode==='elimination'?'Eliminación':'Manual';
+  const rounds=cfg.useRounds?(cfg.rounds==='libre'?'∞ rondas':`${cfg.rounds} rondas`):'Partida libre';
+  return `${mode} · ${rounds}`;
 }
 
 // ── GAME PRESETS ─────────────────────────────────────────────────
@@ -162,9 +185,5 @@ const GAME_PRESETS={
     description:'Supervivencia · El último en pie gana',
     color:'#FF6B35',mode:'survival',
     config:{rounds:null,usePoints:false,useTimer:false,eliminationType:'self',minPlayers:2,maxPlayers:10}
-  },
-  generic:{
-    id:'generic',title:'Partida Libre',emoji:'⚔️',
-    description:'Configura tu propia partida',color:'#2EC4B6',mode:'custom',config:null
   }
 };
