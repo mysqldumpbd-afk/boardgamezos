@@ -1,9 +1,35 @@
 // ═══════════════════════════════════════════════════════════════
-// generic.jsx — BOARDGAMEZ OS v1.3
-// Fixes: estado limpio al crear sala, botón eliminación enorme,
-//        código sala siempre visible, botones guardar/volver
+// generic.jsx — BOARDGAMEZ OS v1.4
+// Fixes: ganador automático, modal inline, revancha,
+//        condiciones de victoria, puntos default 0,
+//        marcador animado
 // ═══════════════════════════════════════════════════════════════
 
+// ── INLINE CONFIRM MODAL ─────────────────────────────────────────
+function ConfirmModal({title,message,onConfirm,onCancel,confirmLabel='Confirmar',confirmColor='var(--red)'}){
+  return(
+    <div style={{
+      position:'fixed',inset:0,zIndex:999,
+      background:'rgba(0,0,0,.7)',backdropFilter:'blur(4px)',
+      display:'flex',alignItems:'center',justifyContent:'center',padding:20
+    }}>
+      <div className="anim-pop" style={{
+        background:'#0D0D1C',border:'1px solid rgba(0,245,255,.25)',
+        borderRadius:20,padding:'24px 20px',width:'100%',maxWidth:340,textAlign:'center'
+      }}>
+        {title&&<div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:1,marginBottom:10,color:'#fff'}}>{title}</div>}
+        <div style={{fontFamily:'var(--font-body)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.6)',lineHeight:1.5,marginBottom:20}}>{message}</div>
+        <div style={{display:'flex',gap:10}}>
+          <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={onCancel}>Cancelar</button>
+          <button className="btn" style={{flex:1,marginBottom:0,background:confirmColor,color:'white',border:'none',borderRadius:12,padding:14,fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',cursor:'pointer'}}
+            onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PLAYER PICKER ────────────────────────────────────────────────
 function PlayerPicker_G({player,onUpdate,onClose}){
   const [mode,setMode]=React.useState('emoji');
   return(
@@ -29,8 +55,24 @@ function PlayerPicker_G({player,onUpdate,onClose}){
   );
 }
 
+// ── CONFIG PANEL ─────────────────────────────────────────────────
 function ConfigPanel({config,onChange}){
   const ROUND_OPTIONS=Array.from({length:20},(_,i)=>i+1).concat(['libre']);
+  const [newCondition,setNewCondition]=React.useState('');
+
+  function addCondition(){
+    if(!newCondition.trim()) return;
+    snd('tap');
+    onChange({...config,winConditions:[...(config.winConditions||[]),newCondition.trim()]});
+    setNewCondition('');
+  }
+  function removeCondition(i){
+    snd('tap');
+    const arr=[...(config.winConditions||[])];
+    arr.splice(i,1);
+    onChange({...config,winConditions:arr});
+  }
+
   return(
     <div>
       <div className="os-section">MODO DE PARTIDA</div>
@@ -39,7 +81,9 @@ function ConfigPanel({config,onChange}){
         {id:'wins',icon:'🏆',label:'Victorias por ronda',desc:'Se cuentan victorias de ronda, no puntos'},
         {id:'survival',icon:'💀',label:'Supervivencia / Eliminación',desc:'Se eliminan jugadores hasta que queda uno'}
       ].map(m=>(
-        <div key={m.id} className="os-card" style={{marginBottom:8,padding:'13px 14px',cursor:'pointer',borderColor:config.mode===m.id?'rgba(0,245,255,.5)':undefined,background:config.mode===m.id?'rgba(0,245,255,.07)':undefined}}
+        <div key={m.id} className="os-card" style={{marginBottom:8,padding:'13px 14px',cursor:'pointer',
+          borderColor:config.mode===m.id?'rgba(0,245,255,.5)':undefined,
+          background:config.mode===m.id?'rgba(0,245,255,.07)':undefined}}
           onClick={()=>{snd('tap');onChange({...config,mode:m.id});}}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{fontSize:'1.9rem'}}>{m.icon}</div>
@@ -51,6 +95,26 @@ function ConfigPanel({config,onChange}){
           </div>
         </div>
       ))}
+
+      {/* CONDICIONES DE VICTORIA PERSONALIZADAS */}
+      <div className="os-section" style={{marginTop:6}}>CONDICIONES DE VICTORIA (OPCIONAL)</div>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+        Ej: Full house, Corrida, Escalera... Al registrar una ronda podrás seleccionar cómo ganaste.
+      </div>
+      {(config.winConditions||[]).map((c,i)=>(
+        <div key={i} style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.2)',borderRadius:10,padding:'8px 12px',marginBottom:6}}>
+          <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'var(--gold)'}}>{c}</div>
+          <button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.1rem',cursor:'pointer'}} onClick={()=>removeCondition(i)}>×</button>
+        </div>
+      ))}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <input className="os-input" style={{marginBottom:0,flex:1}}
+          placeholder="Ej: Full house, Corrida, Flush..."
+          value={newCondition} onChange={e=>setNewCondition(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&addCondition()} maxLength={30}/>
+        <button style={{background:'rgba(255,212,71,.1)',border:'1px solid rgba(255,212,71,.3)',color:'var(--gold)',borderRadius:11,padding:'0 16px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.1rem',flexShrink:0}}
+          onClick={addCondition}>+</button>
+      </div>
 
       <div className="os-section" style={{marginTop:6}}>RONDAS</div>
       <div className={`check-row ${config.useRounds?'active':''}`} style={{marginBottom:8}}
@@ -97,23 +161,21 @@ function ConfigPanel({config,onChange}){
 function GenericSetup({onBack,hostPlayer,onCreateRoom}){
   const [step,setStep]=React.useState('name');
   const [title,setTitle]=React.useState('');
-  // Estado SIEMPRE limpio — no hay jugadores previos
   const [players,setPlayers]=React.useState([]);
   const [newName,setNewName]=React.useState('');
   const [pickingFor,setPickingFor]=React.useState(null);
-  const [config,setConfig]=React.useState({mode:'points',useRounds:true,rounds:3,useTarget:true,targetScore:100});
+  const [config,setConfig]=React.useState({mode:'points',useRounds:true,rounds:3,useTarget:true,targetScore:100,winConditions:[]});
   const [savedConfigs]=React.useState(()=>{
     try{return JSON.parse(localStorage.getItem('bgos_saved_configs')||'[]');}catch{return [];}
   });
   const [saveName,setSaveName]=React.useState('');
   const [showSaveForm,setShowSaveForm]=React.useState(false);
 
-  // Agregar host UNA SOLA VEZ al montar
   React.useEffect(()=>{
     if(hostPlayer&&hostPlayer.name&&hostPlayer.name!=='Host'){
       setPlayers([{...hostPlayer,isHost:true}]);
     }
-  },[]); // [] = solo al montar, nunca más
+  },[]);
 
   function addPlayer(){
     if(!newName.trim()) return;
@@ -141,9 +203,6 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
     return <PlayerPicker_G player={p} onUpdate={(f,v)=>updatePlayer(p.id,f,v)} onClose={()=>setPickingFor(null)}/>;
   }
 
-  const canProceedName=title.trim().length>=2;
-  const canProceedPlayers=players.length>=2;
-
   return(
     <div className="os-wrap">
       <div className="os-header">
@@ -162,9 +221,9 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
               <div style={{fontSize:'3rem',marginBottom:6}}>⚔️</div>
               <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:2}}>¿QUÉ ESTÁN JUGANDO?</div>
             </div>
-            <input className="os-input" placeholder="Ej: Catan del sábado, UNO brutal..."
+            <input className="os-input" placeholder="Ej: Catan del sábado, Poker brutal..."
               value={title} onChange={e=>setTitle(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&canProceedName&&setStep('players')}
+              onKeyDown={e=>e.key==='Enter'&&title.trim().length>=2&&setStep('players')}
               autoFocus maxLength={40}/>
             <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',textAlign:'right',marginBottom:16}}>{title.length}/40</div>
             <div className="os-section">SUGERENCIAS</div>
@@ -176,7 +235,7 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
                 </button>
               ))}
             </div>
-            <button className="btn btn-cyan" disabled={!canProceedName} onClick={()=>{snd('tap');setStep('players');}}>
+            <button className="btn btn-cyan" disabled={title.trim().length<2} onClick={()=>{snd('tap');setStep('players');}}>
               Siguiente → Jugadores
             </button>
             <button className="btn btn-back" onClick={onBack}>← Cancelar</button>
@@ -193,23 +252,19 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
                 <div className="player-name" style={{color:p.color}}>
                   {p.name}{p.isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--gold)',letterSpacing:2,marginLeft:6}}>HOST</span>}
                 </div>
-                {!p.isHost&&(
-                  <button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.2rem',cursor:'pointer',padding:'0 4px'}}
-                    onClick={()=>setPlayers(prev=>prev.filter(pl=>pl.id!==p.id))}>×</button>
-                )}
+                {!p.isHost&&<button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.2rem',cursor:'pointer',padding:'0 4px'}} onClick={()=>setPlayers(prev=>prev.filter(pl=>pl.id!==p.id))}>×</button>}
               </div>
             ))}
             <div style={{display:'flex',gap:8,marginBottom:8}}>
-              <input className="os-input" style={{marginBottom:0,flex:1}}
-                placeholder="Agregar jugador..." value={newName}
-                onChange={e=>setNewName(e.target.value)}
+              <input className="os-input" style={{marginBottom:0,flex:1}} placeholder="Agregar jugador..."
+                value={newName} onChange={e=>setNewName(e.target.value)}
                 onKeyDown={e=>e.key==='Enter'&&addPlayer()} maxLength={20}/>
               <button style={{background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.3)',color:'var(--cyan)',borderRadius:11,padding:'0 18px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.1rem',flexShrink:0}} onClick={addPlayer}>+</button>
             </div>
             {players.length<2&&<div className="os-alert alert-cyan" style={{marginBottom:12}}>Agrega al menos 2 jugadores</div>}
             <div style={{display:'flex',gap:8}}>
               <button className="btn btn-back" style={{flex:.5}} onClick={()=>setStep('name')}>← Atrás</button>
-              <button className="btn btn-cyan" style={{flex:1}} disabled={!canProceedPlayers}
+              <button className="btn btn-cyan" style={{flex:1}} disabled={players.length<2}
                 onClick={()=>{snd('tap');setStep('config');}}>
                 Siguiente → Config
               </button>
@@ -219,16 +274,15 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
 
         {step==='config'&&(
           <div className="anim-fade">
-            {/* Configs guardadas */}
             {savedConfigs.length>0&&(
               <>
                 <div className="os-section">CONFIGS GUARDADAS</div>
                 {savedConfigs.map(sc=>(
-                  <div key={sc.id} className="saved-config" onClick={()=>{snd('tap');setConfig(sc.config);}}>
+                  <div key={sc.id} className="saved-config" onClick={()=>{snd('tap');setConfig({...sc.config});}}>
                     <div style={{fontSize:'1.5rem'}}>💾</div>
                     <div className="saved-config-info">
                       <div className="saved-config-title">{sc.name}</div>
-                      <div className="saved-config-meta">{sc.config?.mode==='points'?'Puntos':sc.config?.mode==='wins'?'Victorias':'Supervivencia'} · {sc.config?.useRounds?(sc.config?.rounds==='libre'?'∞':sc.config?.rounds+' rondas'):'Libre'}</div>
+                      <div className="saved-config-meta">{sc.config?.mode==='points'?'Puntos':sc.config?.mode==='wins'?'Victorias':'Supervivencia'}</div>
                     </div>
                   </div>
                 ))}
@@ -238,12 +292,9 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
 
             <ConfigPanel config={config} onChange={setConfig}/>
 
-            {/* Guardar config — botón en GOLD */}
             <div className="os-section" style={{marginTop:8}}>GUARDAR CONFIGURACIÓN</div>
             {!showSaveForm?(
-              <button className="btn btn-gold" onClick={()=>setShowSaveForm(true)}>
-                💾 Guardar esta config para después
-              </button>
+              <button className="btn btn-gold" onClick={()=>setShowSaveForm(true)}>💾 Guardar esta config para después</button>
             ):(
               <div style={{display:'flex',gap:8,marginBottom:8}}>
                 <input className="os-input" style={{marginBottom:0,flex:1}}
@@ -256,14 +307,11 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
                   onClick={()=>{setShowSaveForm(false);setSaveName('');}}>×</button>
               </div>
             )}
-
             <div className="g8"/>
             <div style={{display:'flex',gap:8}}>
               <button className="btn btn-back" style={{flex:.5}} onClick={()=>setStep('players')}>← Atrás</button>
               <button className="btn btn-cyan" style={{flex:1}}
-                onClick={()=>{snd('round');onCreateRoom({title,players,config});}}>
-                🚀 Crear sala
-              </button>
+                onClick={()=>{snd('round');onCreateRoom({title,players,config});}}>🚀 Crear sala</button>
             </div>
           </div>
         )}
@@ -310,7 +358,7 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
             <div className="os-tag cyan">{config.mode==='points'?'🏅 Puntos':config.mode==='wins'?'🏆 Victorias':'💀 Supervivencia'}</div>
             {config.useRounds&&<div className="os-tag">{config.rounds==='libre'?'∞ Libre':`${config.rounds} rondas`}</div>}
             {config.mode==='points'&&config.useTarget&&<div className="os-tag gold">Meta: {config.targetScore}pts</div>}
-            {!config.useRounds&&<div className="os-tag red">∞ Partida libre</div>}
+            {(config.winConditions||[]).length>0&&<div className="os-tag gold">🏆 {config.winConditions.length} condiciones</div>}
           </div>
         )}
         <div className="os-section">JUGADORES · {players.length}</div>
@@ -338,23 +386,42 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
 function GenericRuntime({session,onBack,isHost,myId,db}){
   const [room,setRoom]=React.useState(null);
   const [elapsed,setElapsed]=React.useState(0);
+  // scoreInputs: default vacío, se trata como 0
   const [scoreInputs,setScoreInputs]=React.useState({});
   const [showEndScreen,setShowEndScreen]=React.useState(false);
-  const [roundWinner,setRoundWinner]=React.useState(null);
   const [editingPlayer,setEditingPlayer]=React.useState(null);
   const [showElimConfirm,setShowElimConfirm]=React.useState(false);
+  const [showEndConfirm,setShowEndConfirm]=React.useState(false);
+  const [showCloseRoundConfirm,setShowCloseRoundConfirm]=React.useState(false);
+  // Para condiciones de victoria
+  const [selectedCondition,setSelectedCondition]=React.useState('');
+  // Animación de posiciones previas
+  const [prevPositions,setPrevPositions]=React.useState({});
   const timerRef=React.useRef(null);
 
   React.useEffect(()=>{
-    const unsub=db.listen(`rooms/${session.code}`,data=>{if(data)setRoom(data);});
+    const unsub=db.listen(`rooms/${session.code}`,data=>{
+      if(data){
+        // Guardar posiciones previas para animación
+        if(data.players){
+          const sorted=[...data.players].sort((a,b)=>(b.total||0)-(a.total||0));
+          const newPos={};
+          sorted.forEach((p,i)=>newPos[p.id]=i);
+          setPrevPositions(newPos);
+        }
+        setRoom(data);
+      }
+    });
     return()=>unsub&&unsub();
   },[session.code]);
+
   React.useEffect(()=>{
     if(!room||room.status!=='active') return;
     const start=room.startedAt;
     timerRef.current=setInterval(()=>setElapsed(Date.now()-start),1000);
     return()=>clearInterval(timerRef.current);
   },[room?.status,room?.startedAt]);
+
   React.useEffect(()=>{if(room?.status==='finished')setShowEndScreen(true);},[room?.status]);
 
   if(!room) return(<div className="os-wrap"><div className="os-page" style={{paddingTop:80,textAlign:'center'}}><div className="os-spin" style={{marginBottom:16}}/></div></div>);
@@ -367,6 +434,20 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const isSurvival=config.mode==='survival';
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
+  const winConditions=config.winConditions||[];
+
+  // Auto-calcular ganador de ronda por puntos
+  function autoWinner(){
+    if(config.mode==='wins') return null; // en modo victorias, el host selecciona
+    const active=players.filter(p=>!p.eliminated);
+    let maxScore=-Infinity;
+    let winnerId=null;
+    active.forEach(p=>{
+      const score=parseInt(scoreInputs[p.id]??0);
+      if(score>maxScore){ maxScore=score; winnerId=p.id; }
+    });
+    return winnerId;
+  }
 
   const sortedPlayers=[...players].sort((a,b)=>{
     if(isSurvival){
@@ -388,7 +469,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
       onClose={()=>setEditingPlayer(null)}/>;
   }
 
-  // Auto-eliminación en modo survival
+  // Auto-eliminación
   async function handleSelfElim(){
     snd('elim');
     const now=Date.now();
@@ -414,49 +495,66 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     setShowElimConfirm(false);
   }
 
-  async function closeRound(winnerId){
-    if(!winnerId){return;}
+  // Cerrar ronda — ganador auto por puntos, manual en modo wins
+  async function closeRound(overrideWinnerId){
     snd('round');
     const now=Date.now();
+    const winnerId=overrideWinnerId||(config.mode!=='wins'?autoWinner():null);
+    // Scores: default 0 si no se ingresó
+    const scores=Object.fromEntries(players.map(p=>[p.id,parseInt(scoreInputs[p.id]??0)||0]));
     const updatedPlayers=players.map(p=>{
-      const score=parseInt(scoreInputs[p.id]||0);
+      const score=scores[p.id]||0;
       const isWinner=p.id===winnerId;
-      return{...p,total:(p.total||0)+(config.mode!=='wins'?score:0),wins:(p.wins||0)+(isWinner?1:0),
-        rounds:[...(p.rounds||[]),{round:currentRound,score:config.mode!=='wins'?score:0,won:isWinner,ts:now}]};
+      return{...p,
+        total:(p.total||0)+(config.mode!=='wins'?score:0),
+        wins:(p.wins||0)+(isWinner?1:0),
+        rounds:[...(p.rounds||[]),{
+          round:currentRound,
+          score:config.mode!=='wins'?score:0,
+          won:isWinner,
+          condition:selectedCondition||null,
+          ts:now
+        }]
+      };
     });
-    const newRound={number:currentRound,scores:Object.fromEntries(players.map(p=>[p.id,parseInt(scoreInputs[p.id]||0)])),winner:winnerId,closedAt:now};
-    let finished=false,winner=null;
+    const newRound={
+      number:currentRound,
+      scores,
+      winner:winnerId||null,
+      condition:selectedCondition||null,
+      closedAt:now
+    };
+    let finished=false,matchWinner=null;
     if(config.mode==='points'&&config.useTarget&&config.targetScore){
-      winner=updatedPlayers.find(p=>(p.total||0)>=parseInt(config.targetScore));
-      if(winner) finished=true;
+      matchWinner=updatedPlayers.find(p=>(p.total||0)>=parseInt(config.targetScore));
+      if(matchWinner) finished=true;
     }
     if(!finished&&totalRounds&&currentRound>=totalRounds){
       finished=true;
-      winner=[...updatedPlayers].sort((a,b)=>config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0))[0];
+      matchWinner=[...updatedPlayers].sort((a,b)=>config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0))[0];
     }
     const updates={players:updatedPlayers,rounds:[...(room.rounds||[]),newRound],currentRound:currentRound+1};
     if(finished){
       updates.status='finished';updates.endedAt=now;
-      updates.winner={id:winner?.id,name:winner?.name,emoji:winner?.emoji};
+      updates.winner={id:matchWinner?.id,name:matchWinner?.name,emoji:matchWinner?.emoji};
       snd('victory');
       await _saveGenericSession(updatedPlayers,now,config);
     }
     await db.set(`rooms/${session.code}`,{...room,...updates});
-    setScoreInputs({});setRoundWinner(null);
+    setScoreInputs({});setSelectedCondition('');setShowCloseRoundConfirm(false);
   }
 
   async function endMatchNow(){
-    snd('tap');
-    if(!window.confirm('¿Terminar la partida ahora?')) return;
     const now=Date.now();
     const sorted=[...players].sort((a,b)=>config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0));
     await _saveGenericSession(players,now,config);
     await db.set(`rooms/${session.code}`,{...room,status:'finished',endedAt:now,
-      winner:{id:sorted[0]?.id,name:sorted[0]?.name,emoji:sorted[0]?.emoji}});
+      winner:{id:sorted[0]?.id||'',name:sorted[0]?.name||'',emoji:sorted[0]?.emoji||''}});
+    setShowEndConfirm(false);
   }
 
-  async function _saveGenericSession(currentPlayers,now,config){
-    const sorted=[...currentPlayers].sort((a,b)=>config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0));
+  async function _saveGenericSession(currentPlayers,now,cfg){
+    const sorted=[...currentPlayers].sort((a,b)=>cfg.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0));
     await saveSession({
       sessionId:session.code+"_"+room.startedAt,
       gameType:'generic',gameTitle:'⚔️ Partida Libre',
@@ -468,17 +566,40 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
         finalPosition:i+1,eliminatedAt:p.eliminatedAt||null,
         survivalMs:p.survivalMs||(now-room.startedAt),
         survivalLabel:p.survivalLabel||fmtDuration(now-room.startedAt),
-        points:p.total||null,wins:p.wins||null
+        points:p.total||0,wins:p.wins||0
       })),
       events:room.events||[]
     },session.demo);
   }
 
-  if(showEndScreen) return <GenericEndScreen room={room} myId={myId} onBack={onBack}/>;
+  if(showEndScreen) return <GenericEndScreen room={room} myId={myId} onBack={onBack} db={db} session={session}/>;
+
+  // Ganador auto calculado en tiempo real para mostrar sugerencia
+  const suggestedWinner = config.mode!=='wins' ? autoWinner() : null;
 
   return(
     <div className="os-wrap">
-      {/* Header — código siempre visible */}
+      {/* Modales inline */}
+      {showEndConfirm&&(
+        <ConfirmModal
+          title="¿Terminar partida?"
+          message="Se calculará el ganador con los puntos actuales y se guardará el historial."
+          confirmLabel="🏁 Terminar"
+          onConfirm={endMatchNow}
+          onCancel={()=>setShowEndConfirm(false)}
+        />
+      )}
+      {showElimConfirm&&(
+        <ConfirmModal
+          title="¿Confirmas eliminación?"
+          message="¿Te quedaste sin recursos? Esta acción registrará tu tiempo de supervivencia."
+          confirmLabel="💀 Confirmar"
+          onConfirm={handleSelfElim}
+          onCancel={()=>setShowElimConfirm(false)}
+        />
+      )}
+
+      {/* Header */}
       <div className="os-header">
         <div>
           <div className="os-logo">BOARD<span>GAMEZ</span></div>
@@ -496,122 +617,178 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
       </div>
 
       <div className="os-page" style={{paddingTop:16}}>
-        {/* Match info */}
-        <div className="match-header anim-fade">
-          <div>
-            <div className="match-title">{room.customTitle||'Partida Libre'}</div>
-            <div className="match-meta">
-              {config.mode==='points'?`🏅 ${config.useTarget?`Meta: ${config.targetScore}pts`:'Sin meta'}`:
-               config.mode==='wins'?'🏆 Victorias':'💀 Supervivencia'}
-              · {players.length} JUG.
-            </div>
-          </div>
-          <div className="os-tag cyan">● R{currentRound}</div>
-        </div>
 
-        {/* ── BOTÓN ELIMINACIÓN para jugadores en modo survival ── */}
-        {isSurvival && me && !alreadyElim && (
-          <div className="anim-slide" style={{marginBottom:20}}>
-            {!showElimConfirm ? (
-              <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimConfirm(true);}}>
-                💀 ME ELIMINÉ
-              </button>
-            ) : (
-              <div style={{background:'rgba(255,59,92,.1)',border:'2px solid rgba(255,59,92,.4)',borderRadius:16,padding:16}}>
-                <div style={{fontFamily:'var(--font-body)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.8)',textAlign:'center',marginBottom:14,fontWeight:700}}>
-                  ¿Confirmas que te eliminaste?
-                </div>
-                <div style={{display:'flex',gap:10}}>
-                  <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={()=>setShowElimConfirm(false)}>Cancelar</button>
-                  <button className="btn btn-red" style={{flex:1,marginBottom:0}} onClick={handleSelfElim}>💀 Confirmar</button>
-                </div>
-              </div>
-            )}
+        {/* Botón eliminación survival */}
+        {isSurvival&&me&&!alreadyElim&&(
+          <div className="anim-slide" style={{marginBottom:16}}>
+            <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimConfirm(true);}}>
+              💀 ME ELIMINÉ
+            </button>
           </div>
         )}
-        {isSurvival && alreadyElim && (
+        {isSurvival&&alreadyElim&&(
           <div className="os-alert alert-red anim-fade" style={{marginBottom:16}}>
             💀 Eliminado en <strong>{me?.survivalLabel||'—'}</strong>
           </div>
         )}
 
-        {/* MARCADOR */}
+        {/* MARCADOR ANIMADO */}
         <div className="os-section">MARCADOR</div>
-        {sortedPlayers.map((p,i)=>(
-          <div key={p.id}
-            className={`player-row ${i===0&&!p.eliminated?'winner-row':p.eliminated?'eliminated':''} anim-fade`}
-            style={{animationDelay:i*.05+'s',marginBottom:6,cursor:isHost?'pointer':'default'}}
-            onClick={()=>isHost&&setEditingPlayer(p.id)}>
-            <div className="player-pos">
-              {p.eliminated?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
-            </div>
-            <div className="player-emoji">{p.emoji}</div>
-            <div style={{flex:1}}>
-              <div className="player-name" style={{color:p.color||'#fff'}}>
-                {p.name}
-                {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
-                {isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.2)',marginLeft:5}}>✏️</span>}
+        {sortedPlayers.map((p,i)=>{
+          const isLeading=i===0&&!p.eliminated;
+          return(
+            <div key={p.id}
+              className={`player-row ${isLeading?'winner-row':p.eliminated?'eliminated':''} anim-fade`}
+              style={{
+                animationDelay:i*.04+'s',marginBottom:6,
+                cursor:isHost?'pointer':'default',
+                transition:'all .4s cubic-bezier(.34,1.56,.64,1)'
+              }}
+              onClick={()=>isHost&&setEditingPlayer(p.id)}>
+              <div className="player-pos" style={{
+                color:isLeading?'var(--gold)':p.eliminated?'var(--red)':'rgba(255,255,255,.3)',
+                transition:'color .3s'
+              }}>
+                {p.eliminated?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
               </div>
-              {isSurvival&&p.eliminated&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.6)',letterSpacing:1,marginTop:1}}>💀 {p.survivalLabel||'—'}</div>}
-              {!isSurvival&&(p.rounds||[]).length>0&&(
-                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:1}}>
-                  Última: +{p.rounds[p.rounds.length-1]?.score||0}pts
+              <div className="player-emoji">{p.emoji}</div>
+              <div style={{flex:1}}>
+                <div className="player-name" style={{color:p.color||'#fff'}}>
+                  {p.name}
+                  {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
+                  {isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.2)',marginLeft:5}}>✏️</span>}
                 </div>
-              )}
-            </div>
-            <div style={{textAlign:'right'}}>
-              <div className="player-stat" style={{color:i===0&&!p.eliminated?'var(--gold)':'rgba(255,255,255,.6)'}}>
-                {isSurvival?(p.eliminated?`#${p.finalPosition}`:'✓'):config.mode==='wins'?(p.wins||0)+'🏆':(p.total||0)+'pts'}
+                {/* Última ronda */}
+                {(p.rounds||[]).length>0&&(
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:1}}>
+                    {config.mode!=='wins'
+                      ? `Última: ${(p.rounds[p.rounds.length-1]?.score||0)>=0?'+':''}${p.rounds[p.rounds.length-1]?.score||0}pts`
+                      : `${p.wins||0} victorias`
+                    }
+                    {p.rounds[p.rounds.length-1]?.condition&&(
+                      <span style={{color:'var(--gold)',marginLeft:6}}>· {p.rounds[p.rounds.length-1].condition}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div className="player-stat" style={{
+                  color:isLeading?'var(--gold)':p.eliminated?'rgba(255,59,92,.5)':'rgba(255,255,255,.6)',
+                  transition:'color .3s'
+                }}>
+                  {isSurvival?(p.eliminated?`#${p.finalPosition}`:'✓'):
+                   config.mode==='wins'?(p.wins||0)+'🏆':(p.total||0)+'pts'}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
-        {/* PANEL HOST — captura de ronda */}
+        {/* PANEL HOST */}
         {isHost&&!isSurvival&&(
           <>
             <div className="os-section" style={{marginTop:20}}>
               RONDA {currentRound}{totalRounds?` DE ${totalRounds}`:''}
             </div>
             <div className="round-box">
+              {/* Puntos — default 0, el ganador se auto-calcula */}
               {config.mode!=='wins'&&(
                 <>
                   <div className="round-box-title">PUNTOS DE ESTA RONDA</div>
-                  {players.map(p=>(
-                    <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                      <div style={{fontSize:'1.3rem',width:30}}>{p.emoji}</div>
-                      <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
-                      <input type="number" className="os-input" style={{width:90,marginBottom:0,textAlign:'center',padding:'10px 8px'}}
-                        placeholder="0" min="0" max="99999"
-                        value={scoreInputs[p.id]||''}
-                        onChange={e=>setScoreInputs({...scoreInputs,[p.id]:e.target.value})}/>
-                    </div>
-                  ))}
+                  {players.filter(p=>!p.eliminated).map(p=>{
+                    const isAutoWinner=suggestedWinner===p.id;
+                    return(
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,
+                        background:isAutoWinner?'rgba(255,212,71,.06)':'transparent',
+                        borderRadius:10,padding:isAutoWinner?'4px 8px':'0 8px',
+                        border:isAutoWinner?'1px solid rgba(255,212,71,.2)':'1px solid transparent',
+                        transition:'all .3s'
+                      }}>
+                        <div style={{fontSize:'1.3rem',width:30}}>{p.emoji}</div>
+                        <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>
+                          {p.name}
+                          {isAutoWinner&&<span style={{fontSize:'var(--fs-micro)',color:'var(--gold)',marginLeft:6}}>← ganador</span>}
+                        </div>
+                        <input type="number" className="os-input"
+                          style={{width:90,marginBottom:0,textAlign:'center',padding:'10px 8px',
+                            borderColor:isAutoWinner?'rgba(255,212,71,.4)':undefined}}
+                          placeholder="0" min={config.scoreSign==='both'?undefined:0} max="99999"
+                          value={scoreInputs[p.id]??''}
+                          onChange={e=>setScoreInputs({...scoreInputs,[p.id]:e.target.value})}/>
+                      </div>
+                    );
+                  })}
                   <div className="os-divider"/>
                 </>
               )}
-              <div className="round-box-title">GANADOR DE ESTA RONDA</div>
-              {players.filter(p=>!p.eliminated).map(p=>(
-                <button key={p.id}
-                  className={`btn ${roundWinner===p.id?'btn-cyan':'btn-ghost'}`}
-                  style={{marginBottom:8,justifyContent:'flex-start',gap:12,padding:'12px 14px'}}
-                  onClick={()=>{snd('tap');setRoundWinner(p.id);}}>
-                  <span style={{fontSize:'1.3rem'}}>{p.emoji}</span>
-                  <span style={{color:roundWinner===p.id?'var(--bg)':p.color||'#fff',fontWeight:700}}>{p.name}</span>
-                  {config.mode!=='wins'&&<span style={{marginLeft:'auto',fontSize:'var(--fs-xs)',opacity:.7}}>+{scoreInputs[p.id]||0} pts</span>}
-                  {roundWinner===p.id&&<span style={{marginLeft:'auto'}}>✓</span>}
-                </button>
-              ))}
+
+              {/* Condiciones de victoria — si hay definidas */}
+              {winConditions.length>0&&(
+                <>
+                  <div className="round-box-title">¿CÓMO GANÓ? (OPCIONAL)</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+                    <button
+                      style={{padding:'6px 12px',borderRadius:20,border:'1px solid rgba(255,255,255,.15)',
+                        background:selectedCondition===''?'rgba(255,255,255,.1)':'rgba(255,255,255,.04)',
+                        color:'rgba(255,255,255,.5)',cursor:'pointer',fontFamily:'var(--font-label)',
+                        fontSize:'var(--fs-xs)',fontWeight:600,letterSpacing:1}}
+                      onClick={()=>{snd('tap');setSelectedCondition('');}}>
+                      Sin especificar
+                    </button>
+                    {winConditions.map((c,i)=>(
+                      <button key={i}
+                        style={{padding:'6px 12px',borderRadius:20,
+                          border:`1px solid ${selectedCondition===c?'rgba(255,212,71,.5)':'rgba(255,255,255,.15)'}`,
+                          background:selectedCondition===c?'rgba(255,212,71,.15)':'rgba(255,255,255,.04)',
+                          color:selectedCondition===c?'var(--gold)':'rgba(255,255,255,.55)',
+                          cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',fontWeight:600,letterSpacing:1}}
+                        onClick={()=>{snd('tap');setSelectedCondition(c);}}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="os-divider"/>
+                </>
+              )}
+
+              {/* Ganador: auto en modo puntos, manual en victorias */}
+              {config.mode==='wins'&&(
+                <>
+                  <div className="round-box-title">GANADOR DE ESTA RONDA</div>
+                  {players.filter(p=>!p.eliminated).map(p=>(
+                    <button key={p.id}
+                      className="btn btn-ghost"
+                      style={{marginBottom:8,justifyContent:'flex-start',gap:12,padding:'12px 14px'}}
+                      onClick={()=>{snd('round');closeRound(p.id);}}>
+                      <span style={{fontSize:'1.3rem'}}>{p.emoji}</span>
+                      <span style={{color:p.color||'#fff',fontWeight:700}}>{p.name}</span>
+                      <span style={{marginLeft:'auto',color:'var(--gold)',fontSize:'var(--fs-xs)'}}>🏆 Ganó esta ronda</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
-            <button className="btn btn-green" onClick={()=>closeRound(roundWinner)} disabled={!roundWinner}>
-              ✓ Cerrar ronda {currentRound}
+
+            {/* Cerrar ronda — en modo puntos es automático */}
+            {config.mode!=='wins'&&(
+              <button className="btn btn-green" onClick={()=>closeRound(null)}>
+                ✓ Cerrar ronda {currentRound}
+                {suggestedWinner&&(
+                  <span style={{fontSize:'var(--fs-micro)',opacity:.8,marginLeft:8}}>
+                    · {players.find(p=>p.id===suggestedWinner)?.name} gana
+                  </span>
+                )}
+              </button>
+            )}
+
+            <button className="btn btn-red" onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
+              🏁 Terminar partida
             </button>
-            <button className="btn btn-red" onClick={endMatchNow}>🏁 Terminar partida</button>
           </>
         )}
 
         {isHost&&isSurvival&&(
-          <button className="btn btn-red" style={{marginTop:16}} onClick={endMatchNow}>
+          <button className="btn btn-red" style={{marginTop:16}} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
             🏁 Terminar partida
           </button>
         )}
@@ -629,20 +806,51 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   );
 }
 
-// ── GENERIC END SCREEN ───────────────────────────────────────────
-function GenericEndScreen({room,myId,onBack}){
+// ── GENERIC END SCREEN — con revancha ────────────────────────────
+function GenericEndScreen({room,myId,onBack,db,session}){
   const config=room.config||{};
+  const [rematchLoading,setRematchLoading]=React.useState(false);
   const players=[...(room.players||[])].sort((a,b)=>
     config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0)
   );
   const winner=players[0];
   const totalDuration=room.endedAt&&room.startedAt?fmtDuration(room.endedAt-room.startedAt):'—';
+
   const confetti=Array.from({length:30},(_,i)=>({
     id:i,c:['#FFD447','#FF6B35','#00F5FF','#00FF9D','#9B5DE5'][i%5],
     l:Math.round(Math.random()*100)+"%",dl:Math.round(Math.random()*20)/10+"s",
     dr:Math.round((2+Math.random()*2.5)*10)/10+"s",sz:Math.round(6+Math.random()*8)+"px"
   }));
   React.useEffect(()=>{snd('victory');},[]);
+
+  async function handleRematch(){
+    if(!session||!db) return;
+    snd('round');
+    setRematchLoading(true);
+    // Crear nueva sala con los mismos jugadores y config, reset de stats
+    const newCode=uid4();
+    const freshPlayers=room.players.map(p=>({
+      ...p,total:0,wins:0,rounds:[],
+      eliminated:false,finalPosition:null,survivalMs:null,
+      eliminatedAt:null,survivalLabel:null
+    }));
+    await db.set(`rooms/${newCode}`,{
+      code:newCode,
+      gameType:room.gameType,
+      customTitle:(room.customTitle||'Partida')+ ' (revancha)',
+      status:'lobby',
+      hostId:room.hostId,
+      createdAt:Date.now(),
+      config:room.config,
+      players:freshPlayers,
+      events:[],currentRound:1,rounds:[]
+    });
+    // Redirigir al lobby de la revancha — navegar al home y luego el host abre el nuevo lobby
+    // Como workaround, guardamos el código en localStorage para que App lo detecte
+    localStorage.setItem('bgos_rematch_code',newCode);
+    window.location.reload();
+  }
+
   return(
     <div className="end-screen">
       <div className="end-confetti">
@@ -658,7 +866,7 @@ function GenericEndScreen({room,myId,onBack}){
           <div className="end-stats">{config.mode==='wins'?`${winner.wins||0} VICTORIAS · ${totalDuration}`:`${winner.total||0} PUNTOS · ${totalDuration}`}</div>
         </>
       )}
-      <div style={{width:'100%',maxWidth:380,marginBottom:24}}>
+      <div style={{width:'100%',maxWidth:380,marginBottom:20}}>
         {players.map((p,i)=>(
           <div key={p.id} className={`player-row ${i===0?'winner-row':''}`} style={{marginBottom:6}}>
             <div className="player-pos">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
@@ -674,7 +882,13 @@ function GenericEndScreen({room,myId,onBack}){
           </div>
         ))}
       </div>
-      <button className="btn btn-cyan" style={{maxWidth:320}} onClick={onBack}>🏠 Volver al menú</button>
+      <div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:8}}>
+        <button className="btn btn-cyan" style={{marginBottom:0}} disabled={rematchLoading}
+          onClick={handleRematch}>
+          {rematchLoading?'⏳ Creando revancha...':'🔁 REVANCHA — Mismos jugadores'}
+        </button>
+        <button className="btn btn-ghost" style={{marginBottom:0}} onClick={onBack}>🏠 Volver al menú</button>
+      </div>
     </div>
   );
 }

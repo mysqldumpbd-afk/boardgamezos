@@ -295,3 +295,46 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .anim-fade{animation:fadeIn .3s ease both}
 .anim-slide{animation:slideUp .35s ease both}
 .anim-pop{animation:popIn .25s cubic-bezier(.34,1.56,.64,1) both}
+
+/* ── SCORE CHANGE ANIMATION ── */
+@keyframes scoreUp{0%{transform:translateY(0) scale(1)}30%{transform:translateY(-6px) scale(1.15)}100%{transform:translateY(0) scale(1)}}
+@keyframes scoreDown{0%{transform:translateY(0)}30%{transform:translateY(4px)}100%{transform:translateY(0)}}
+@keyframes rankUp{0%{opacity:0;transform:translateX(-16px)}100%{opacity:1;transform:translateX(0)}}
+.score-changed{animation:scoreUp .4s cubic-bezier(.34,1.56,.64,1)}
+.rank-changed{animation:rankUp .35s ease}
+
+/* ── ROUND START FLASH ── */
+@keyframes roundFlash{0%{opacity:0;transform:scale(.7)}40%{opacity:1;transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
+.round-flash{animation:roundFlash .5s cubic-bezier(.34,1.56,.64,1) both}
+
+/* ── MATCH INTRO ── */
+@keyframes introSlide{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
+.intro-1{animation:introSlide .4s .0s ease both}
+.intro-2{animation:introSlide .4s .1s ease both}
+.intro-3{animation:introSlide .4s .2s ease both}
+.intro-4{animation:introSlide .4s .3s ease both}
+.intro-5{animation:introSlide .4s .4s ease both}
+
+/* ── LIVE SCOREBOARD ENHANCED ── */
+.live-score-card{
+  border-radius:14px;padding:14px 16px;margin-bottom:8px;
+  display:flex;align-items:center;gap:12px;
+  transition:all .4s cubic-bezier(.34,1.56,.64,1);
+  position:relative;overflow:hidden;
+}
+.live-score-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:4px 0 0 4px;transition:background .3s;
+}
+.live-score-card.pos-1{
+  background:linear-gradient(135deg,rgba(255,212,71,.12),rgba(255,107,53,.06));
+  border:1px solid rgba(255,212,71,.4);
+  box-shadow:0 4px 20px rgba(255,212,71,.15);
+}
+.live-score-card.pos-1::before{background:var(--gold)}
+.live-score-card.pos-2{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.live-score-card.pos-2::before{background:rgba(192,192,192,.5)}
+.live-score-card.pos-3{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.live-score-card.pos-3::before{background:rgba(205,127,50,.5)}
+.live-score-card.other{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+.live-score-card.elim{opacity:.35;border:1px solid rgba(255,59,92,.2)!important;background:rgba(255,59,92,.03)!important}

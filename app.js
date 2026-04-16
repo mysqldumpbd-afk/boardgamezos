@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// app.js — BOARDGAMEZ OS v1.3
+// app.js — BOARDGAMEZ OS v1.4
+// Firebase Auth con signInWithRedirect (compatible GitHub Pages)
 // ═══════════════════════════════════════════════════════════════
 firebase.initializeApp({
   apiKey:"AIzaSyAPRdb6SiBBYM5VRB5XOtsIGY8gN_KT1NU",
@@ -13,26 +14,25 @@ firebase.initializeApp({
 const _db   = firebase.database();
 const _auth = firebase.auth();
 
-// ── AUTH ────────────────────────────────────────────────────────
+// ── AUTH — usa redirect en vez de popup (compatible con GitHub Pages) ──
 const _gProvider = new firebase.auth.GoogleAuthProvider();
-async function authSignInGoogle(){ return _auth.signInWithPopup(_gProvider); }
+
+async function authSignInGoogle(){
+  // Usamos redirect en lugar de popup para evitar bloqueos en GitHub Pages
+  return _auth.signInWithRedirect(_gProvider);
+}
 async function authSignInEmail(e,p){ return _auth.signInWithEmailAndPassword(e,p); }
 async function authSignUpEmail(e,p){ return _auth.createUserWithEmailAndPassword(e,p); }
 async function authSignOut(){ return _auth.signOut(); }
 function authOnChange(cb){ return _auth.onAuthStateChanged(cb); }
 
 // ── PLAYER PROFILE (localStorage) ───────────────────────────────
-const PROFILE_KEY = 'bgos_profile';
+const PROFILE_KEY='bgos_profile';
 function getProfile(){
   try{ return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null'); }catch{ return null; }
 }
-function saveProfile(profile){
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-}
-function hasProfile(){
-  const p = getProfile();
-  return p && p.name && p.name.trim().length > 0;
-}
+function saveProfile(profile){ localStorage.setItem(PROFILE_KEY,JSON.stringify(profile)); }
+function hasProfile(){ const p=getProfile(); return p&&p.name&&p.name.trim().length>0; }
 
 // ── DEMO STORE ──────────────────────────────────────────────────
 const _DS={},_DL={};
@@ -51,10 +51,12 @@ function makeDB(demo){
 
 // ── GAME TEMPLATES ───────────────────────────────────────────────
 async function saveGameTemplate(uid,template){
-  const id=template.id||('gt_'+uid());
-  const data={...template,id,uid,updatedAt:Date.now(),createdAt:template.createdAt||Date.now()};
-  await _db.ref(`gameTemplates/${uid}/${id}`).set(data);
-  return data;
+  try{
+    const id=template.id||('gt_'+uid_fn());
+    const data={...template,id,uid,updatedAt:Date.now(),createdAt:template.createdAt||Date.now()};
+    await _db.ref(`gameTemplates/${uid}/${id}`).set(data);
+    return data;
+  }catch(e){ console.error('saveGameTemplate error:',e); throw e; }
 }
 async function loadGameTemplates(uid){
   const snap=await _db.ref(`gameTemplates/${uid}`).once('value');
@@ -84,7 +86,8 @@ const COLORS=[
   "#06D6A0","#9B5DE5","#00CFE8","#FFD700","#6A8C2F","#FF9A8B"
 ];
 const uid4=()=>Math.random().toString(36).slice(2,6).toUpperCase();
-const uid=()=>Math.random().toString(36).slice(2,10);
+const uid_fn=()=>Math.random().toString(36).slice(2,10);
+const uid=uid_fn; // alias
 
 // ── FORMATTERS ──────────────────────────────────────────────────
 function fmtDuration(ms){
@@ -115,6 +118,8 @@ function snd(t){
   else if(t==='elim'){beep(300,.15,'square',.3);setTimeout(()=>beep(200,.2,'square',.25),160);}
   else if(t==='save'){beep(600,.06,'sine',.2);setTimeout(()=>beep(800,.08,'sine',.2),80);setTimeout(()=>beep(1000,.12,'sine',.22),180);}
   else if(t==='delete'){beep(300,.08,'sine',.2);setTimeout(()=>beep(200,.1,'sine',.18),90);}
+  else if(t==='up'){beep(600,.06,'sine',.2);setTimeout(()=>beep(800,.1,'sine',.25),80);}
+  else if(t==='down') beep(300,.12,'sine',.2);
   else if(t==='victory'){
     const m=[523,523,523,392,523,659,392,330,440,494,466,440,392,523,659,784];
     const d=[.15,.15,.15,.2,.3,.5,.3,.2,.15,.15,.15,.15,.2,.2,.2,.5];
@@ -170,7 +175,7 @@ async function loadRecentSessions(limit=20,demo=false){
   return Object.values(data).filter(s=>s.saved).sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).slice(0,limit);
 }
 
-// ── TEMPLATE DESCRIPTOR ──────────────────────────────────────────
+// ── DESCRIPTOR ──────────────────────────────────────────────────
 function describeTemplate(t){
   const cfg=t.config||{};
   const mode=cfg.victoryMode==='points'?'Puntos':cfg.victoryMode==='wins'?'Victorias':cfg.victoryMode==='elimination'?'Eliminación':'Manual';

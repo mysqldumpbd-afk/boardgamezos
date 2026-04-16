@@ -378,7 +378,15 @@ function App(){
     authOnChange(u=>setAuthUser(u||null));
     const p=getProfile();
     if(p&&p.name) setProfile(p);
-    setScreen('home');
+    // Detectar revancha pendiente
+    const rematchCode=localStorage.getItem('bgos_rematch_code');
+    if(rematchCode){
+      localStorage.removeItem('bgos_rematch_code');
+      setSpectateCode(rematchCode);
+      setScreen('live-scoreboard');
+    } else {
+      setScreen('home');
+    }
   },[]);
 
   // Pendiente de crear sala tras configurar perfil
@@ -477,6 +485,7 @@ function App(){
           onGoStats={()=>setScreen('stats')}
           onGoMyGames={()=>setScreen('my-games')}
           onGoProfile={()=>setScreen('profile-edit')}
+          onGoTools={()=>setScreen('tools')}
           myId={myId} db={db} authUser={authUser}
         />
       )}
@@ -591,6 +600,9 @@ function App(){
       )}
 
       {screen==='stats' && <StatsScreen onBack={goHome} db={db}/>}
+
+      {/* HERRAMIENTAS */}
+      {screen==='tools' && <ToolsHub onBack={goHome}/>}
     </div>
   );
 }
@@ -681,7 +693,7 @@ function PlayerPicker({player,onUpdate,onClose}){
 }
 
 // ── MAIN MENU v1.3 ────────────────────────────────────────────────
-function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,myId,db,authUser}){
+function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,onGoTools,myId,db,authUser}){
   const [recentSessions,setRecentSessions]=useState([]);
   useEffect(()=>{loadRecentSessions(3).then(setRecentSessions).catch(()=>{});},[]);
 
@@ -779,6 +791,22 @@ function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames
             <div><div className="os-card-title">Estadísticas</div><div className="os-card-sub">TODOS LOS JUEGOS</div></div>
           </div>
           <div className="os-card-desc">Ranking, historial y vergüenza histórica 💀</div>
+        </div>
+
+        {/* HERRAMIENTAS */}
+        <div className="os-card" style={{borderColor:'rgba(0,255,157,.25)',background:'rgba(0,255,157,.04)'}}
+          onClick={()=>{snd('tap');onGoTools();}}>
+          <div className="os-card-header">
+            <div className="os-card-icon" style={{background:'rgba(0,255,157,.1)',border:'1px solid rgba(0,255,157,.2)'}}>🧰</div>
+            <div><div className="os-card-title">Herramientas</div><div className="os-card-sub">MONEDA · DADOS · RULETA · PPS</div></div>
+          </div>
+          <div className="os-card-desc">Herramientas de apoyo para cualquier partida.</div>
+          <div className="os-tags">
+            <div className="os-tag green">🪙 Moneda</div>
+            <div className="os-tag green">🎲 Dados</div>
+            <div className="os-tag green">🎡 Ruleta</div>
+            <div className="os-tag green">✊ PPS</div>
+          </div>
         </div>
 
         {recentSessions.length>0&&(
