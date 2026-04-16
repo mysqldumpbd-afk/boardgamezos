@@ -1,13 +1,26 @@
 // ═══════════════════════════════════════════════════════════════
-// strike.jsx — BOARDGAMEZ OS v1.3
-// Fixes: botón eliminación enorme para jugadores,
-//        código sala siempre visible en header
+// strike.jsx — BOARDGAMEZ OS v1.5
+// Fix: jugadores que se unen por código también pueden eliminarse
+// Motivos de eliminación configurables
 // ═══════════════════════════════════════════════════════════════
+
+// Motivos de eliminación predeterminados (usados en Strike y modo survival)
+const ELIM_REASONS_DEFAULT=[
+  {id:'nodice',   label:'Sin dados',    emoji:'🎲'},
+  {id:'nocards',  label:'Sin cartas',   emoji:'🃏'},
+  {id:'nolives',  label:'Sin vidas',    emoji:'❤️'},
+  {id:'nochips',  label:'Sin fichas',   emoji:'🪙'},
+  {id:'noresource',label:'Sin recursos',emoji:'📦'},
+  {id:'laststand',label:'Last stand',   emoji:'⚔️'},
+  {id:'timeout',  label:'Time out',     emoji:'⏱'},
+  {id:'manual',   label:'Eliminado',    emoji:'💀'},
+];
 
 function StrikeGame({session,onBack,isHost,myId,db}){
   const [room,setRoom]=React.useState(null);
   const [elapsed,setElapsed]=React.useState(0);
-  const [showElimConfirm,setShowElimConfirm]=React.useState(false);
+  const [showElimPanel,setShowElimPanel]=React.useState(false);
+  const [elimReason,setElimReason]=React.useState(null);
   const [showEndScreen,setShowEndScreen]=React.useState(false);
   const timerRef=React.useRef(null);
 
@@ -34,20 +47,29 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const activePlayers=players.filter(p=>!p.eliminated);
   const eliminatedPlayers=players.filter(p=>p.eliminated)
     .sort((a,b)=>(b.eliminatedOrder||0)-(a.eliminatedOrder||0));
-  const me=players.find(p=>p.id===myId);
+
+  // Bug fix: buscar por myId O por el slot que tomó el jugador al unirse
+  // El jugador puede haberse unido tomando el ID de otro slot
+  const me=players.find(p=>p.id===myId)||players.find(p=>p.name&&p.id===myId);
   const alreadyElim=me?.eliminated;
 
-  async function handleSelfEliminate(){
+  // Motivos configurados en la sala o los default
+  const elimReasons=(room.config?.elimReasons)||ELIM_REASONS_DEFAULT;
+
+  async function handleSelfEliminate(reason){
     snd('elim');
     const now=Date.now();
     const elimOrder=eliminatedPlayers.length+1;
     const survivalMs=now-room.startedAt;
     const updatedPlayers=players.map(p=>{
       if(p.id!==myId) return p;
-      return{...p,eliminated:true,eliminatedAt:now,survivalMs,
+      return{
+        ...p,eliminated:true,eliminatedAt:now,survivalMs,
         survivalLabel:fmtDuration(survivalMs),
         eliminatedOrder:elimOrder,
-        finalPosition:players.length-eliminatedPlayers.length};
+        elimReason:reason||null,
+        finalPosition:players.length-eliminatedPlayers.length
+      };
     });
     const remainingActive=updatedPlayers.filter(p=>!p.eliminated);
     let updates={players:updatedPlayers};
@@ -58,8 +80,10 @@ function StrikeGame({session,onBack,isHost,myId,db}){
         return{...p,finalPosition:1,survivalMs:now-room.startedAt,
           survivalLabel:fmtDuration(now-room.startedAt)};
       });
-      updates={players:winnerUpdated,status:'finished',endedAt:now,
-        winner:{id:winner.id,name:winner.name,emoji:winner.emoji}};
+      updates={
+        players:winnerUpdated,status:'finished',endedAt:now,
+        winner:{id:winner.id,name:winner.name,emoji:winner.emoji}
+      };
       snd('victory');
       await saveSession({
         sessionId:session.code+"_"+room.startedAt,
@@ -78,14 +102,14 @@ function StrikeGame({session,onBack,isHost,myId,db}){
       },session.demo);
     }
     await db.set(`rooms/${session.code}`,{...room,...updates});
-    setShowElimConfirm(false);
+    setShowElimPanel(false);
+    setElimReason(null);
   }
 
   if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack}/>;
 
   return(
     <div className="os-wrap">
-      {/* Header con código siempre visible */}
       <div className="os-header">
         <div>
           <div className="os-logo">BOARD<span>GAMEZ</span></div>
@@ -111,27 +135,53 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           <div className="os-tag green">● EN JUEGO</div>
         </div>
 
-        {/* ── BOTÓN ELIMINACIÓN — grande, para todos los jugadores activos ── */}
+        {/* ── PANEL DE ELIMINACIÓN — grande, visible para el propio jugador ── */}
         {!alreadyElim && me && (
           <div className="anim-slide" style={{marginBottom:20}}>
-            {!showElimConfirm ? (
-              <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimConfirm(true);}}>
-                💀 ME QUEDÉ SIN DADOS
+            {!showElimPanel ? (
+              <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimPanel(true);}}>
+                💀 ME QUEDÉ SIN...
               </button>
             ) : (
               <div style={{
-                background:'rgba(255,59,92,.1)',border:'2px solid rgba(255,59,92,.4)',
-                borderRadius:16,padding:16
+                background:'linear-gradient(135deg,rgba(255,59,92,.12),rgba(200,20,50,.06))',
+                border:'2px solid rgba(255,59,92,.4)',borderRadius:18,padding:16
               }}>
-                <div style={{fontFamily:'var(--font-body)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.8)',textAlign:'center',marginBottom:14,fontWeight:700}}>
-                  ¿Confirmas que te quedaste sin dados?
+                <div style={{
+                  fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:2,
+                  color:'var(--red)',textAlign:'center',marginBottom:14
+                }}>¿POR QUÉ TE ELIMINASTE?</div>
+
+                {/* Grid de motivos */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+                  {elimReasons.map(r=>(
+                    <button key={r.id}
+                      style={{
+                        padding:'12px 8px',borderRadius:12,border:'none',cursor:'pointer',
+                        background:elimReason===r.id?'rgba(255,59,92,.3)':'rgba(255,255,255,.06)',
+                        color:elimReason===r.id?'#fff':'rgba(255,255,255,.6)',
+                        fontFamily:'var(--font-body)',fontWeight:700,
+                        fontSize:'var(--fs-sm)',transition:'all .15s',
+                        boxShadow:elimReason===r.id?'0 0 16px rgba(255,59,92,.4)':'none',
+                        border:`1px solid ${elimReason===r.id?'rgba(255,59,92,.6)':'rgba(255,255,255,.1)'}`
+                      }}
+                      onClick={()=>{snd('tap');setElimReason(r.id);}}>
+                      <div style={{fontSize:'1.5rem',marginBottom:4}}>{r.emoji}</div>
+                      {r.label}
+                    </button>
+                  ))}
                 </div>
-                <div style={{display:'flex',gap:10}}>
-                  <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={()=>setShowElimConfirm(false)}>
+
+                <div style={{display:'flex',gap:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1,marginBottom:0}}
+                    onClick={()=>{setShowElimPanel(false);setElimReason(null);}}>
                     Cancelar
                   </button>
-                  <button className="btn btn-red" style={{flex:1,marginBottom:0}} onClick={handleSelfEliminate}>
-                    💀 Confirmar
+                  <button className="btn btn-red" style={{flex:1,marginBottom:0}}
+                    onClick={()=>handleSelfEliminate(elimReason)}>
+                    💀 {elimReason
+                      ? elimReasons.find(r=>r.id===elimReason)?.label||'Confirmar'
+                      : 'Confirmar'}
                   </button>
                 </div>
               </div>
@@ -139,9 +189,10 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           </div>
         )}
 
-        {alreadyElim && (
+        {alreadyElim && me && (
           <div className="os-alert alert-red anim-fade" style={{marginBottom:16,fontSize:'var(--fs-sm)'}}>
-            💀 Eliminado en <strong>{me?.survivalLabel||'—'}</strong> · Posición #{me?.finalPosition}
+            💀 {me.elimReason ? elimReasons.find(r=>r.id===me.elimReason)?.label||'Eliminado' : 'Eliminado'}
+            {' '}en <strong>{me.survivalLabel||'—'}</strong> · Posición #{me.finalPosition}
           </div>
         )}
 
@@ -156,30 +207,35 @@ function StrikeGame({session,onBack,isHost,myId,db}){
                   {p.name}
                   {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:6}}>TÚ</span>}
                 </div>
-                <div className="survival-time live">⏱ Contando...</div>
+                <div className="survival-time live">⏱ {fmtDuration(elapsed)}</div>
               </div>
               <div className="os-tag green" style={{fontSize:'var(--fs-micro)'}}>ACTIVO</div>
             </div>
           ))}
         </div>
 
-        {/* ELIMINADOS */}
         {eliminatedPlayers.length>0&&(
           <>
             <div className="os-section">ELIMINADOS · {eliminatedPlayers.length}</div>
             <div className="survival-grid">
-              {eliminatedPlayers.map(p=>(
-                <div key={p.id} className="survival-card eliminated">
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',width:28,textAlign:'center',flexShrink:0,color:'rgba(255,59,92,.6)'}}>
-                    #{p.finalPosition||(players.length)}
+              {eliminatedPlayers.map(p=>{
+                const reason=p.elimReason?elimReasons.find(r=>r.id===p.elimReason):null;
+                return(
+                  <div key={p.id} className="survival-card eliminated">
+                    <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',width:28,textAlign:'center',flexShrink:0,color:'rgba(255,59,92,.6)'}}>
+                      #{p.finalPosition||(players.length)}
+                    </div>
+                    <div className="player-emoji" style={{opacity:.5}}>{p.emoji}</div>
+                    <div className="survival-info">
+                      <div className="survival-name" style={{color:p.color||'#fff'}}>{p.name}</div>
+                      <div className="survival-time">
+                        {reason?`${reason.emoji} ${reason.label} · `:'💀 '}
+                        {p.survivalLabel||'—'}
+                      </div>
+                    </div>
                   </div>
-                  <div className="player-emoji" style={{opacity:.5}}>{p.emoji}</div>
-                  <div className="survival-info">
-                    <div className="survival-name" style={{color:p.color||'#fff'}}>{p.name}</div>
-                    <div className="survival-time">💀 duró {p.survivalLabel||'—'}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -198,7 +254,6 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   );
 }
 
-// ── STRIKE END SCREEN ────────────────────────────────────────────
 function StrikeEndScreen({room,myId,onBack}){
   const players=[...(room.players||[])].sort((a,b)=>(a.finalPosition||99)-(b.finalPosition||99));
   const winner=players.find(p=>p.finalPosition===1);
@@ -209,6 +264,7 @@ function StrikeEndScreen({room,myId,onBack}){
   }));
   React.useEffect(()=>{snd('victory');},[]);
   const totalDuration=room.endedAt&&room.startedAt?fmtDuration(room.endedAt-room.startedAt):'—';
+  const elimReasons=ELIM_REASONS_DEFAULT;
 
   return(
     <div className="end-screen">
@@ -229,28 +285,32 @@ function StrikeEndScreen({room,myId,onBack}){
         </>
       )}
       <div style={{width:'100%',maxWidth:380,marginBottom:24}}>
-        {players.map((p,i)=>(
-          <div key={p.id} className={`player-row ${i===0?'winner-row':'eliminated'}`}
-            style={{marginBottom:6,opacity:p.eliminated?.55:1}}>
-            <div className="player-pos">{i===0?'🏆':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
-            <div className="player-emoji">{p.emoji}</div>
-            <div style={{flex:1}}>
-              <div className="player-name" style={{color:p.color||'#fff'}}>
-                {p.name}{p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
-              </div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
-                {p.eliminated?`💀 ${p.survivalLabel||'—'}`:`⏱ ${p.survivalLabel||totalDuration}`}
+        {players.map((p,i)=>{
+          const reason=p.elimReason?elimReasons.find(r=>r.id===p.elimReason):null;
+          return(
+            <div key={p.id} className={`player-row ${i===0?'winner-row':'eliminated'}`}
+              style={{marginBottom:6,opacity:p.eliminated?.55:1}}>
+              <div className="player-pos">{i===0?'🏆':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
+              <div className="player-emoji">{p.emoji}</div>
+              <div style={{flex:1}}>
+                <div className="player-name" style={{color:p.color||'#fff'}}>
+                  {p.name}{p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
+                  {p.eliminated
+                    ? `${reason?reason.emoji+' '+reason.label:'💀'} · ${p.survivalLabel||'—'}`
+                    : `⏱ ${p.survivalLabel||totalDuration}`}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <button className="btn btn-cyan" style={{maxWidth:320}} onClick={onBack}>🏠 Volver al menú</button>
     </div>
   );
 }
 
-// ── STRIKE LOBBY ─────────────────────────────────────────────────
 function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
   const [room,setRoom]=React.useState(null);
   React.useEffect(()=>{
@@ -306,16 +366,13 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
   );
 }
 
-// ── STRIKE HOST SETUP ─────────────────────────────────────────────
 function StrikeHostSetup({onBack,hostPlayer,onUpdateProfile,onCreateRoom}){
   const [title,setTitle]=React.useState('Strike 🎳');
-  // Iniciar con array VACÍO — el host se agrega desde su perfil real
   const [players,setPlayers]=React.useState([]);
   const [newName,setNewName]=React.useState('');
   const [pickingFor,setPickingFor]=React.useState(null);
 
   React.useEffect(()=>{
-    // Solo agregar el host si tiene nombre real (no "Host")
     if(hostPlayer&&hostPlayer.name&&hostPlayer.name!=='Host'){
       setPlayers([{...hostPlayer,isHost:true}]);
     }
@@ -331,22 +388,42 @@ function StrikeHostSetup({onBack,hostPlayer,onUpdateProfile,onCreateRoom}){
   }
   function updatePlayer(id,f,v){
     setPlayers(prev=>prev.map(p=>p.id===id?{...p,[f]:v}:p));
-    // Si es el host, sincronizar con perfil global
     const p=players.find(pl=>pl.id===id);
     if(p?.isHost&&onUpdateProfile){
-      const updated={...p,[f]:v};
-      onUpdateProfile({...hostPlayer,name:updated.name||hostPlayer.name,emoji:updated.emoji||hostPlayer.emoji,color:updated.color||hostPlayer.color});
+      onUpdateProfile({...hostPlayer,[f]:v});
     }
   }
 
   if(pickingFor!==null){
     const p=players.find(pl=>pl.id===pickingFor);
     if(!p){setPickingFor(null);return null;}
-    return <PlayerPicker player={p} onUpdate={(f,v)=>updatePlayer(p.id,f,v)} onClose={()=>setPickingFor(null)}/>;
+    // Use PlayerPicker from components.jsx
+    return(
+      <div className="os-wrap">
+        <div className="os-header">
+          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setPickingFor(null)}>← Listo</button>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:3}}>{p.name.toUpperCase()}</div>
+          <div style={{width:70}}/>
+        </div>
+        <div className="os-page" style={{paddingTop:16}}>
+          <div className="picker-grid">
+            {EMOJIS.map((e,i)=>(
+              <div key={i} className={`picker-item ${p.emoji===e?'sel':''}`}
+                onClick={()=>{snd('tap');updatePlayer(p.id,'emoji',e);}}>
+                {e}
+              </div>
+            ))}
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'8px 0'}}>
+            {COLORS.map((c,i)=>(
+              <div key={i} className={`color-dot ${p.color===c?'sel':''}`}
+                style={{background:c}} onClick={()=>{snd('tap');updatePlayer(p.id,'color',c);}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
-
-  // Si el host no tiene perfil, mostrar aviso
-  const hostMissing=!hostPlayer?.name||hostPlayer.name==='Host';
 
   return(
     <div className="os-wrap">
@@ -367,7 +444,6 @@ function StrikeHostSetup({onBack,hostPlayer,onUpdateProfile,onCreateRoom}){
         <div className="g8"/>
 
         <div className="os-section">JUGADORES · {players.length}</div>
-
         {players.map(p=>(
           <div key={p.id} className="player-row" style={{marginBottom:8}}>
             <div style={{fontSize:'1.7rem',width:38,textAlign:'center',cursor:'pointer'}}
@@ -401,7 +477,6 @@ function StrikeHostSetup({onBack,hostPlayer,onUpdateProfile,onCreateRoom}){
             ✓ {players.length} jugadores · timestamps automáticos
           </div>
         )}
-
         <button className="btn btn-orange" disabled={players.length<2||!title.trim()}
           onClick={()=>{snd('round');onCreateRoom({title:title.trim(),players});}}>
           🎳 CREAR SALA DE STRIKE

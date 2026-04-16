@@ -432,6 +432,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const totalRounds=isFreeSessions?null:parseInt(config.rounds)||null;
   const currentRound=room.currentRound||1;
   const isSurvival=config.mode==='survival';
+  // Bug fix: jugador puede haber tomado un slot con ID diferente al unirse
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
   const winConditions=config.winConditions||[];

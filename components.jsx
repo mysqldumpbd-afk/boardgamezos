@@ -107,11 +107,31 @@ function ProfileSetup({ onDone, onSkip, context }){
 function LiveScoreboard({ code, onBack, db }){
   const [room,setRoom]=useState(null);
   const [elapsed,setElapsed]=useState(0);
-  const [tab,setTab]=useState('score'); // score | rounds
+  const [tab,setTab]=useState('score');
+  const [prevScores,setPrevScores]=useState({});
+  const [changedIds,setChangedIds]=useState([]);
   const timerRef=useRef(null);
 
   useEffect(()=>{
-    const unsub=db.listen(`rooms/${code}`,data=>{if(data)setRoom(data);});
+    const unsub=db.listen(`rooms/${code}`,data=>{
+      if(!data) return;
+      // Detectar cambios de puntaje para animación
+      if(data.players){
+        const changed=[];
+        data.players.forEach(p=>{
+          const prev=prevScores[p.id];
+          if(prev!==undefined&&(p.total||0)!==prev) changed.push(p.id);
+        });
+        if(changed.length){
+          setChangedIds(changed);
+          setTimeout(()=>setChangedIds([]),600);
+        }
+        const newScores={};
+        data.players.forEach(p=>newScores[p.id]=(p.total||0));
+        setPrevScores(newScores);
+      }
+      setRoom(data);
+    });
     return()=>unsub&&unsub();
   },[code]);
 
@@ -140,8 +160,9 @@ function LiveScoreboard({ code, onBack, db }){
   const players=[...(room.players||[])];
   const isStrike=room.gameType==='preset:strike';
   const rounds=room.rounds||[];
+  const isActive=room.status==='active';
+  const isFinished=room.status==='finished';
 
-  // Ordenar marcador
   const sorted=isStrike
     ? [...players].sort((a,b)=>{
         if(!a.eliminated&&b.eliminated) return -1;
@@ -153,56 +174,83 @@ function LiveScoreboard({ code, onBack, db }){
         cfg.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0)
       );
 
-  // Mapa id → player para historial
   const playerMap=Object.fromEntries(players.map(p=>[p.id,p]));
 
-  const statusLabel=room.status==='active'?'EN JUEGO':room.status==='lobby'?'LOBBY':'TERMINADA';
-  const statusColor=room.status==='active'?'var(--green)':room.status==='lobby'?'var(--gold)':'var(--red)';
+  // Máximo para barras de progreso
+  const maxScore=Math.max(1,...players.map(p=>p.total||0));
+  const maxWins=Math.max(1,...players.map(p=>p.wins||0));
+  const target=cfg.useTarget&&cfg.targetScore?parseInt(cfg.targetScore):null;
+  const barMax=target||maxScore;
+
+  // % victoria estimado (simple: posición relativa)
+  function winPct(p,i){
+    if(isStrike) return p.eliminated?0:Math.round(100/(players.filter(pl=>!pl.eliminated).length||1));
+    if(players.length===0) return 0;
+    const score=cfg.mode==='wins'?(p.wins||0):(p.total||0);
+    const total=players.reduce((s,pl)=>s+(cfg.mode==='wins'?(pl.wins||0):(pl.total||0)),0);
+    if(total===0) return Math.round(100/players.length);
+    return Math.round((score/total)*100);
+  }
+
+  const statusColor=isActive?'var(--green)':isFinished?'var(--red)':'var(--gold)';
 
   return(
     <div className="os-wrap">
-      <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
-        <div>
-          <div className="os-logo" style={{fontSize:'1.1rem'}}>BOARD<span>GAMEZ</span></div>
-          <div className="os-logo-sub">MARCADOR EN VIVO</div>
+      {/* Header impactante */}
+      <div style={{
+        position:'sticky',top:0,zIndex:100,
+        background:'linear-gradient(180deg,rgba(8,8,16,.98) 85%,transparent)',
+        borderBottom:'1px solid rgba(0,245,255,.15)',
+        padding:'8px 14px'
+      }}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
+          <div style={{textAlign:'center'}}>
+            <div style={{
+              fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:2,
+              background:'linear-gradient(135deg,var(--cyan),var(--orange))',
+              WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'
+            }}>
+              {room.customTitle||'MARCADOR EN VIVO'}
+            </div>
+          </div>
+          <div className="room-code-badge">{code}</div>
         </div>
-        <div className="room-code-badge">{code}</div>
+        {/* Status bar animada */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{
+              width:8,height:8,borderRadius:'50%',background:statusColor,
+              boxShadow:`0 0 8px ${statusColor}`,
+              animation:isActive?'osBlink 1.2s ease-in-out infinite':'none'
+            }}/>
+            <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:statusColor,letterSpacing:2,fontWeight:700}}>
+              {isActive?'EN VIVO':isFinished?'TERMINADA':'LOBBY'}
+              {isActive&&` · ${players.filter(p=>!p.eliminated).length} activos`}
+            </span>
+          </div>
+          {isActive&&(
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)',textShadow:'var(--glow-g)'}}>
+              {fmtDuration(elapsed)}
+            </div>
+          )}
+          {rounds.length>0&&(
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>
+              R{rounds.length}{cfg.rounds&&cfg.rounds!=='libre'?`/${cfg.rounds}`:''}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="os-page" style={{paddingTop:16}}>
-        {/* Status */}
-        <div style={{
-          display:'flex',alignItems:'center',justifyContent:'space-between',
-          background:'var(--surface)',border:'1px solid var(--border)',
-          borderRadius:12,padding:'10px 14px',marginBottom:14
-        }}>
-          <div>
-            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:statusColor}}>
-              {room.customTitle||'Partida'}
-            </div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>
-              {players.length} jugadores · Sala {code}
-            </div>
-          </div>
-          <div style={{textAlign:'right'}}>
-            {room.status==='active'&&(
-              <div className="match-timer" style={{fontSize:'1.1rem'}}>{fmtDuration(elapsed)}</div>
-            )}
-            <div className="os-tag" style={{background:`${statusColor}18`,borderColor:`${statusColor}44`,color:statusColor,fontSize:'var(--fs-micro)'}}>
-              ● {statusLabel}
-            </div>
-          </div>
-        </div>
-
+      <div className="os-page" style={{paddingTop:12}}>
         {/* Tabs */}
-        <div style={{display:'flex',gap:6,marginBottom:16}}>
+        <div style={{display:'flex',gap:5,marginBottom:14}}>
           {[
             ['score','📊 Marcador'],
             ['rounds',`📋 Rondas${rounds.length>0?' ('+rounds.length+')':''}`]
           ].map(([id,lbl])=>(
             <button key={id} style={{
-              flex:1,border:'none',borderRadius:10,padding:'10px 4px',cursor:'pointer',
+              flex:1,border:'none',borderRadius:10,padding:'9px 4px',cursor:'pointer',
               fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',
               background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',
               color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'
@@ -212,44 +260,91 @@ function LiveScoreboard({ code, onBack, db }){
           ))}
         </div>
 
-        {/* ── TAB: MARCADOR ── */}
-        {tab==='score'&&(
-          <>
-            {sorted.map((p,i)=>{
-              const isFirst=i===0&&!p.eliminated;
-              const isElim=p.eliminated;
-              return(
-                <div key={p.id} className={`live-score-row ${isFirst?'first':''} ${isElim?'eliminated-row':''} anim-fade`}
-                  style={{animationDelay:i*.04+'s'}}>
-                  <div className="player-pos" style={{color:isFirst?'var(--gold)':isElim?'var(--red)':'rgba(255,255,255,.3)'}}>
-                    {isElim?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
-                  </div>
-                  <div className="player-emoji">{p.emoji}</div>
-                  <div style={{flex:1}}>
-                    <div className="player-name" style={{color:p.color||'#fff'}}>{p.name}</div>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
-                      {isStrike
-                        ? (isElim ? `💀 ${p.survivalLabel||'—'}` : '⏱ En juego')
-                        : (cfg.mode==='wins' ? `${p.wins||0} victorias` : `${p.total||0} pts`)
-                      }
-                    </div>
-                  </div>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.5)'}}>
+        {/* ── TAB: MARCADOR VISTOSO ── */}
+        {tab==='score'&&sorted.map((p,i)=>{
+          const isFirst=i===0&&!p.eliminated;
+          const isElim=p.eliminated;
+          const score=cfg.mode==='wins'?(p.wins||0):(p.total||0);
+          const pct=winPct(p,i);
+          const barW=isStrike?0:Math.round((score/barMax)*100);
+          const isChanged=changedIds.includes(p.id);
+          const posClass=['pos-1','pos-2','pos-3','other'][Math.min(i,3)];
+
+          return(
+            <div key={p.id}
+              className={`live-score-card ${posClass} ${isElim?'elim':''} ${isChanged?'score-changed':''} anim-fade`}
+              style={{animationDelay:i*.05+'s'}}>
+
+              {/* Posición + Avatar */}
+              <div style={{
+                fontFamily:'var(--font-display)',fontSize:'1.4rem',
+                width:32,textAlign:'center',flexShrink:0,
+                color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.25)'
+              }}>
+                {isElim?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
+              </div>
+              <div style={{fontSize:'1.9rem',flexShrink:0}}>{p.emoji}</div>
+
+              {/* Nombre + barra */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:4}}>
+                  <div style={{
+                    fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',
+                    color:isElim?'rgba(255,255,255,.3)':p.color||'#fff',
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'
+                  }}>{p.name}</div>
+                  <div style={{
+                    fontFamily:'var(--font-display)',fontSize:'1.2rem',
+                    color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.6)',
+                    flexShrink:0,marginLeft:8,
+                    transition:'color .3s',
+                    animation:isChanged?'scoreUp .4s cubic-bezier(.34,1.56,.64,1)':'none'
+                  }}>
                     {isStrike
-                      ? (isElim ? `#${p.finalPosition}` : '✓')
-                      : (cfg.mode==='wins' ? (p.wins||0)+'🏆' : (p.total||0))
+                      ? (isElim?`#${p.finalPosition}`:fmtDuration(elapsed))
+                      : (cfg.mode==='wins'?(score+'🏆'):(score+' pts'))
                     }
                   </div>
                 </div>
-              );
-            })}
-            <div className="os-alert alert-cyan" style={{marginTop:16,justifyContent:'center',textAlign:'center'}}>
-              👁 Solo lectura · Se actualiza en tiempo real
-            </div>
-          </>
-        )}
 
-        {/* ── TAB: HISTORIAL DE RONDAS ── */}
+                {/* Barra de progreso */}
+                {!isStrike&&!isElim&&(
+                  <div style={{
+                    height:5,borderRadius:3,background:'rgba(255,255,255,.08)',
+                    overflow:'hidden',marginBottom:3
+                  }}>
+                    <div style={{
+                      height:'100%',borderRadius:3,
+                      background:isFirst
+                        ? `linear-gradient(90deg,${p.color||'var(--gold)'},var(--gold))`
+                        : (p.color||'rgba(0,245,255,.5)'),
+                      width:`${Math.min(100,barW)}%`,
+                      transition:'width .6s cubic-bezier(.34,1.56,.64,1)',
+                      boxShadow:isFirst?`0 0 8px ${p.color||'var(--gold)'}88`:'none'
+                    }}/>
+                  </div>
+                )}
+
+                {/* Sub-info */}
+                <div style={{
+                  fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,
+                  color:'rgba(255,255,255,.3)',letterSpacing:1
+                }}>
+                  {isStrike
+                    ? (isElim?`💀 duró ${p.survivalLabel||'—'}`:'⏱ Contando...')
+                    : (target
+                        ? `${score}/${target} pts · ${Math.min(100,Math.round(score/target*100))}%`
+                        : (rounds.length>0
+                            ? `${p.wins||0} 🏆 · ${pct}% chances`
+                            : `${pct}% chances`))
+                  }
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* ── TAB: HISTORIAL HORIZONTAL (estilo Flip7) ── */}
         {tab==='rounds'&&(
           <>
             {rounds.length===0&&(
@@ -258,94 +353,80 @@ function LiveScoreboard({ code, onBack, db }){
                 <div>Aún no se han cerrado rondas</div>
               </div>
             )}
-            {[...rounds].reverse().map((r,i)=>{
-              const roundWinner=playerMap[r.winner];
-              // Ordenar scores de mayor a menor
-              const scoreEntries=Object.entries(r.scores||{})
-                .map(([pid,score])=>({player:playerMap[pid],score}))
-                .filter(e=>e.player)
-                .sort((a,b)=>b.score-a.score);
 
-              return(
-                <div key={r.number||i} className="anim-fade" style={{
-                  background:'var(--surface)',
-                  border:`1px solid ${i===0?'rgba(0,245,255,.25)':'var(--border)'}`,
-                  borderRadius:14,padding:'13px 15px',marginBottom:10
-                }}>
-                  {/* Header de ronda */}
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                    <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',letterSpacing:2,color:i===0?'var(--cyan)':'rgba(255,255,255,.5)'}}>
-                      RONDA {r.number}
-                      {i===0&&room.status==='active'&&(
-                        <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--green)',letterSpacing:1,marginLeft:8}}>ÚLTIMA</span>
-                      )}
-                    </div>
-                    {roundWinner&&(
-                      <div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <span style={{fontSize:'1.1rem'}}>{roundWinner.emoji}</span>
-                        <span style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-xs)',color:roundWinner.color||'var(--gold)',letterSpacing:1}}>
-                          {roundWinner.name}
-                        </span>
-                        <span style={{color:'var(--gold)'}}>🏆</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Scores de la ronda */}
-                  {scoreEntries.length>0&&(
-                    <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                      {scoreEntries.map(({player,score},si)=>(
-                        <div key={player.id} style={{
-                          display:'flex',alignItems:'center',gap:8,
-                          padding:'5px 8px',borderRadius:8,
-                          background:player.id===r.winner?'rgba(255,212,71,.08)':'rgba(255,255,255,.03)',
-                          border:`1px solid ${player.id===r.winner?'rgba(255,212,71,.2)':'transparent'}`
-                        }}>
-                          <div style={{fontSize:'1rem',width:24,textAlign:'center'}}>{player.emoji}</div>
-                          <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:player.color||'#fff'}}>
-                            {player.name}
-                          </div>
-                          <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
-                            color:player.id===r.winner?'var(--gold)':'rgba(255,255,255,.55)'}}>
-                            {score>0?'+':''}{score} pts
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Si es modo victorias (sin puntos individuales) */}
-                  {scoreEntries.length===0&&cfg.mode==='wins'&&roundWinner&&(
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.4)'}}>
-                      Ganador de ronda: {roundWinner.emoji} {roundWinner.name}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Resumen acumulado */}
+            {/* Rondas en horizontal scrollable */}
             {rounds.length>0&&(
               <>
-                <div className="os-section" style={{marginTop:8}}>RESUMEN ACUMULADO</div>
+                <div style={{
+                  overflowX:'auto',paddingBottom:8,marginBottom:16,
+                  WebkitOverflowScrolling:'touch'
+                }}>
+                  <div style={{display:'flex',gap:8,minWidth:'max-content',padding:'0 2px'}}>
+                    {rounds.map((r,ri)=>{
+                      const rw=playerMap[r.winner];
+                      return(
+                        <div key={r.number||ri} style={{
+                          minWidth:110,borderRadius:12,padding:'10px 12px',
+                          background:ri===rounds.length-1?'rgba(0,245,255,.08)':'rgba(255,255,255,.04)',
+                          border:`1px solid ${ri===rounds.length-1?'rgba(0,245,255,.3)':'rgba(255,255,255,.08)'}`,
+                          flexShrink:0
+                        }}>
+                          <div style={{
+                            fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:2,
+                            color:ri===rounds.length-1?'var(--cyan)':'rgba(255,255,255,.35)',marginBottom:6
+                          }}>R{r.number}</div>
+                          {rw&&(
+                            <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6}}>
+                              <span style={{fontSize:'1.2rem'}}>{rw.emoji}</span>
+                              <span style={{fontFamily:'var(--font-display)',fontSize:'.7rem',color:rw.color||'var(--gold)',letterSpacing:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:60}}>{rw.name}</span>
+                              <span style={{color:'var(--gold)'}}>🏆</span>
+                            </div>
+                          )}
+                          {r.condition&&(
+                            <div style={{fontFamily:'var(--font-label)',fontSize:'.6rem',color:'var(--gold)',letterSpacing:1,marginBottom:4}}>{r.condition}</div>
+                          )}
+                          {/* Mini scores */}
+                          {Object.entries(r.scores||{}).slice(0,3).map(([pid,score])=>{
+                            const pl=playerMap[pid];
+                            if(!pl) return null;
+                            return(
+                              <div key={pid} style={{
+                                display:'flex',alignItems:'center',gap:4,
+                                fontFamily:'var(--font-label)',fontSize:'.6rem',
+                                color:pl.id===r.winner?pl.color||'var(--gold)':'rgba(255,255,255,.35)',
+                                marginBottom:2
+                              }}>
+                                <span>{pl.emoji}</span>
+                                <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{pl.name}</span>
+                                <span style={{fontWeight:700}}>{score>0?'+':''}{score}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Tabla acumulada */}
+                <div className="os-section">ACUMULADO</div>
                 {sorted.map((p,i)=>(
-                  <div key={p.id} className="live-score-row" style={{marginBottom:6}}>
-                    <div className="player-pos" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.3)'}}>
+                  <div key={p.id} style={{
+                    display:'flex',alignItems:'center',gap:10,
+                    background:i===0?'rgba(255,212,71,.06)':'var(--surface)',
+                    border:`1px solid ${i===0?'rgba(255,212,71,.3)':'var(--border)'}`,
+                    borderRadius:12,padding:'10px 14px',marginBottom:6
+                  }}>
+                    <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',width:28,textAlign:'center',color:i===0?'var(--gold)':'rgba(255,255,255,.25)'}}>
                       {i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
                     </div>
-                    <div className="player-emoji">{p.emoji}</div>
+                    <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
                     <div style={{flex:1}}>
-                      <div className="player-name" style={{color:p.color||'#fff'}}>{p.name}</div>
+                      <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
                     </div>
                     <div style={{textAlign:'right'}}>
-                      {cfg.mode!=='wins'&&(
-                        <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:i===0?'var(--gold)':'rgba(255,255,255,.55)'}}>
-                          {p.total||0} pts
-                        </div>
-                      )}
-                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1}}>
-                        {p.wins||0} 🏆 victorias
-                      </div>
+                      {cfg.mode!=='wins'&&<div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:i===0?'var(--gold)':'rgba(255,255,255,.6)'}}>{p.total||0} pts</div>}
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1}}>{p.wins||0} 🏆</div>
                     </div>
                   </div>
                 ))}
