@@ -174,8 +174,10 @@ function ConfirmModal_R({ action, player, spec, onConfirm, onCancel }) {
 // ── PLAYER ACTION CARD ────────────────────────────────────────────
 function PlayerActionCard({ player, spec, actions, isHost, myId, onAction, currentRound }) {
   const [expanded, setExpanded] = React.useState(false);
-  const [modal, setModal] = React.useState(null); // { action }
+  const [modal, setModal] = React.useState(null);
   const isMe = player.id === myId;
+  // Host puede operar cualquier jugador; jugador solo puede operar a sí mismo
+  const canAct = isHost || isMe;
   const display = getScoreDisplay(player, spec);
 
   const primaryActions = actions.filter(a =>
@@ -550,6 +552,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   );
 
   const players = room.players || [];
+  const effectiveIsHost = isHost || (room.hostId && room.hostId === myId);
   const sorted = sortPlayers(players, spec);
   const currentRound = room.currentRound || 1;
   const totalRounds = spec.totalRounds;
@@ -634,15 +637,30 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
             player={player}
             spec={spec}
             actions={actions}
-            isHost={isHost}
+            isHost={effectiveIsHost}
             myId={myId}
             onAction={handlePlayerAction}
             currentRound={currentRound}
           />
         ))}
 
+        {/* Botón de auto-eliminación para jugador no-host en modo survival */}
+        {!effectiveIsHost && (() => {
+          const me = players.find(p => p.id === myId);
+          const isSurvival = spec.hasElimination || spec.victoryMode === 'lives' || spec.victoryMode === 'elimination';
+          if (!me || me.eliminated || !isSurvival) return null;
+          return (
+            <div style={{ marginTop: 8 }}>
+              <button className="btn-elim-big"
+                onClick={() => handlePlayerAction({id:'eliminate',icon:'💀',color:'var(--red)',type:'confirm_action'}, me.id, {reason:'manual'})}>
+                💀 ME ELIMINÉ
+              </button>
+            </div>
+          );
+        })()}
+
         {/* Panel del host */}
-        {isHost && (
+        {effectiveIsHost && (
           <HostPanel
             spec={spec}
             room={room}
@@ -652,9 +670,9 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
           />
         )}
 
-        {!isHost && (
+        {!effectiveIsHost && !players.find(p=>p.id===myId) && (
           <div className="os-alert alert-cyan" style={{ justifyContent: 'center', textAlign: 'center', marginTop: 16 }}>
-            ⏳ Esperando al host...
+            👁 Modo espectador · Solo lectura
           </div>
         )}
 
@@ -760,10 +778,11 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
 
 // ── HELPER ────────────────────────────────────────────────────────
 function _canSee(action, isHost, isMe) {
+  // Host siempre puede operar cualquier jugador
+  if (isHost) return true;
   if (!action.visibleTo) return true;
   if (action.visibleTo.includes('all')) return true;
-  if (isHost && action.visibleTo.includes('host')) return true;
-  if (isMe && action.visibleTo.includes('self')) return true;
-  if (!isHost && action.visibleTo.includes('player')) return true;
+  // El mismo jugador puede ver sus propias acciones
+  if (isMe && (action.visibleTo.includes('self') || action.visibleTo.includes('player'))) return true;
   return false;
 }

@@ -489,12 +489,34 @@ function App(){
 
   async function createRoom(gameType,customTitle,players,config){
     const code=uid4();
+    // Inicializar jugadores según config del motor
+    const cfg=config||{};
+    const initLives=cfg.registers?.includes('lives')||
+      cfg.accumulates==='lives'||
+      cfg.victoryMode==='lives'||
+      gameType==='preset:strike' ? 5 : null;
+
     await db.set(`rooms/${code}`,{
       code,gameType,customTitle,status:'lobby',hostId:myId,
-      createdAt:Date.now(),config:config||null,
-      players:players.map(p=>({
-        ...p,id:p.id||uid(),total:0,wins:0,rounds:[],
-        eliminated:false,finalPosition:null,survivalMs:null
+      createdAt:Date.now(),config:cfg||null,
+      players:players.map((p,i)=>({
+        ...p,
+        id:p.id||uid(),
+        // Scores
+        total:0,wins:0,rounds:[],
+        // Vidas (si aplica)
+        ...(initLives!==null?{lives:initLives}:{}),
+        // Recursos / monedas
+        ...(cfg.registers?.includes('resources')?{resources:0}:{}),
+        ...(cfg.registers?.includes('coins')?{coins:0}:{}),
+        ...(cfg.registers?.includes('objectives')?{objectives:0}:{}),
+        ...(cfg.registers?.includes('custom')?{custom:0}:{}),
+        // Estado
+        eliminated:false,finalPosition:null,survivalMs:null,
+        // Modificadores
+        activeShield:false,activeBlock:false,activeDouble:false,
+        // Token primer jugador
+        hasFirstPlayerToken:cfg.useFirstPlayerToken===true && i===0,
       })),
       events:[]
     });
@@ -508,28 +530,57 @@ function App(){
     if(!existing) return{error:'Sala no encontrada'};
     if(existing.status==='finished') return{error:'Esta partida ya terminó'};
     const players=[...(existing.players||[])];
-    const alreadyIn=players.find(p=>p.id===myId||p.id===playerId);
+
+    // Check if already in room with myId
+    const alreadyIn=players.find(p=>p.id===myId);
     if(!alreadyIn){
+      // Try to match by name (slot taken)
       const byName=players.find(p=>p.name.toLowerCase()===playerName.toLowerCase());
       if(byName){
-        const updated=players.map(p=>p.id===byName.id?{...p,id:myId,emoji:playerEmoji,color:playerColor}:p);
+        // Take over this slot — update ID to myId
+        const updated=players.map(p=>p.id===byName.id
+          ?{...p,id:myId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
+          :p);
+        await db.set(`rooms/${code}/players`,updated);
+      } else if(playerId && playerId!=='new' && players.find(p=>p.id===playerId)){
+        // Take over specific slot by ID
+        const updated=players.map(p=>p.id===playerId
+          ?{...p,id:myId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
+          :p);
         await db.set(`rooms/${code}/players`,updated);
       } else {
-        players.push({id:myId,name:playerName,emoji:playerEmoji,color:playerColor,total:0,wins:0,rounds:[],eliminated:false,finalPosition:null});
+        // New player
+        const cfg=existing.config||{};
+        const initLives=cfg.registers?.includes('lives')||cfg.accumulates==='lives'||cfg.victoryMode==='lives'?5:null;
+        const newPlayer={
+          id:myId,name:playerName,emoji:playerEmoji,color:playerColor,
+          total:0,wins:0,rounds:[],
+          ...(initLives!==null?{lives:initLives}:{}),
+          eliminated:false,finalPosition:null,survivalMs:null,
+          activeShield:false,activeBlock:false,activeDouble:false,
+        };
+        players.push(newPlayer);
         await db.set(`rooms/${code}/players`,players);
       }
     }
-    setSession({code,demo:false,date:existing.createdAt});
+
+    setSession({code,demo:false,date:existing.createdAt,myId});
     setIsHost(false);
-    if(existing.gameType==='preset:strike'){
+
+    const gt=existing.gameType||'';
+    if(gt==='preset:strike'){
       setScreen(existing.status==='active'?'strike-game':'strike-lobby');
+    } else if(gt.startsWith('generic:template')||gt==='universal'){
+      setScreen(existing.status==='active'?'universal-game':'universal-lobby');
     } else {
       setScreen(existing.status==='active'?'generic-game':'generic-lobby');
     }
     return{ok:true};
   }
 
-  const screenProps={session,onBack:goHome,isHost,myId,db};
+  // isHost se guarda en state pero también se puede derivar del room
+  // Pasamos ambos para que el runtime lo resuelva
+  const screenProps={session,onBack:goHome,isHost,myId,db,hostId:session?.hostId};
 
   if(screen==='loading') return(
     <div className="os-wrap">

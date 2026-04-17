@@ -48,9 +48,10 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const eliminatedPlayers=players.filter(p=>p.eliminated)
     .sort((a,b)=>(b.eliminatedOrder||0)-(a.eliminatedOrder||0));
 
-  // Bug fix: buscar por myId O por el slot que tomó el jugador al unirse
-  // El jugador puede haberse unido tomando el ID de otro slot
-  const me=players.find(p=>p.id===myId)||players.find(p=>p.name&&p.id===myId);
+  // Derivar isHost del room para sobrevivir recargas
+  const effectiveIsHost = isHost || (room.hostId && room.hostId===myId);
+  // Encontrar al jugador actual — buscar por myId directamente
+  const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
 
   // Motivos configurados en la sala o los default
@@ -106,6 +107,54 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     setElimReason(null);
   }
 
+  async function handleHostEliminate(targetId, reason){
+    snd('elim');
+    const now=Date.now();
+    const elimOrder=eliminatedPlayers.length+1;
+    const survivalMs=now-room.startedAt;
+    const updatedPlayers=players.map(p=>{
+      if(p.id!==targetId) return p;
+      return{
+        ...p,eliminated:true,eliminatedAt:now,survivalMs,
+        survivalLabel:fmtDuration(survivalMs),
+        eliminatedOrder:elimOrder,
+        elimReason:reason||'manual',
+        finalPosition:players.length-eliminatedPlayers.length
+      };
+    });
+    const remainingActive=updatedPlayers.filter(p=>!p.eliminated);
+    let updates={players:updatedPlayers};
+    if(remainingActive.length===1){
+      const winner=remainingActive[0];
+      const winnerUpdated=updatedPlayers.map(p=>{
+        if(p.id!==winner.id) return p;
+        return{...p,finalPosition:1,survivalMs:now-room.startedAt,
+          survivalLabel:fmtDuration(now-room.startedAt)};
+      });
+      updates={
+        players:winnerUpdated,status:'finished',endedAt:now,
+        winner:{id:winner.id,name:winner.name,emoji:winner.emoji}
+      };
+      snd('victory');
+      await saveSession({
+        sessionId:session.code+"_"+room.startedAt,
+        gameType:'preset:strike',gameTitle:'Strike 🎳',
+        customTitle:room.customTitle||'Strike 🎳',
+        startedAt:room.startedAt,endedAt:now,durationMs:now-room.startedAt,
+        hostId:room.hostId,playerCount:players.length,
+        players:winnerUpdated.map(p=>({
+          id:p.id,name:p.name,emoji:p.emoji,color:p.color,
+          finalPosition:p.finalPosition,eliminatedAt:p.eliminatedAt||null,
+          survivalMs:p.survivalMs||(now-room.startedAt),
+          survivalLabel:p.survivalLabel||fmtDuration(now-room.startedAt),
+          points:null,wins:null
+        })),
+        events:room.events||[]
+      },session.demo);
+    }
+    await db.set(`rooms/${session.code}`,{...room,...updates});
+  }
+
   if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack}/>;
 
   return(
@@ -135,8 +184,39 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           <div className="os-tag green">● EN JUEGO</div>
         </div>
 
+        {/* ── PANEL HOST: eliminar cualquier jugador ── */}
+        {effectiveIsHost && activePlayers.length > 0 && (
+          <div style={{
+            background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',
+            borderRadius:14,padding:'12px 14px',marginBottom:14
+          }}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.6)',letterSpacing:2,marginBottom:10}}>
+              ⚙️ PANEL HOST — ELIMINAR JUGADOR
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {activePlayers.map(p=>(
+                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,
+                  background:'rgba(255,255,255,.03)',borderRadius:10,padding:'8px 12px'}}>
+                  <div style={{fontSize:'1.3rem'}}>{p.emoji}</div>
+                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,
+                    fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
+                  <button
+                    style={{
+                      background:'rgba(255,59,92,.15)',border:'1px solid rgba(255,59,92,.3)',
+                      color:'var(--red)',borderRadius:8,padding:'6px 12px',cursor:'pointer',
+                      fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700
+                    }}
+                    onClick={()=>handleHostEliminate(p.id,'manual')}>
+                    💀 Eliminar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── PANEL DE ELIMINACIÓN — grande, visible para el propio jugador ── */}
-        {!alreadyElim && me && (
+        {!alreadyElim && me && !effectiveIsHost && (
           <div className="anim-slide" style={{marginBottom:20}}>
             {!showElimPanel ? (
               <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimPanel(true);}}>
@@ -240,7 +320,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           </>
         )}
 
-        {isHost&&activePlayers.length<=1&&room.status!=='finished'&&(
+        {effectiveIsHost&&activePlayers.length<=1&&room.status!=='finished'&&(
           <button className="btn btn-orange" onClick={async()=>{
             snd('round');
             await db.set(`rooms/${session.code}/status`,'finished');
@@ -320,6 +400,7 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
   React.useEffect(()=>{if(room?.status==='active')onStart();},[room?.status]);
 
   const players=room?.players||[];
+  const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
 
   async function startGame(){
     snd('round');
@@ -356,7 +437,7 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
         ))}
         {players.length<2&&<div className="os-alert alert-cyan">⏳ Mínimo 2 jugadores...</div>}
         <div className="g16"/>
-        {isHost
+        {effectiveIsHost
           ? <button className="btn btn-cyan" onClick={startGame} disabled={players.length<2}>🎳 INICIAR STRIKE</button>
           : <div className="os-alert alert-cyan" style={{textAlign:'center',justifyContent:'center'}}>⏳ Esperando que el host inicie...</div>
         }

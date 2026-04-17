@@ -630,19 +630,108 @@ function RPSTool({onBack}){
   );
 }
 
+// ── COUNTER TOOL ─────────────────────────────────────────────────
+function CounterTool({onBack}){
+  const [counters,setCounters]=React.useState([
+    {id:'c1',label:'Contador 1',value:0,color:'var(--green)'},
+  ]);
+  const [newLabel,setNewLabel]=React.useState('');
+
+  function change(id,delta){
+    snd('tap');
+    setCounters(cs=>cs.map(c=>c.id===id?{...c,value:c.value+delta}:c));
+  }
+  function reset(id){
+    snd('tap');
+    setCounters(cs=>cs.map(c=>c.id===id?{...c,value:0}:c));
+  }
+  function addCounter(){
+    if(!newLabel.trim()) return;
+    snd('join');
+    const colors=['var(--green)','var(--cyan)','var(--gold)','var(--purple)','var(--orange)','var(--red)'];
+    setCounters(cs=>[...cs,{id:'c'+Date.now(),label:newLabel.trim(),value:0,color:colors[cs.length%colors.length]}]);
+    setNewLabel('');
+  }
+
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Herramientas</button>
+        <div className="os-logo" style={{fontSize:'1.1rem'}}>🔢 <span>CONTADOR</span></div>
+        <div style={{width:80}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:16,textAlign:'center'}}>
+          Contador de apoyo · Vidas, maná, recursos, monedas...
+        </div>
+
+        {counters.map(c=>(
+          <div key={c.id} style={{
+            background:`${c.color}08`,border:`1px solid ${c.color}33`,
+            borderRadius:16,padding:'16px',marginBottom:12,textAlign:'center'
+          }}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:c.color,letterSpacing:2,marginBottom:8}}>
+              {c.label.toUpperCase()}
+            </div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'4rem',color:c.color,
+              textShadow:`0 0 20px ${c.color}66`,margin:'8px 0',lineHeight:1}}>
+              {c.value}
+            </div>
+            <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:12}}>
+              <button onClick={()=>change(c.id,-1)}
+                style={{width:56,height:56,borderRadius:14,border:`1px solid ${c.color}44`,
+                  background:`${c.color}15`,color:c.color,cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'1.8rem',transition:'all .15s'}}>
+                −
+              </button>
+              <button onClick={()=>reset(c.id)}
+                style={{width:56,height:56,borderRadius:14,border:'1px solid rgba(255,255,255,.1)',
+                  background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.4)',cursor:'pointer',
+                  fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,letterSpacing:1}}>
+                RST
+              </button>
+              <button onClick={()=>change(c.id,1)}
+                style={{width:56,height:56,borderRadius:14,border:`1px solid ${c.color}44`,
+                  background:`${c.color}15`,color:c.color,cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'1.8rem',transition:'all .15s'}}>
+                +
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {counters.length<5&&(
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <input className="os-input" style={{marginBottom:0,flex:1}}
+              placeholder="Nombre del contador..." value={newLabel}
+              onChange={e=>setNewLabel(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addCounter()} maxLength={20}/>
+            <button style={{background:'rgba(0,255,157,.1)',border:'1px solid rgba(0,255,157,.3)',
+              color:'var(--green)',borderRadius:11,padding:'0 16px',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1.1rem',flexShrink:0}}
+              onClick={addCounter}>+</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── TOOLS HUB ────────────────────────────────────────────────────
 function ToolsHub({onBack,players}){
   const [activeTool,setActiveTool]=React.useState(null);
-  if(activeTool==='coin')  return <CoinTool onBack={()=>setActiveTool(null)}/>;
-  if(activeTool==='dice')  return <DiceTool onBack={()=>setActiveTool(null)}/>;
-  if(activeTool==='wheel') return <SpinWheelTool onBack={()=>setActiveTool(null)} players={players}/>;
-  if(activeTool==='rps')   return <RPSTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='coin')    return <CoinTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='dice')    return <DiceTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='wheel')   return <SpinWheelTool onBack={()=>setActiveTool(null)} players={players}/>;
+  if(activeTool==='rps')     return <RPSTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='counter') return <CounterTool onBack={()=>setActiveTool(null)}/>;
 
   const tools=[
-    {id:'coin',  emoji:'🪙',title:'Moneda',            desc:'Cara o cruz · Animación 3D',           color:'var(--gold)'},
-    {id:'dice',  emoji:'🎲',title:'Dados',              desc:'d4 · d6 · d8 · d10 · d12 · d20',      color:'var(--cyan)'},
-    {id:'wheel', emoji:'🎡',title:'Ruleta',             desc:'Spin wheel · Reveal dramático',         color:'var(--orange)'},
-    {id:'rps',   emoji:'✊',title:'Piedra Papel Tijera',desc:'Batalla simultánea · Countdown 3-2-1', color:'var(--purple)'},
+    {id:'coin',    emoji:'🪙',title:'Moneda',             desc:'Cara o cruz animado',                color:'var(--gold)'},
+    {id:'dice',    emoji:'🎲',title:'Dados',               desc:'d4 · d6 · d8 · d10 · d12 · d20',   color:'var(--cyan)'},
+    {id:'wheel',   emoji:'🎡',title:'Ruleta',              desc:'Spin wheel con segmentos custom',    color:'var(--orange)'},
+    {id:'rps',     emoji:'✊',title:'Piedra Papel Tijera', desc:'Batalla simultánea · 3-2-1',         color:'var(--purple)'},
+    {id:'counter', emoji:'🔢',title:'Contador',            desc:'Vidas · Maná · Recursos · Fichas',  color:'var(--green)'},
   ];
 
   return(
@@ -692,3 +781,4 @@ function ToolsHub({onBack,players}){
     </div>
   );
 }
+

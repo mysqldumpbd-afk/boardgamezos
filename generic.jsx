@@ -331,6 +331,7 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
 
   const players=room?.players||[];
   const config=room?.config||{};
+  const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
 
   async function startGame(){
     snd('round');
@@ -372,7 +373,7 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
           </div>
         ))}
         <div className="g16"/>
-        {isHost
+        {effectiveIsHost
           ? <button className="btn btn-cyan" onClick={startGame} disabled={players.length<2}>⚔️ INICIAR PARTIDA</button>
           : <div className="os-alert alert-cyan" style={{justifyContent:'center',textAlign:'center'}}>⏳ Esperando que el host inicie...</div>
         }
@@ -432,7 +433,8 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const totalRounds=isFreeSessions?null:parseInt(config.rounds)||null;
   const currentRound=room.currentRound||1;
   const isSurvival=config.mode==='survival';
-  // Bug fix: jugador puede haber tomado un slot con ID diferente al unirse
+  // Derivar isHost del room (sobrevive recargas)
+  const effectiveIsHost=isHost||(room.hostId&&room.hostId===myId);
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
   const winConditions=config.winConditions||[];
@@ -459,7 +461,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     return config.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0);
   });
 
-  if(editingPlayer&&isHost){
+  if(editingPlayer&&effectiveIsHost){
     const p=players.find(pl=>pl.id===editingPlayer);
     if(!p){setEditingPlayer(null);return null;}
     return <PlayerPicker_G player={p}
@@ -642,10 +644,10 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
               className={`player-row ${isLeading?'winner-row':p.eliminated?'eliminated':''} anim-fade`}
               style={{
                 animationDelay:i*.04+'s',marginBottom:6,
-                cursor:isHost?'pointer':'default',
+                cursor:effectiveIsHost?'pointer':'default',
                 transition:'all .4s cubic-bezier(.34,1.56,.64,1)'
               }}
-              onClick={()=>isHost&&setEditingPlayer(p.id)}>
+              onClick={()=>effectiveIsHost&&setEditingPlayer(p.id)}>
               <div className="player-pos" style={{
                 color:isLeading?'var(--gold)':p.eliminated?'var(--red)':'rgba(255,255,255,.3)',
                 transition:'color .3s'
@@ -657,7 +659,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
                 <div className="player-name" style={{color:p.color||'#fff'}}>
                   {p.name}
                   {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
-                  {isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.2)',marginLeft:5}}>✏️</span>}
+                  {effectiveIsHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.2)',marginLeft:5}}>✏️</span>}
                 </div>
                 {/* Última ronda */}
                 {(p.rounds||[]).length>0&&(
@@ -685,8 +687,61 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
           );
         })}
 
+        {/* PANEL HOST — SURVIVAL: eliminar jugadores */}
+        {effectiveIsHost&&isSurvival&&(
+          <div style={{
+            background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',
+            borderRadius:14,padding:'12px 14px',marginBottom:14,marginTop:8
+          }}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.6)',letterSpacing:2,marginBottom:10}}>
+              ⚙️ PANEL HOST — ELIMINAR JUGADOR
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {players.filter(p=>!p.eliminated).map(p=>(
+                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,
+                  background:'rgba(255,255,255,.03)',borderRadius:10,padding:'8px 12px'}}>
+                  <div style={{fontSize:'1.3rem'}}>{p.emoji}</div>
+                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,
+                    fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>
+                    {p.name}
+                    {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
+                  </div>
+                  <button
+                    style={{background:'rgba(255,59,92,.15)',border:'1px solid rgba(255,59,92,.3)',
+                      color:'var(--red)',borderRadius:8,padding:'6px 12px',cursor:'pointer',
+                      fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700}}
+                    onClick={async()=>{
+                      snd('elim');
+                      const now=Date.now();
+                      const elimPlayers=players.filter(pl=>pl.eliminated);
+                      const survivalMs=now-room.startedAt;
+                      const updated=players.map(pl=>{
+                        if(pl.id!==p.id) return pl;
+                        return{...pl,eliminated:true,eliminatedAt:now,survivalMs,
+                          survivalLabel:fmtDuration(survivalMs),
+                          eliminatedOrder:elimPlayers.length+1,
+                          finalPosition:players.length-elimPlayers.length};
+                      });
+                      const remaining=updated.filter(pl=>!pl.eliminated);
+                      let upd={players:updated};
+                      if(remaining.length===1){
+                        const winner=remaining[0];
+                        const wUpd=updated.map(pl=>pl.id!==winner.id?pl:{...pl,finalPosition:1,survivalMs:now-room.startedAt,survivalLabel:fmtDuration(now-room.startedAt)});
+                        upd={players:wUpd,status:'finished',endedAt:now,winner:{id:winner.id,name:winner.name,emoji:winner.emoji}};
+                        snd('victory');
+                      }
+                      await db.set(`rooms/${session.code}`,{...room,...upd});
+                    }}>
+                    💀 Eliminar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* PANEL HOST */}
-        {isHost&&!isSurvival&&(
+        {effectiveIsHost&&!isSurvival&&(
           <>
             <div className="os-section" style={{marginTop:20}}>
               RONDA {currentRound}{totalRounds?` DE ${totalRounds}`:''}
@@ -788,13 +843,13 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
           </>
         )}
 
-        {isHost&&isSurvival&&(
+        {effectiveIsHost&&isSurvival&&(
           <button className="btn btn-red" style={{marginTop:16}} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
             🏁 Terminar partida
           </button>
         )}
 
-        {!isHost&&(
+        {!effectiveIsHost&&(
           <div className="os-alert alert-cyan" style={{marginTop:16,justifyContent:'center',textAlign:'center'}}>
             ⏳ Esperando al host...
           </div>

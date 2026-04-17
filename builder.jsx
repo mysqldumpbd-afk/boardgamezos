@@ -171,6 +171,8 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
 
   React.useEffect(()=>{
     if(!user) return;
+    // Sembrar templates preset si es primera vez
+    seedPresetTemplates(user.uid).catch(()=>{});
     loadGameTemplates(user.uid).then(t=>{ setTemplates(t); setLoading(false); });
   },[user?.uid]);
 
@@ -328,6 +330,8 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
 function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   const TOTAL_STEPS = 9;
   const [step, setStep] = React.useState(1);
+  const [openSection, setOpenSection] = React.useState(1); // for section-based mode
+  const [sectionMode, setSectionMode] = React.useState(false); // false=wizard, true=sections
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
 
@@ -534,10 +538,14 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     }));
   }
 
+  const [saveError, setSaveError] = React.useState('');
+
   async function handleSave(){
     if(!tmpl.name.trim()){ alert('El juego necesita un nombre'); return; }
     setSaving(true);
+    setSaveError('');
     snd('save');
+    try {
     const saved = await saveGameTemplate(user.uid, {
       ...tmpl,
       config: {
@@ -653,7 +661,12 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     });
     setSaving(false);
     setSaved(true);
-    setTimeout(()=>onSaved(saved), 1200);
+    setTimeout(()=>onSaved(saved), 1500);
+    } catch(e) {
+      console.error('Save error:', e);
+      setSaving(false);
+      setSaveError('Error al guardar: ' + (e.message || 'intenta de nuevo'));
+    }
   }
 
   const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PROGRESO','ELIMINACIÓN','HERRAMIENTAS','ROLES','FINALIZACIÓN'];
@@ -722,33 +735,68 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
 
   return(
     <div className="os-wrap">
-      {/* Header con progreso */}
+      {/* Header */}
       <div className="os-header">
         <button className="btn btn-ghost btn-sm" style={{width:'auto'}}
-          onClick={()=>step>1?setStep(step-1):onBack()}>← {step>1?stepTitles[step-2]:'Mis juegos'}</button>
-        <div style={{fontFamily:'var(--font-ui)',fontSize:'.6rem',color:'rgba(0,245,255,.5)',letterSpacing:3}}>
-          {step}/{TOTAL_STEPS}
-        </div>
-        <div style={{fontFamily:'var(--font-ui)',fontSize:'.55rem',color:'rgba(255,255,255,.3)',letterSpacing:2,maxWidth:80,textAlign:'right'}}>
-          {stepTitles[step-1]}
+          onClick={()=>{
+            if(sectionMode) onBack();
+            else if(step>1) setStep(step-1);
+            else onBack();
+          }}>
+          ← {sectionMode?'Mis juegos':step>1?stepTitles[step-2]:'Mis juegos'}
+        </button>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'.55rem',color:'rgba(255,255,255,.3)',letterSpacing:2}}>
+            {sectionMode?'SECCIONES':step+'/'+TOTAL_STEPS}
+          </div>
+          {/* Toggle wizard/secciones */}
+          <button onClick={()=>{snd('tap');setSectionMode(m=>!m);}}
+            style={{background:'rgba(155,93,229,.15)',border:'1px solid rgba(155,93,229,.3)',color:'var(--purple)',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,letterSpacing:1}}>
+            {sectionMode?'📋 Wizard':'📐 Secciones'}
+          </button>
         </div>
       </div>
 
-      {/* Barra de progreso */}
-      <div style={{height:3,background:'rgba(255,255,255,.06)',position:'relative',zIndex:10}}>
-        <div style={{
-          height:'100%',
-          width:`${(step/TOTAL_STEPS)*100}%`,
-          background:'linear-gradient(90deg,var(--purple),var(--cyan))',
-          transition:'width .3s ease',
-          boxShadow:'0 0 8px rgba(0,245,255,.4)'
-        }}/>
-      </div>
+      {/* Barra de progreso (solo en wizard) */}
+      {!sectionMode && (
+        <div style={{height:3,background:'rgba(255,255,255,.06)',position:'relative',zIndex:10}}>
+          <div style={{height:'100%',width:`${(step/TOTAL_STEPS)*100}%`,background:'linear-gradient(90deg,var(--purple),var(--cyan))',transition:'width .3s ease',boxShadow:'0 0 8px rgba(0,245,255,.4))'}}/>
+        </div>
+      )}
+
+      {/* Tabs de sección (solo en section mode) */}
+      {sectionMode && (
+        <div style={{display:'flex',gap:4,padding:'8px 12px',overflowX:'auto',background:'rgba(0,0,0,.3)',borderBottom:'1px solid rgba(255,255,255,.06)'}}>
+          {[
+            {n:1,icon:'🎮',label:'ID'},
+            {n:2,icon:'🏗️',label:'Struct.'},
+            {n:3,icon:'🏆',label:'Victoria'},
+            {n:4,icon:'💀',label:'Derrota'},
+            {n:5,icon:'📊',label:'Progreso'},
+            {n:6,icon:'⚔️',label:'Elim.'},
+            {n:7,icon:'🧰',label:'Herram.'},
+            {n:8,icon:'👥',label:'Roles'},
+            {n:9,icon:'🏁',label:'Final'},
+          ].map(s=>(
+            <button key={s.n} onClick={()=>{snd('tap');setOpenSection(s.n);}}
+              style={{
+                flexShrink:0,padding:'6px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,letterSpacing:.5,
+                background:openSection===s.n?'rgba(155,93,229,.25)':'rgba(255,255,255,.05)',
+                color:openSection===s.n?'var(--purple)':'rgba(255,255,255,.4)',
+                borderBottom:openSection===s.n?'2px solid var(--purple)':'2px solid transparent',
+                display:'flex',alignItems:'center',gap:4,
+              }}>
+              {s.icon} {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="os-page" style={{paddingTop:16}}>
 
         {/* ── PASO 1: IDENTIDAD ── */}
-        {step===1 && (
+        {(sectionMode ? openSection===1 : step===1) && (
           <div className="anim-fade">
             {/* Emoji picker compacto */}
             <div style={{textAlign:'center',marginBottom:20}}>
@@ -867,7 +915,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 2: ESTRUCTURA ── */}
-        {step===2 && (
+        {(sectionMode ? openSection===2 : step===2) && (
           <div className="anim-fade">
             {/* Título de sección */}
             <div style={{
@@ -1126,7 +1174,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 3: CONDICIÓN DE VICTORIA ── */}
-        {step===3 && (
+        {(sectionMode ? openSection===3 : step===3) && (
           <div className="anim-fade">
             {/* Título */}
             <div style={{
@@ -1349,7 +1397,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 4: CONDICIÓN DE DERROTA ── */}
-        {step===4 && (
+        {(sectionMode ? openSection===4 : step===4) && (
           <div className="anim-fade">
             {/* Título */}
             <div style={{
@@ -1563,7 +1611,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 5: SISTEMA DE PROGRESO / REGISTRO ── */}
-        {step===5 && (
+        {(sectionMode ? openSection===5 : step===5) && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -1788,7 +1836,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 6: ELIMINACIÓN ── */}
-        {step===6 && (
+        {(sectionMode ? openSection===6 : step===6) && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -1985,7 +2033,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 7: HERRAMIENTAS INTEGRADAS ── */}
-        {step===7 && (
+        {(sectionMode ? openSection===7 : step===7) && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -2214,14 +2262,15 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
               </div>
             </div>
 
+            {saveError&&<div className="os-alert alert-red" style={{marginBottom:8,fontSize:'var(--fs-micro)'}}>{saveError}</div>}
             <button className="btn btn-purple" disabled={saving} onClick={handleSave}>
-              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':`💾 Guardar "${tmpl.name}"`}
+              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':saveError?'🔄 Reintentar':`💾 Guardar "${tmpl.name}"`}
             </button>
           </div>
         )}
 
         {/* ── PASO 8: ROLES, VISIBILIDAD Y PERMISOS ── */}
-        {step===8 && (
+        {(sectionMode ? openSection===8 : step===8) && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -2370,7 +2419,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         )}
 
         {/* ── PASO 9: FINALIZACIÓN ── */}
-        {step===9 && (
+        {(sectionMode ? openSection===9 : step===9) && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -2533,23 +2582,32 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
               ))}
             </div>
 
+            {saveError&&<div className="os-alert alert-red" style={{marginBottom:8,fontSize:'var(--fs-micro)'}}>{saveError}</div>}
             <button className="btn btn-purple" disabled={saving} onClick={handleSave}>
-              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':`💾 Guardar "${tmpl.name}"`}
+              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':saveError?'🔄 Reintentar':`💾 Guardar "${tmpl.name}"`}
             </button>
           </div>
         )}
 
         {/* Navegación */}
         <div className="g16"/>
-        {step < TOTAL_STEPS && (
+        {!sectionMode && step < TOTAL_STEPS && (
           <button className="btn btn-cyan" disabled={!canNext}
             onClick={()=>{snd('tap');setStep(step+1);}}>
             Siguiente → {stepTitles[step]}
           </button>
         )}
-        <button className="btn btn-ghost" onClick={()=>step>1?setStep(step-1):onBack()}>
-          {step>1?'← Atrás':'← Cancelar'}
-        </button>
+        {sectionMode && (
+          <div style={{display:'flex',gap:8}}>
+            {openSection>1&&<button className="btn btn-ghost" style={{flex:.5}} onClick={()=>{snd('tap');setOpenSection(s=>s-1);}}>← Anterior</button>}
+            {openSection<TOTAL_STEPS&&<button className="btn btn-cyan" style={{flex:1}} onClick={()=>{snd('tap');setOpenSection(s=>s+1);}}>Siguiente →</button>}
+          </div>
+        )}
+        {!sectionMode && (
+          <button className="btn btn-ghost" onClick={()=>step>1?setStep(step-1):onBack()}>
+            {step>1?'← Atrás':'← Cancelar'}
+          </button>
+        )}
       </div>
     </div>
   );

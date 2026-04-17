@@ -183,6 +183,93 @@ function describeTemplate(t){
   return `${mode} · ${rounds}`;
 }
 
+// ── PRESET GAME TEMPLATES ───────────────────────────────────────
+// Templates precargados que demuestran el motor completo
+function getPresetTemplates(){
+  return [
+    {
+      id:'preset_strike', name:'Strike', emoji:'🎳', description:'Supervivencia · El último en pie gana',
+      config:{
+        type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',
+        useRounds:false, useTurns:false, useFirstPlayerToken:false, useTimer:false,
+        victoryMode:'lives', livesWinMode:'last_alive', tiebreak:'host',
+        winConditions:['Sin dados','Sin cartas','Last stand','Sin recursos','Time out'],
+        useDefeat:true, defeatType:'lives', defeatLives:'zero',
+        defeatMoment:'immediate', defeatConsequence:'eliminated',
+        registers:['lives'], captureType:'manual', valueNature:'positive',
+        accumulation:'global', modifiers:[], capturedBy:'self', scoreVisibility:'all',
+        useElimination:true, elimStartsAt:'round_1', elimMethod:'zero_lives',
+        elimTieRule:'host', elimAftermath:'out',
+        useTools:false, tools:[], toolsMode:'informal',
+        roles:['host','player'], scoreCapture:'self', roundCloseWho:'host',
+        endConditions:['last_elim'], showEndScreen:true, saveHistory:true,
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        // Legado
+        accumulates:'lives', scoreSign:'positive',
+      }
+    },
+    {
+      id:'preset_cubilete', name:'Cubilete', emoji:'🎲', description:'Dados con cubilete · Fichas · El último con vida gana',
+      config:{
+        type:'individual', minPlayers:2, maxPlayers:6, roomAccess:'code',
+        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
+        useTurns:true, turnOrder:'fixed', canSkipTurn:false, hasExtraTurns:false,
+        turnLimitPerRound:false, useFirstPlayerToken:true, useTimer:false,
+        victoryMode:'lives', livesWinMode:'last_alive', tiebreak:'host',
+        winConditions:['Par','Dos pares','Tercia','Full','Póker','Quintilla'],
+        useDefeat:true, defeatType:'lives', defeatLives:'zero',
+        defeatMoment:'round_end', defeatConsequence:'eliminated',
+        registers:['lives'], captureType:'manual', valueNature:'positive',
+        accumulation:'always_keep', modifiers:['penalty'], capturedBy:'host', scoreVisibility:'all',
+        useElimination:true, elimStartsAt:'round_1', elimMethod:'zero_lives',
+        elimTieRule:'host', elimAftermath:'out',
+        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
+        toolsAffect:[], coinUse:'free', wheelSegments:'fixed', rpsScope:'any',
+        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
+        pauseWho:'host', errorWho:'host', visHost:'all', visPlayer:'all', visSpectator:'score',
+        endConditions:['last_elim'], showEndScreen:true, saveHistory:true,
+        exportFormat:['image'],
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        accumulates:'lives', scoreSign:'positive',
+      }
+    },
+    {
+      id:'preset_uno', name:'UNO', emoji:'🃏', description:'Puntos por cartas · El primero en llegar a 500 gana',
+      config:{
+        type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',
+        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
+        useTurns:true, turnOrder:'rotating', canSkipTurn:true, hasExtraTurns:true,
+        turnLimitPerRound:false, useFirstPlayerToken:true, useTimer:false,
+        victoryMode:'points', pointsWinMode:'reach_x', targetScore:500, pointsValidation:'instant',
+        tiebreak:'host',
+        winConditions:['UNO!','Color especial','Comodín +4','Reversa','Salto'],
+        useDefeat:false,
+        registers:['points'], captureType:'manual', valueNature:'positive',
+        accumulation:'global', modifiers:['penalty','bonus'], capturedBy:'host', scoreVisibility:'all',
+        useElimination:false,
+        useTools:true, tools:['coin'], toolsMode:'informal', toolsRegistered:'no',
+        coinUse:'order', toolsAffect:[],
+        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
+        endConditions:['victory'], showEndScreen:true, saveHistory:true,
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        accumulates:'points', scoreSign:'positive',
+      }
+    }
+  ];
+}
+
+async function seedPresetTemplates(uid){
+  // Solo siembra si el usuario no tiene templates aún
+  const existing = await _db.ref(`gameTemplates/${uid}`).once('value');
+  if(existing.val()) return; // ya tiene templates
+  const presets = getPresetTemplates();
+  for(const p of presets){
+    await _db.ref(`gameTemplates/${uid}/${p.id}`).set({
+      ...p, uid, updatedAt:Date.now(), createdAt:Date.now()
+    });
+  }
+}
+
 // ── GAME PRESETS ─────────────────────────────────────────────────
 const GAME_PRESETS={
   strike:{
