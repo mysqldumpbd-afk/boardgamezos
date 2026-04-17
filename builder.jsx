@@ -326,7 +326,7 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
 
 // ── GAME BUILDER WIZARD ──────────────────────────────────────────
 function GameBuilder({ user, editingTemplate, onBack, onSaved }){
-  const TOTAL_STEPS = 7;
+  const TOTAL_STEPS = 9;
   const [step, setStep] = React.useState(1);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -444,6 +444,27 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       wheelSegments: 'fixed',          // fixed | custom | weighted
       // PPS
       rpsScope: 'any',                 // any | active_only
+      // Sec 8 — Roles y permisos
+      roles: ['host','player'],        // roles activos: host | player | spectator | judge | recorder
+      scoreCapture: 'host',            // host | self | all | judge
+      toolsWho: 'all',                 // all | host | player | judge
+      roundCloseWho: 'host',           // host | all | judge
+      pauseWho: 'host',                // host | all
+      errorWho: 'host',                // host | judge | all
+      // Visibilidad por rol
+      visHost: 'all',                  // all | partial | score_only
+      visPlayer: 'partial',            // all | partial | own_only
+      visSpectator: 'score',           // score | all | none
+      // Sec 9 — Finalización
+      endConditions: ['victory'],      // victory | rounds_done | time_up | last_elim | manual
+      showEndScreen: true,
+      saveHistory: true,
+      exportFormat: [],                // json | csv | image | report
+      rematchKeepPlayers: true,
+      rematchKeepRoom: true,
+      rematchKeepConfig: true,
+      rematchResetScore: true,
+      rematchResetAll: false,
     };
   });
 
@@ -478,6 +499,30 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       toolsAffect: prev.toolsAffect.includes(effect)
         ? prev.toolsAffect.filter(e=>e!==effect)
         : [...prev.toolsAffect, effect]
+    }));
+  }
+  function toggleRole(role){
+    setTmpl(prev=>({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter(r=>r!==role)
+        : [...prev.roles, role]
+    }));
+  }
+  function toggleEndCond(cond){
+    setTmpl(prev=>({
+      ...prev,
+      endConditions: prev.endConditions.includes(cond)
+        ? prev.endConditions.filter(c=>c!==cond)
+        : [...prev.endConditions, cond]
+    }));
+  }
+  function toggleExport(fmt){
+    setTmpl(prev=>({
+      ...prev,
+      exportFormat: prev.exportFormat.includes(fmt)
+        ? prev.exportFormat.filter(f=>f!==fmt)
+        : [...prev.exportFormat, fmt]
     }));
   }
   function toggleArr(field, val){
@@ -583,6 +628,26 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         coinUse: tmpl.coinUse,
         wheelSegments: tmpl.wheelSegments,
         rpsScope: tmpl.rpsScope,
+        // Roles y permisos
+        roles: tmpl.roles,
+        scoreCapture: tmpl.scoreCapture,
+        toolsWho: tmpl.toolsWho,
+        roundCloseWho: tmpl.roundCloseWho,
+        pauseWho: tmpl.pauseWho,
+        errorWho: tmpl.errorWho,
+        visHost: tmpl.visHost,
+        visPlayer: tmpl.visPlayer,
+        visSpectator: tmpl.visSpectator,
+        // Finalización
+        endConditions: tmpl.endConditions,
+        showEndScreen: tmpl.showEndScreen,
+        saveHistory: tmpl.saveHistory,
+        exportFormat: tmpl.exportFormat,
+        rematchKeepPlayers: tmpl.rematchKeepPlayers,
+        rematchKeepRoom: tmpl.rematchKeepRoom,
+        rematchKeepConfig: tmpl.rematchKeepConfig,
+        rematchResetScore: tmpl.rematchResetScore,
+        rematchResetAll: tmpl.rematchResetAll,
       }
     });
     setSaving(false);
@@ -590,7 +655,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     setTimeout(()=>onSaved(saved), 1200);
   }
 
-  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PROGRESO','ELIMINACIÓN','HERRAMIENTAS'];
+  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PROGRESO','ELIMINACIÓN','HERRAMIENTAS','ROLES','FINALIZACIÓN'];
   const canNext = step===1 ? tmpl.name.trim().length>=2 : true;
 
   // ── Sección helpers ──
@@ -2119,6 +2184,325 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                   {' · '}Visible: <strong>{({all:'todos',host:'solo host',player:'c/jugador',hidden_round_end:'oculto/ronda'})[tmpl.scoreVisibility]}</strong>
                 </div>
               </div>
+            </div>
+
+            <button className="btn btn-purple" disabled={saving} onClick={handleSave}>
+              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':`💾 Guardar "${tmpl.name}"`}
+            </button>
+          </div>
+        )}
+
+        {/* ── PASO 8: ROLES, VISIBILIDAD Y PERMISOS ── */}
+        {step===8 && (
+          <div className="anim-fade">
+
+            {/* Título */}
+            <div style={{textAlign:'center',background:'linear-gradient(135deg,rgba(74,144,255,.08),rgba(0,245,255,.04))',border:'1px solid rgba(74,144,255,.2)',borderRadius:14,padding:'14px 16px',marginBottom:20}}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>👥</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--blue)'}}>ROLES Y PERMISOS</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>¿QUIÉN PUEDE HACER QUÉ?</div>
+            </div>
+
+            {/* ══ A: Roles activos ══ */}
+            <div style={{background:'rgba(74,144,255,.04)',border:'1px solid rgba(74,144,255,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--blue)',marginBottom:10}}>🎭 ROLES ACTIVOS EN LA PARTIDA</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+                Selecciona los roles que pueden existir. Host y Jugador siempre están activos.
+              </div>
+              {[
+                {id:'host',     icon:'👑', label:'Host',       sub:'Controla el flujo de la partida — siempre presente', locked:true},
+                {id:'player',   icon:'🎮', label:'Jugador',    sub:'Participa activamente en la partida — siempre presente', locked:true},
+                {id:'spectator',icon:'👁', label:'Espectador', sub:'Solo puede ver — no participa ni anota'},
+                {id:'judge',    icon:'⚖️', label:'Juez',       sub:'Árbitro neutral — puede resolver disputas y corregir errores'},
+                {id:'recorder', icon:'📝', label:'Anotador',   sub:'Solo puede registrar puntos — no toma decisiones de juego'},
+              ].map(r=>{
+                const active=r.locked||tmpl.roles.includes(r.id);
+                return(
+                  <div key={r.id} className="check-row"
+                    style={{borderColor:active?'rgba(74,144,255,.4)':undefined,background:active?'rgba(74,144,255,.07)':undefined,marginBottom:6,opacity:r.locked?.8:1}}
+                    onClick={()=>{if(!r.locked){snd('tap');toggleRole(r.id);}}}>
+                    <div style={{fontSize:'1.4rem',width:34,textAlign:'center',flexShrink:0}}>{r.icon}</div>
+                    <div style={{flex:1}}>
+                      <div className="check-label" style={{color:active?'var(--blue)':'#fff'}}>
+                        {r.label}{r.locked&&<span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.5)',marginLeft:8}}>siempre</span>}
+                      </div>
+                      <div className="check-sub">{r.sub}</div>
+                    </div>
+                    <div className="check-box" style={{borderColor:active?'var(--blue)':undefined,background:active?'var(--blue)':undefined,color:active?'#fff':undefined}}>{active?'✓':''}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ══ B: Permisos de acción ══ */}
+            <div style={{background:'rgba(0,245,255,.04)',border:'1px solid rgba(0,245,255,.15)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--cyan)',marginBottom:10}}>⚙️ PERMISOS DE ACCIÓN</div>
+              {[
+                {
+                  label:'¿Quién captura puntajes?',
+                  field:'scoreCapture',
+                  opts:[
+                    {v:'host',    label:'Solo el host',          sub:'El host registra todos los puntajes'},
+                    {v:'self',    label:'Cada jugador el suyo',  sub:'Cada quien captura sus propios puntos'},
+                    {v:'all',     label:'Todos pueden',          sub:'Cualquiera puede capturar puntos de cualquier jugador'},
+                    {v:'judge',   label:'Juez / Anotador',       sub:'Solo el rol de juez o anotador registra'},
+                  ]
+                },
+                {
+                  label:'¿Quién usa las herramientas?',
+                  field:'toolsWho',
+                  opts:[
+                    {v:'all',    label:'Todos pueden usarlas', sub:'Cualquier jugador accede al menú de herramientas'},
+                    {v:'host',   label:'Solo el host',          sub:'El host controla cuándo se usa una herramienta'},
+                    {v:'player', label:'Solo los jugadores',   sub:'El host no necesita usarlas'},
+                    {v:'judge',  label:'Solo el juez',         sub:'El árbitro decide cuándo se usa una herramienta'},
+                  ]
+                },
+                {
+                  label:'¿Quién cierra la ronda?',
+                  field:'roundCloseWho',
+                  opts:[
+                    {v:'host',  label:'Solo el host',       sub:'El host determina cuándo termina la ronda'},
+                    {v:'all',   label:'Cualquier jugador',  sub:'Cualquier participante puede cerrar la ronda'},
+                    {v:'judge', label:'El juez',            sub:'El árbitro da la señal de cierre'},
+                  ]
+                },
+                {
+                  label:'¿Quién puede pausar?',
+                  field:'pauseWho',
+                  opts:[
+                    {v:'host',  label:'Solo el host',          sub:'Solo el host puede pausar la partida'},
+                    {v:'all',   label:'Cualquier jugador',     sub:'Cualquier participante puede solicitar pausa'},
+                  ]
+                },
+                {
+                  label:'¿Quién puede corregir errores?',
+                  field:'errorWho',
+                  opts:[
+                    {v:'host',  label:'Solo el host',          sub:'El host tiene autoridad para editar registros'},
+                    {v:'judge', label:'El juez',               sub:'El árbitro es quien valida y corrige'},
+                    {v:'all',   label:'Cualquier jugador',     sub:'Todos pueden proponer correcciones'},
+                  ]
+                },
+              ].map(section=>(
+                <div key={section.field} style={{marginBottom:14}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.6)',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>{section.label}</div>
+                  {section.opts.map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl[section.field]===o.v}
+                      onClick={()=>{snd('tap');upd(section.field,o.v);}}
+                      color="var(--cyan)"/>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* ══ C: Visibilidad por rol ══ */}
+            <div style={{background:'rgba(155,93,229,.04)',border:'1px solid rgba(155,93,229,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--purple)',marginBottom:10}}>👁 ¿QUÉ VE CADA ROL?</div>
+              {[
+                {
+                  label:'Host ve',field:'visHost',
+                  opts:[
+                    {v:'all',        label:'Todo — marcador completo y controles', sub:'Visión total de la partida'},
+                    {v:'partial',    label:'Todo excepto ciertos datos',           sub:'Puede haber información oculta incluso para el host'},
+                    {v:'score_only', label:'Solo el marcador',                     sub:'El host actúa sin ver otros detalles'},
+                  ]
+                },
+                {
+                  label:'Jugador ve',field:'visPlayer',
+                  opts:[
+                    {v:'all',      label:'Todos ven todo',             sub:'Marcador público y completo para todos'},
+                    {v:'partial',  label:'Ven parcialmente',           sub:'Ven el marcador pero no todos los controles'},
+                    {v:'own_only', label:'Solo sus propios datos',     sub:'Cada quien solo ve su propio puntaje'},
+                  ]
+                },
+                {
+                  label:'Espectador ve',field:'visSpectator',
+                  opts:[
+                    {v:'score', label:'Solo el marcador en vivo', sub:'Ve posiciones y puntos pero no los controles'},
+                    {v:'all',   label:'Todo (misma vista que jugadores)', sub:'Acceso completo en modo solo lectura'},
+                    {v:'none',  label:'Nada — partida privada',      sub:'Los espectadores no pueden ver nada'},
+                  ]
+                },
+              ].map(section=>(
+                <div key={section.field} style={{marginBottom:14}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.6)',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>{section.label}</div>
+                  {section.opts.map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl[section.field]===o.v}
+                      onClick={()=>{snd('tap');upd(section.field,o.v);}}
+                      color="var(--purple)"/>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+          </div>
+        )}
+
+        {/* ── PASO 9: FINALIZACIÓN ── */}
+        {step===9 && (
+          <div className="anim-fade">
+
+            {/* Título */}
+            <div style={{textAlign:'center',background:'linear-gradient(135deg,rgba(0,255,157,.07),rgba(255,212,71,.04))',border:'1px solid rgba(0,255,157,.2)',borderRadius:14,padding:'14px 16px',marginBottom:20}}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>🏁</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--green)'}}>FINALIZACIÓN</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>¿CÓMO TERMINA LA PARTIDA?</div>
+            </div>
+
+            {/* ══ A: Condiciones de fin ══ */}
+            <div style={{background:'rgba(0,255,157,.04)',border:'1px solid rgba(0,255,157,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--green)',marginBottom:10}}>🎯 ¿CÓMO TERMINA LA PARTIDA?</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>Selecciona todas las formas en que puede terminar. Pueden coexistir varias.</div>
+              {[
+                {id:'victory',   icon:'🏆', label:'Condición de victoria',  sub:'Un jugador cumple la condición configurada en el Paso 3'},
+                {id:'rounds_done',icon:'🔄',label:'Fin de rondas',           sub:'Se completan todas las rondas configuradas'},
+                {id:'time_up',   icon:'⏱', label:'Tiempo agotado',          sub:'El temporizador total de la partida llega a 0'},
+                {id:'last_elim', icon:'💀', label:'Eliminación final',       sub:'Solo queda un jugador activo'},
+                {id:'manual',    icon:'✋', label:'Cierre manual',           sub:'El host decide cuándo terminar la partida'},
+              ].map(c=>{
+                const active=tmpl.endConditions.includes(c.id);
+                return(
+                  <div key={c.id} className="check-row"
+                    style={{borderColor:active?'rgba(0,255,157,.4)':undefined,background:active?'rgba(0,255,157,.07)':undefined,marginBottom:6}}
+                    onClick={()=>{snd('tap');toggleEndCond(c.id);}}>
+                    <div style={{fontSize:'1.4rem',width:34,textAlign:'center',flexShrink:0}}>{c.icon}</div>
+                    <div style={{flex:1}}>
+                      <div className="check-label" style={{color:active?'var(--green)':'#fff'}}>{c.label}</div>
+                      <div className="check-sub">{c.sub}</div>
+                    </div>
+                    <div className="check-box" style={{borderColor:active?'var(--green)':undefined,background:active?'var(--green)':undefined,color:active?'var(--bg)':undefined}}>{active?'✓':''}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ══ B: Pantalla final e historial ══ */}
+            <div style={{background:'rgba(255,212,71,.04)',border:'1px solid rgba(255,212,71,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--gold)',marginBottom:10}}>🖥 PANTALLA FINAL E HISTORIAL</div>
+
+              {[
+                {field:'showEndScreen',label:'¿Hay pantalla final?',sub:'Mostrar pantalla de resultados animada al terminar'},
+                {field:'saveHistory',  label:'¿Se guarda historial?',sub:'Los resultados quedan guardados en las estadísticas globales'},
+              ].map(opt=>(
+                <div key={opt.field} className={`check-row ${tmpl[opt.field]?'active':''}`}
+                  style={{borderColor:tmpl[opt.field]?'rgba(255,212,71,.4)':undefined,background:tmpl[opt.field]?'rgba(255,212,71,.08)':undefined,marginBottom:8}}
+                  onClick={()=>{snd('tap');upd(opt.field,!tmpl[opt.field]);}}>
+                  <div className="check-box" style={{borderColor:tmpl[opt.field]?'var(--gold)':undefined,background:tmpl[opt.field]?'var(--gold)':undefined,color:tmpl[opt.field]?'var(--bg)':undefined}}>{tmpl[opt.field]?'✓':''}</div>
+                  <div><div className="check-label">{opt.label}</div><div className="check-sub">{opt.sub}</div></div>
+                </div>
+              ))}
+
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,212,71,.6)',letterSpacing:2,marginTop:10,marginBottom:8}}>¿SE EXPORTA EL RESULTADO?</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>Formatos disponibles al terminar la partida.</div>
+              {[
+                {id:'json',   icon:'📦', label:'JSON',           sub:'Datos estructurados para integraciones'},
+                {id:'csv',    icon:'📊', label:'CSV',            sub:'Tabla de resultados en formato hoja de cálculo'},
+                {id:'image',  icon:'🖼', label:'Imagen resumen', sub:'Captura visual del marcador final'},
+                {id:'report', icon:'📋', label:'Reporte',        sub:'Resumen detallado con estadísticas de la partida'},
+              ].map(f=>{
+                const active=tmpl.exportFormat.includes(f.id);
+                return(
+                  <div key={f.id} className="check-row"
+                    style={{borderColor:active?'rgba(255,212,71,.4)':undefined,background:active?'rgba(255,212,71,.07)':undefined,marginBottom:6}}
+                    onClick={()=>{snd('tap');toggleExport(f.id);}}>
+                    <div style={{fontSize:'1.3rem',width:34,textAlign:'center',flexShrink:0}}>{f.icon}</div>
+                    <div style={{flex:1}}>
+                      <div className="check-label" style={{color:active?'var(--gold)':'#fff'}}>{f.label}</div>
+                      <div className="check-sub">{f.sub}</div>
+                    </div>
+                    <div className="check-box" style={{borderColor:active?'var(--gold)':undefined,background:active?'var(--gold)':undefined,color:active?'var(--bg)':undefined}}>{active?'✓':''}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ══ C: Revancha ══ */}
+            <div style={{background:'rgba(255,107,53,.04)',border:'1px solid rgba(255,107,53,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--orange)',marginBottom:10}}>🔁 ¿HAY REVANCHA?</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>Configura qué se conserva y qué se reinicia al jugar de nuevo.</div>
+
+              {[
+                {field:'rematchKeepPlayers', label:'Mantener jugadores',       sub:'Los mismos jugadores en la nueva partida'},
+                {field:'rematchKeepRoom',    label:'Mantener sala',            sub:'Se usa el mismo código de sala'},
+                {field:'rematchKeepConfig',  label:'Mantener configuración',   sub:'Mismas reglas y modo de juego'},
+                {field:'rematchResetScore',  label:'Reiniciar score',          sub:'Todos los puntajes vuelven a 0'},
+                {field:'rematchResetAll',    label:'Reiniciar todo',           sub:'Como si fuera una partida completamente nueva'},
+              ].map(opt=>{
+                const active=tmpl[opt.field];
+                return(
+                  <div key={opt.field} className="check-row"
+                    style={{borderColor:active?'rgba(255,107,53,.4)':undefined,background:active?'rgba(255,107,53,.07)':undefined,marginBottom:6}}
+                    onClick={()=>{
+                      snd('tap');
+                      // Si activa "reiniciar todo", desactiva los individuales
+                      if(opt.field==='rematchResetAll'&&!active){
+                        setTmpl(prev=>({...prev,rematchResetAll:true,rematchKeepPlayers:false,rematchKeepRoom:false,rematchKeepConfig:false,rematchResetScore:true}));
+                      } else if(opt.field!=='rematchResetAll'){
+                        if(opt.field==='rematchResetScore'||opt.field==='rematchKeepPlayers'||opt.field==='rematchKeepRoom'||opt.field==='rematchKeepConfig'){
+                          upd('rematchResetAll',false);
+                        }
+                        upd(opt.field,!active);
+                      } else {
+                        upd(opt.field,!active);
+                      }
+                    }}>
+                    <div className="check-box" style={{borderColor:active?'var(--orange)':undefined,background:active?'var(--orange)':undefined,color:active?'#fff':undefined}}>{active?'✓':''}</div>
+                    <div><div className="check-label" style={{color:active?'var(--orange)':'#fff'}}>{opt.label}</div><div className="check-sub">{opt.sub}</div></div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Resumen final completo */}
+            <div className="os-section" style={{marginTop:8}}>RESUMEN COMPLETO DEL JUEGO</div>
+            <div style={{background:'linear-gradient(135deg,rgba(0,255,157,.06),rgba(155,93,229,.04))',border:'1px solid rgba(0,255,157,.2)',borderRadius:14,padding:'16px 15px',marginBottom:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                <div style={{fontSize:'2.5rem'}}>{tmpl.emoji}</div>
+                <div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:1,color:'#fff'}}>{tmpl.name}</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{tmpl.description||'Sin descripción'}</div>
+                </div>
+              </div>
+
+              {/* Tags resumen */}
+              <div className="os-tags" style={{marginBottom:14}}>
+                <div className="os-tag">{tmpl.type==='teams'?`👥 ${tmpl.numTeams} eq.`:'👤 Individual'}</div>
+                <div className="os-tag">{tmpl.minPlayers}-{tmpl.maxPlayers} jug.</div>
+                <div className="os-tag">{tmpl.useRounds?(tmpl.rounds==='libre'?'∞ rondas':`${tmpl.rounds} rondas`):'Sin rondas'}</div>
+                {tmpl.useTurns&&<div className="os-tag purple">↕️ Turnos</div>}
+                {tmpl.useFirstPlayerToken&&<div className="os-tag gold">👑</div>}
+                {tmpl.useTimer&&<div className="os-tag orange">⏱</div>}
+                <div className="os-tag gold">{tmpl.victoryMode==='points'?'🏅':tmpl.victoryMode==='wins'?'🏆':tmpl.victoryMode==='lives'?'❤️':tmpl.victoryMode==='elimination'?'💀':tmpl.victoryMode==='objective'?'🎯':tmpl.victoryMode==='time'?'⏱':'👑'} {tmpl.victoryMode}</div>
+                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota</div>}
+                {tmpl.useElimination&&<div className="os-tag red">💀 Elim.</div>}
+                {tmpl.registers.length>0&&<div className="os-tag green">📊 {tmpl.registers.length} reg.</div>}
+                {tmpl.modifiers.length>0&&<div className="os-tag orange">⚡ {tmpl.modifiers.length} mods</div>}
+                {tmpl.useTools&&tmpl.tools.length>0&&<div className="os-tag purple">🧰 {tmpl.tools.length}</div>}
+                {tmpl.roles.filter(r=>!['host','player'].includes(r)).length>0&&<div className="os-tag cyan">👥 +{tmpl.roles.filter(r=>!['host','player'].includes(r)).length} roles</div>}
+              </div>
+
+              {/* Secciones en lista compacta */}
+              {[
+                {icon:'🏗️', label:'Estructura', val:`${tmpl.useRounds?(tmpl.rounds==='libre'?'∞ rondas':`${tmpl.rounds} rondas`):'Continua'} · Cierre: ${({manual:'manual',timer:'timer',all_done:'auto'})[tmpl.roundClose]} · Reset: ${({nothing:'nada',round_points:'pts',turns:'turnos',temp_tools:'herr.'})[tmpl.roundReset]}`},
+                {icon:'⏱', label:'Turnos/Timer', val:`Turnos: ${tmpl.useTurns?({fixed:'fijos',random:'aleatorios',rotating:'rotativos',by_score:'por puntaje'})[tmpl.turnOrder]:'No'} · Timer: ${tmpl.useTimer?`${tmpl.timerSecs}s/${tmpl.timerScope}`:'Off'}`},
+                {icon:'🏆', label:'Victoria', val:`${({points:'Puntos',wins:'Victorias',lives:'Vidas',elimination:'Eliminación',objective:'Objetivo',time:'Tiempo',manual:'Manual'})[tmpl.victoryMode]} · Desempate: ${({share:'compartir',tool:'herramienta',host:'host'})[tmpl.tiebreak]}`},
+                tmpl.useDefeat&&{icon:'💀', label:'Derrota', val:`${({points:'Puntos',wins:'Victorias',lives:'Vidas',elimination:'Eliminación',time:'Tiempo',objective:'Objetivo fallido',external:'Evento externo'})[tmpl.defeatType]} · ${({eliminated:'eliminado',spectator:'espectador',lose_turn:'pierde turno',lose_points:'pierde pts',temp_penalty:'penalización',weakened:'debilitado',log_only:'registro'})[tmpl.defeatConsequence]}`},
+                tmpl.useElimination&&{icon:'⚔️', label:'Eliminación', val:`Desde ${({round_1:'R1',round_2:'R2',round_3:'R3',round_n:`R${tmpl.elimStartRound}`})[tmpl.elimStartsAt]} · ${({last_place:'último lugar',lowest_score:'menor pts',zero_lives:'0 vidas',special_condition:'condición esp.',manual:'manual'})[tmpl.elimMethod]} · Después: ${({out:'sale',spectator:'espectador',keep_score:'mantiene score',partial:'parcial'})[tmpl.elimAftermath]}`},
+                {icon:'📊', label:'Progreso', val:`${tmpl.registers.map(r=>({points:'Pts',wins:'Vict',lives:'Vidas',resources:'Rec',coins:'Mon',objectives:'Obj',custom:tmpl.customCounterName||'Custom'}[r])).join('+')} · ${({manual:'manual',auto:'auto',tool:'herr.',camera:'cámara',ai:'IA',mixed:'mixto'})[tmpl.captureType]} · ${({global:'global',per_round:'c/ronda',reset:'reinicia',always_keep:'siempre'})[tmpl.accumulation]}`},
+                {icon:'👥', label:'Roles', val:`Cap: ${({host:'host',self:'c/jugador',all:'todos',judge:'juez'})[tmpl.scoreCapture]} · Cierre ronda: ${({host:'host',all:'todos',judge:'juez'})[tmpl.roundCloseWho]} · Jugador ve: ${({all:'todo',partial:'parcial',own_only:'solo suyo'})[tmpl.visPlayer]}`},
+                {icon:'🏁', label:'Fin', val:`${tmpl.endConditions.map(c=>({victory:'Victoria',rounds_done:'Rondas',time_up:'Tiempo',last_elim:'Elim.',manual:'Manual'}[c])).join('+')} · ${tmpl.showEndScreen?'Pantalla final':'Sin pantalla'} · ${tmpl.saveHistory?'Guarda historial':'Sin historial'}`},
+                tmpl.exportFormat.length>0&&{icon:'📤', label:'Exporta', val:tmpl.exportFormat.join(', ').toUpperCase()},
+                {icon:'🔁', label:'Revancha', val:`${[tmpl.rematchKeepPlayers&&'jugadores',tmpl.rematchKeepRoom&&'sala',tmpl.rematchKeepConfig&&'config',tmpl.rematchResetScore&&'reset score'].filter(Boolean).join(' · ')||'Todo nuevo'}`},
+              ].filter(Boolean).map((row,i)=>(
+                <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:6,paddingBottom:6,borderBottom:'1px solid rgba(255,255,255,.05)'}}>
+                  <span style={{fontSize:'.95rem',flexShrink:0,width:20}}>{row.icon}</span>
+                  <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,flexShrink:0,minWidth:60}}>{row.label}:</span>
+                  <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.55)',letterSpacing:.5,lineHeight:1.4}}>{row.val}</span>
+                </div>
+              ))}
             </div>
 
             <button className="btn btn-purple" disabled={saving} onClick={handleSave}>
