@@ -454,19 +454,46 @@ function App(){
   const [spectateCode,setSpectateCode]=useState(null);
   const db=makeDB(false);
 
-  // Cargar perfil al inicio — siempre va al home, perfil se pide al crear sala
+  // ── INIT: restaurar sesión, perfil, presencia ──────────────────
   useEffect(()=>{
     authOnChange(u=>setAuthUser(u||null));
+
+    // 1. Cargar perfil
     const p=getProfile();
     if(p&&p.name) setProfile(p);
-    // Detectar revancha pendiente
-    const rematchCode=localStorage.getItem('bgos_rematch_code');
-    if(rematchCode){
-      localStorage.removeItem('bgos_rematch_code');
-      setSpectateCode(rematchCode);
-      setScreen('live-scoreboard');
+
+    // 2. Intentar restaurar sesión activa (sobrevive recargas)
+    const saved=getActiveSession();
+    if(saved && saved.code){
+      // Verificar que la sala sigue viva
+      const db2=makeDB(false);
+      db2.get(`rooms/${saved.code}`).then(room=>{
+        if(room && room.status!=='finished'){
+          setSession({code:saved.code,demo:false,date:room.createdAt});
+          setIsHost(saved.isHost||false);
+          if(saved.templateConfig) setPlayTemplate({config:saved.templateConfig,name:room.customTitle||''});
+          setScreen(saved.screen||'home');
+          // Reactivar presencia
+          const profile2=getProfile();
+          if(profile2?.id) setupPresence(saved.code,profile2.id);
+        } else {
+          clearActiveSession();
+          _restoreNormal(p);
+        }
+      }).catch(()=>{ clearActiveSession(); _restoreNormal(p); });
     } else {
-      setScreen('home');
+      _restoreNormal(p);
+    }
+
+    function _restoreNormal(prof){
+      const rematchCode=localStorage.getItem('bgos_rematch_code');
+      if(rematchCode){
+        localStorage.removeItem('bgos_rematch_code');
+        setSpectateCode(rematchCode);
+        setScreen('live-scoreboard');
+      } else {
+        setScreen('home');
+      }
     }
   },[]);
 
@@ -476,7 +503,10 @@ function App(){
   // El myId viene del perfil guardado
   const myId=profile?.id||null;
 
-  function goHome(){ setScreen('home'); setSession(null); setIsHost(false); setPlayTemplate(null); }
+  function goHome(){
+    setScreen('home'); setSession(null); setIsHost(false); setPlayTemplate(null);
+    clearActiveSession(); teardownPresence();
+  }
 
   function updateProfile(p){
     saveProfile(p);
@@ -522,6 +552,11 @@ function App(){
     });
     setSession({code,demo:false,date:Date.now()});
     setIsHost(true);
+    // Persistir sesión para sobrevivir recargas
+    const prof=getProfile();
+    saveActiveSession({code,isHost:true,gameType,screen:gameType==='preset:strike'?'strike-lobby':'generic-lobby',myId:prof?.id});
+    // Activar presencia
+    if(prof?.id) setupPresence(code,prof.id);
     return code;
   }
 
@@ -568,13 +603,23 @@ function App(){
     setIsHost(false);
 
     const gt=existing.gameType||'';
+    let targetScreen='home';
     if(gt==='preset:strike'){
-      setScreen(existing.status==='active'?'strike-game':'strike-lobby');
+      targetScreen=existing.status==='active'?'strike-game':'strike-lobby';
     } else if(gt.startsWith('generic:template')||gt==='universal'){
-      setScreen(existing.status==='active'?'universal-game':'universal-lobby');
+      targetScreen=existing.status==='active'?'universal-game':'universal-lobby';
+      // Cargar config del template desde el room para players que se unen
+      if(existing.config) setPlayTemplate({config:existing.config,name:existing.customTitle||''});
     } else {
-      setScreen(existing.status==='active'?'generic-game':'generic-lobby');
+      targetScreen=existing.status==='active'?'generic-game':'generic-lobby';
     }
+    setScreen(targetScreen);
+    // Persistir sesión
+    const prof=getProfile();
+    saveActiveSession({code,isHost:false,gameType:gt,screen:targetScreen,myId:prof?.id,
+      templateConfig:existing.config||null});
+    // Activar presencia
+    if(prof?.id) setupPresence(code,prof.id);
     return{ok:true};
   }
 
@@ -690,14 +735,14 @@ function App(){
           onStart={()=>setScreen('universal-game')}
         />
       )}
-      {screen==='universal-game' && session && playTemplate && (
+      {screen==='universal-game' && session && (
         <UniversalRuntime
           session={session}
           onBack={goHome}
           isHost={isHost}
           myId={myId}
           db={db}
-          templateConfig={playTemplate.config||{}}
+          templateConfig={playTemplate?.config||null}
         />
       )}
 

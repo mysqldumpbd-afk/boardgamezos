@@ -279,3 +279,108 @@ const GAME_PRESETS={
     config:{rounds:null,usePoints:false,useTimer:false,eliminationType:'self',minPlayers:2,maxPlayers:10}
   }
 };
+
+// ── SESSION PERSISTENCE ─────────────────────────────────────────
+const SESSION_KEY='bgos_active_session';
+
+function saveActiveSession(data){
+  // data: {code, isHost, gameType, screen, myId, templateConfig}
+  try{
+    localStorage.setItem(SESSION_KEY,JSON.stringify({...data,savedAt:Date.now()}));
+  }catch(e){}
+}
+function getActiveSession(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+    if(!s) return null;
+    // Expira a las 4 horas
+    if(Date.now()-s.savedAt>4*60*60*1000){ clearActiveSession(); return null; }
+    return s;
+  }catch{ return null; }
+}
+function clearActiveSession(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+
+// ── PRESENCE SYSTEM ─────────────────────────────────────────────
+let _presRef=null, _presInterval=null;
+
+function setupPresence(roomCode,playerId){
+  if(!roomCode||!playerId) return;
+  teardownPresence();
+  _presRef=_db.ref(`rooms/${roomCode}/presence/${playerId}`);
+  const connRef=_db.ref('.info/connected');
+  connRef.on('value',snap=>{
+    if(snap.val()===true){
+      _presRef.onDisconnect().set({status:'offline',lastSeen:firebase.database.ServerValue.TIMESTAMP});
+      _presRef.set({status:'online',lastSeen:firebase.database.ServerValue.TIMESTAMP});
+      _presInterval=setInterval(()=>{
+        _presRef&&_presRef.update({lastSeen:firebase.database.ServerValue.TIMESTAMP});
+      },25000);
+    }
+  });
+}
+
+function teardownPresence(){
+  if(_presRef){
+    try{_presRef.onDisconnect().cancel();}catch(e){}
+    _presRef=null;
+  }
+  if(_presInterval){ clearInterval(_presInterval); _presInterval=null; }
+}
+
+function listenPresence(roomCode,callback){
+  const ref=_db.ref(`rooms/${roomCode}/presence`);
+  ref.on('value',snap=>{
+    const raw=snap.val()||{};
+    const now=Date.now();
+    const result={};
+    Object.entries(raw).forEach(([pid,data])=>{
+      const age=now-(data.lastSeen||0);
+      let status=data.status||'offline';
+      if(status==='online'&&age>90000) status='away';
+      if(status==='online'&&age>150000) status='offline';
+      result[pid]={...data,status,age};
+    });
+    callback(result);
+  });
+  return ()=>ref.off('value');
+}
+
+// Colores y etiquetas de status — usar solo colores en UI, glosario en manual
+const PRESENCE_CONFIG={
+  online:   {color:'#00FF9D',label:'Activo'},
+  away:     {color:'#FFD447',label:'Ausente'},
+  offline:  {color:'rgba(255,255,255,.2)',label:'Desconectado'},
+  pending:  {color:'#4A90FF',label:'Por entrar'},
+  eliminated:{color:'#FF3B5C',label:'Eliminado'},
+  spectator:{color:'#9B5DE5',label:'Espectador'},
+};
+function getPresenceColor(status){ return (PRESENCE_CONFIG[status]||PRESENCE_CONFIG.offline).color; }
+
+// ── EVENT LOG — CORE UNDO/REDO ───────────────────────────────────
+async function logEvent(roomCode,event){
+  const id=uid_fn();
+  const full={id,...event,ts:Date.now(),reverted:false,revertedAt:null,revertedBy:null};
+  await _db.ref(`rooms/${roomCode}/eventLog/${id}`).set(full);
+  return full;
+}
+async function revertEvent(roomCode,eventId,revertedBy){
+  await _db.ref(`rooms/${roomCode}/eventLog/${eventId}`).update({
+    reverted:true,revertedAt:Date.now(),revertedBy
+  });
+}
+function listenEventLog(roomCode,callback){
+  const ref=_db.ref(`rooms/${roomCode}/eventLog`);
+  ref.on('value',snap=>{
+    const val=snap.val()||{};
+    callback(Object.values(val).sort((a,b)=>a.ts-b.ts));
+  });
+  return ()=>ref.off('value');
+}
+function getLastRevertibleEvent(events,playerId){
+  const types=['add_points','add_win','lose_life','apply_bonus','apply_penalty'];
+  return events
+    .filter(e=>!e.reverted&&e.playerId===playerId&&types.includes(e.type))
+    .sort((a,b)=>b.ts-a.ts)[0]||null;
+}

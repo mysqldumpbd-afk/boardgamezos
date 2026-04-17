@@ -332,6 +332,13 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
   const players=room?.players||[];
   const config=room?.config||{};
   const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
+  const [presence,setPresence]=React.useState({});
+  React.useEffect(()=>{
+    if(!session?.code||!myId) return;
+    setupPresence(session.code,myId);
+    const unsub=listenPresence(session.code,setPresence);
+    return ()=>{ teardownPresence(); unsub&&unsub(); };
+  },[session?.code,myId]);
 
   async function startGame(){
     snd('round');
@@ -437,6 +444,15 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const effectiveIsHost=isHost||(room.hostId&&room.hostId===myId);
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
+
+  // Presencia
+  const [presence,setPresence]=React.useState({});
+  React.useEffect(()=>{
+    if(!session?.code||!myId) return;
+    setupPresence(session.code,myId);
+    const unsub=listenPresence(session.code,setPresence);
+    return ()=>{ teardownPresence(); unsub&&unsub(); };
+  },[session?.code,myId]);
   const winConditions=config.winConditions||[];
 
   // Auto-calcular ganador de ronda por puntos

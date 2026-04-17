@@ -21,6 +21,15 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const [elapsed,setElapsed]=React.useState(0);
   const [showElimPanel,setShowElimPanel]=React.useState(false);
   const [elimReason,setElimReason]=React.useState(null);
+  const [presence,setPresence]=React.useState({});
+
+  // Presencia — setup + listen
+  React.useEffect(()=>{
+    if(!session?.code||!myId) return;
+    setupPresence(session.code,myId);
+    const unsub=listenPresence(session.code,setPresence);
+    return ()=>{ teardownPresence(); unsub&&unsub(); };
+  },[session?.code,myId]);
   const [showEndScreen,setShowEndScreen]=React.useState(false);
   const timerRef=React.useRef(null);
 
@@ -283,9 +292,10 @@ function StrikeGame({session,onBack,isHost,myId,db}){
             <div key={p.id} className="survival-card in-game anim-fade" style={{animationDelay:i*.05+'s'}}>
               <div className="player-emoji">{p.emoji}</div>
               <div className="survival-info">
-                <div className="survival-name" style={{color:p.color||'#fff'}}>
+                <div className="survival-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:5}}>
+                  {(()=>{const prs=presence[p.id];const st=!prs?'pending':prs.status;const col=getPresenceColor(st);return <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,boxShadow:`0 0 6px ${col}`}}/>;}())}
                   {p.name}
-                  {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:6}}>TÚ</span>}
+                  {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
                 </div>
                 <div className="survival-time live">⏱ {fmtDuration(elapsed)}</div>
               </div>
@@ -401,6 +411,13 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
 
   const players=room?.players||[];
   const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
+  const [presence,setPresence]=React.useState({});
+  React.useEffect(()=>{
+    if(!session?.code||!myId) return;
+    setupPresence(session.code,myId);
+    const unsub=listenPresence(session.code,setPresence);
+    return ()=>{ teardownPresence(); unsub&&unsub(); };
+  },[session?.code,myId]);
 
   async function startGame(){
     snd('round');

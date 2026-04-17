@@ -172,7 +172,7 @@ function ConfirmModal_R({ action, player, spec, onConfirm, onCancel }) {
 }
 
 // ── PLAYER ACTION CARD ────────────────────────────────────────────
-function PlayerActionCard({ player, spec, actions, isHost, myId, onAction, currentRound }) {
+function PlayerActionCard({ player, spec, actions, isHost, myId, onAction, currentRound, presence }) {
   const [expanded, setExpanded] = React.useState(false);
   const [modal, setModal] = React.useState(null);
   const isMe = player.id === myId;
@@ -262,6 +262,13 @@ function PlayerActionCard({ player, spec, actions, isHost, myId, onAction, curre
           <div className="player-emoji">{player.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 'var(--fs-base)', color: player.color || '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Status dot */}
+              {(() => {
+                const pres = presence?.[player.id];
+                const status = player.eliminated ? 'eliminated' : !pres ? 'pending' : pres.status;
+                const col = getPresenceColor(status);
+                return <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,display:'inline-block',boxShadow:`0 0 6px ${col}`}} title={status}/>;
+              })()}
               {player.name}
               {isMe && <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.5rem', color: 'var(--cyan)', letterSpacing: 2 }}>TÚ</span>}
               {player.activeShield && <span title="Escudo activo">🛡️</span>}
@@ -430,17 +437,39 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   const [victoryResult, setVictoryResult] = React.useState(null);
   const timerRef = React.useRef(null);
 
-  // Interpretar el config una sola vez
-  const spec = React.useMemo(() => {
-    const s = interpret(templateConfig);
-    window._runtimeSpec = s; // para acceso en modals
-    return s;
-  }, [templateConfig]);
+  // Interpretar el config — puede venir del prop o del room en Firebase
+  const [resolvedConfig, setResolvedConfig] = React.useState(templateConfig);
 
   React.useEffect(() => {
     const unsub = db.listen(`rooms/${session.code}`, data => {
-      if (data) setRoom(data);
+      if (data) {
+        setRoom(data);
+        // Si no tenemos config del prop, cargarlo del room
+        if (!resolvedConfig && data.config) {
+          setResolvedConfig(data.config);
+        }
+      }
     });
+    return () => unsub && unsub();
+  }, [session.code]);
+
+  const spec = React.useMemo(() => {
+    const s = interpret(resolvedConfig);
+    window._runtimeSpec = s;
+    return s;
+  }, [resolvedConfig]);
+
+  // Presencia
+  React.useEffect(() => {
+    if (myId && session.code) setupPresence(session.code, myId);
+    return () => teardownPresence();
+  }, [session.code, myId]);
+
+  // Presencia de otros jugadores
+  const [presence, setPresence] = React.useState({});
+  React.useEffect(() => {
+    if (!session.code) return;
+    const unsub = listenPresence(session.code, setPresence);
     return () => unsub && unsub();
   }, [session.code]);
 
@@ -539,10 +568,13 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     }
   }
 
-  if (!room) return (
+  if (!room || !resolvedConfig) return (
     <div className="os-wrap">
       <div className="os-page" style={{ paddingTop: 80, textAlign: 'center' }}>
         <div className="os-spin" style={{ marginBottom: 16 }} />
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:2}}>
+          {!room ? 'CONECTANDO...' : 'CARGANDO CONFIG...'}
+        </div>
       </div>
     </div>
   );
@@ -641,6 +673,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
             myId={myId}
             onAction={handlePlayerAction}
             currentRound={currentRound}
+            presence={presence}
           />
         ))}
 
