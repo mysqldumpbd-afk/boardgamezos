@@ -126,19 +126,22 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 
 /* ELIM BUTTON — huge, unmissable */
 .btn-elim-big{
-  width:100%;border:none;border-radius:16px;cursor:pointer;
+  width:100%;border:none;border-radius:20px;cursor:pointer;
   background:linear-gradient(135deg,#FF3B5C,#CC1133);
-  color:white;font-family:var(--font-display);font-size:1.4rem;letter-spacing:2px;
-  padding:22px 20px;
-  display:flex;align-items:center;justify-content:center;gap:12px;
-  user-select:none;transition:all .15s;
-  box-shadow:0 8px 32px rgba(255,59,92,.5);
-  animation:elimPulse 2s ease-in-out infinite;
+  color:white;font-family:var(--font-display);
+  font-size:2.2rem;   /* was 1.4rem — now 4x visually dominant */
+  letter-spacing:3px;
+  padding:32px 24px;  /* was 22px — tall, thumb-friendly */
+  min-height:100px;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  user-select:none;transition:transform .12s,box-shadow .2s;
+  box-shadow:0 10px 40px rgba(255,59,92,.6),0 0 0 1px rgba(255,59,92,.3);
+  animation:elimPulse 1.8s ease-in-out infinite;
 }
-.btn-elim-big:active{transform:scale(.96)}
+.btn-elim-big:active{transform:scale(.94);box-shadow:0 4px 20px rgba(255,59,92,.4)}
 @keyframes elimPulse{
-  0%,100%{box-shadow:0 8px 32px rgba(255,59,92,.4)}
-  50%{box-shadow:0 8px 48px rgba(255,59,92,.75)}
+  0%,100%{box-shadow:0 10px 40px rgba(255,59,92,.5),0 0 0 1px rgba(255,59,92,.2)}
+  50%{box-shadow:0 12px 60px rgba(255,59,92,.85),0 0 0 2px rgba(255,59,92,.5)}
 }
 
 /* INPUTS */
@@ -338,3 +341,17 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .live-score-card.pos-3::before{background:rgba(205,127,50,.5)}
 .live-score-card.other{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
 .live-score-card.elim{opacity:.35;border:1px solid rgba(255,59,92,.2)!important;background:rgba(255,59,92,.03)!important}
+
+/* ── PRESENCE STATUS DOTS ── */
+.presence-dot{
+  display:inline-block;
+  width:9px;height:9px;
+  border-radius:50%;
+  flex-shrink:0;
+  transition:background .5s;
+}
+.presence-dot.online  {background:#00FF9D;box-shadow:0 0 6px #00FF9D;}
+.presence-dot.away    {background:#FFD447;box-shadow:0 0 6px #FFD447;}
+.presence-dot.offline {background:rgba(255,255,255,.2);}
+.presence-dot.pending {background:#4A90FF;box-shadow:0 0 6px #4A90FF;}
+.presence-dot.elim    {background:#FF3B5C;box-shadow:0 0 6px #FF3B5C;}
