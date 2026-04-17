@@ -326,7 +326,7 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
 
 // ── GAME BUILDER WIZARD ──────────────────────────────────────────
 function GameBuilder({ user, editingTemplate, onBack, onSaved }){
-  const TOTAL_STEPS = 6;
+  const TOTAL_STEPS = 7;
   const [step, setStep] = React.useState(1);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -403,6 +403,13 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       defeatExternal: 'dice',   // dice | wheel | coin | ai | host
       defeatMoment: 'round_end',// immediate | turn_end | round_end | phase | game_end
       defeatConsequence: 'eliminated', // eliminated | spectator | lose_turn | lose_points | temp_penalty | weakened | log_only
+      // Sec 6 — Eliminación
+      useElimination: false,           // ¿hay sistema de eliminación?
+      elimStartsAt: 'round_1',         // round_1 | round_2 | round_3 | round_n
+      elimStartRound: 1,               // N cuando elimStartsAt='round_n'
+      elimMethod: 'last_place',        // last_place | lowest_score | zero_lives | special_condition | manual
+      elimTieRule: 'nobody',           // nobody | all_tied | tool | host | ai
+      elimAftermath: 'out',            // out | spectator | keep_score | partial
       // Sec 5 — Sistema de progreso / registro
       // ¿Qué se registra? (multi-select)
       registers: ['points'],         // ['points','wins','lives','resources','coins','objectives','custom']
@@ -526,6 +533,13 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         defeatExternal: tmpl.defeatExternal,
         defeatMoment: tmpl.defeatMoment,
         defeatConsequence: tmpl.defeatConsequence,
+        // Eliminación
+        useElimination: tmpl.useElimination,
+        elimStartsAt: tmpl.elimStartsAt,
+        elimStartRound: tmpl.elimStartRound,
+        elimMethod: tmpl.elimMethod,
+        elimTieRule: tmpl.elimTieRule,
+        elimAftermath: tmpl.elimAftermath,
         // Sistema de progreso / registro
         registers: tmpl.registers,
         customCounterName: tmpl.customCounterName,
@@ -548,7 +562,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     setTimeout(()=>onSaved(saved), 1200);
   }
 
-  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PROGRESO','HERRAMIENTAS'];
+  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PROGRESO','ELIMINACIÓN','HERRAMIENTAS'];
   const canNext = step===1 ? tmpl.name.trim().length>=2 : true;
 
   // ── Sección helpers ──
@@ -1652,8 +1666,205 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
           </div>
         )}
 
-        {/* ── PASO 6: HERRAMIENTAS ── */}
+        {/* ── PASO 6: ELIMINACIÓN ── */}
         {step===6 && (
+          <div className="anim-fade">
+
+            {/* Título */}
+            <div style={{
+              textAlign:'center',
+              background:'linear-gradient(135deg,rgba(255,59,92,.08),rgba(155,93,229,.05))',
+              border:'1px solid rgba(255,59,92,.2)',borderRadius:14,
+              padding:'14px 16px',marginBottom:20
+            }}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>💀</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--red)'}}>
+                SISTEMA DE ELIMINACIÓN
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>
+                ¿SE PUEDEN ELIMINAR JUGADORES DURANTE LA PARTIDA?
+              </div>
+            </div>
+
+            {/* ¿Existe eliminación? */}
+            <OptionRow label="No — nadie sale de la partida" sub="Todos los jugadores juegan hasta el final sin importar su posición"
+              active={!tmpl.useElimination}
+              onClick={()=>{snd('tap');upd('useElimination',false);}}
+              color="var(--green)"/>
+            <OptionRow label="Sí — hay jugadores que se eliminan" sub="Un jugador puede salir de la partida antes de que termine"
+              active={tmpl.useElimination}
+              onClick={()=>{snd('tap');upd('useElimination',true);}}
+              color="var(--red)"/>
+
+            {tmpl.useElimination && (<>
+
+              {/* ══ A: ¿Cuándo inicia? ══ */}
+              <div style={{
+                background:'rgba(255,59,92,.04)',border:'1px solid rgba(255,59,92,.18)',
+                borderRadius:14,padding:'14px 14px 8px',marginBottom:14,marginTop:8
+              }}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--red)',marginBottom:10}}>
+                  🕐 ¿CUÁNDO INICIA LA ELIMINACIÓN?
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+                  A partir de qué ronda puede ser eliminado un jugador.
+                </div>
+
+                {[
+                  {v:'round_1', label:'Desde la ronda 1',  sub:'La eliminación es posible desde el inicio de la partida'},
+                  {v:'round_2', label:'Desde la ronda 2',  sub:'La primera ronda es "segura" para todos'},
+                  {v:'round_3', label:'Desde la ronda 3',  sub:'Dos rondas de gracia antes de activarse'},
+                  {v:'round_n', label:'Desde ronda N',     sub:'Se elige el número de ronda de activación'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.elimStartsAt===o.v}
+                    onClick={()=>{snd('tap');upd('elimStartsAt',o.v);}}
+                    color="var(--red)"/>
+                ))}
+
+                {tmpl.elimStartsAt==='round_n' && (
+                  <div style={{display:'flex',alignItems:'center',gap:12,marginTop:4,marginBottom:8}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>
+                      Empieza en la ronda:
+                    </div>
+                    <select className="os-select" style={{marginBottom:0,width:90}} value={tmpl.elimStartRound}
+                      onChange={e=>upd('elimStartRound',parseInt(e.target.value))}>
+                      {Array.from({length:15},(_,i)=>i+2).map(n=>(
+                        <option key={n} value={n}>Ronda {n}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* ══ B: ¿Cómo se elimina? ══ */}
+              <div style={{
+                background:'rgba(255,107,53,.04)',border:'1px solid rgba(255,107,53,.18)',
+                borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+              }}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--orange)',marginBottom:10}}>
+                  ⚔️ ¿CÓMO SE ELIMINA UN JUGADOR?
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+                  La condición que determina quién es eliminado en cada ronda.
+                </div>
+
+                {[
+                  {v:'last_place',        label:'Último lugar',              sub:'El jugador en última posición de la ronda queda eliminado'},
+                  {v:'lowest_score',      label:'Menor puntaje acumulado',   sub:'El que tenga menos puntos en el acumulado total'},
+                  {v:'zero_lives',        label:'0 vidas',                   sub:'El jugador pierde cuando sus vidas llegan a cero'},
+                  {v:'special_condition', label:'Condición especial',        sub:'Se define un evento o regla particular del juego'},
+                  {v:'manual',            label:'Manual — host decide',       sub:'El host señala quién es eliminado en cada ronda'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.elimMethod===o.v}
+                    onClick={()=>{snd('tap');upd('elimMethod',o.v);}}
+                    color="var(--orange)"/>
+                ))}
+
+                {/* Nota de consistencia con condición de victoria */}
+                {tmpl.elimMethod==='zero_lives' && !tmpl.registers.includes('lives') && (
+                  <div className="os-alert alert-gold" style={{marginTop:6,fontSize:'var(--fs-micro)'}}>
+                    ⚠ La eliminación por 0 vidas requiere que "Vidas" esté activado en el Sistema de Progreso (Paso 5).
+                  </div>
+                )}
+              </div>
+
+              {/* ══ C: ¿Qué pasa si hay empate? ══ */}
+              <div style={{
+                background:'rgba(255,212,71,.04)',border:'1px solid rgba(255,212,71,.18)',
+                borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+              }}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--gold)',marginBottom:10}}>
+                  🤝 ¿QUÉ PASA SI HAY EMPATE EN LA ELIMINACIÓN?
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+                  Cuando dos o más jugadores están empatados en la posición de eliminación.
+                </div>
+
+                {[
+                  {v:'nobody',  label:'No se elimina nadie',          sub:'Si hay empate, nadie sale — la ronda se resuelve sin eliminación'},
+                  {v:'all',     label:'Se eliminan todos los empatados', sub:'Todos los que están en empate quedan eliminados'},
+                  {v:'tool',    label:'Desempate con herramienta',    sub:'Se usa moneda, dado o ruleta para decidir quién sale'},
+                  {v:'host',    label:'El host decide',               sub:'El host elige manualmente quién se elimina'},
+                  {v:'ai',      label:'Decide la IA',                 sub:'La IA arbitra el desempate (requiere módulo)'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.elimTieRule===o.v}
+                    onClick={()=>{snd('tap');upd('elimTieRule',o.v);}}
+                    color="var(--gold)"/>
+                ))}
+              </div>
+
+              {/* ══ D: ¿Qué le pasa al eliminado? ══ */}
+              <div style={{
+                background:'rgba(155,93,229,.04)',border:'1px solid rgba(155,93,229,.18)',
+                borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+              }}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--purple)',marginBottom:10}}>
+                  👻 ¿QUÉ PASA CON EL JUGADOR ELIMINADO?
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+                  Cómo continúa (o no) el jugador después de ser eliminado.
+                </div>
+
+                {[
+                  {v:'out',         label:'Sale de la partida',        sub:'El jugador queda completamente fuera — no participa más'},
+                  {v:'spectator',   label:'Pasa a espectador',         sub:'Sigue viendo la partida en modo solo lectura'},
+                  {v:'keep_score',  label:'Mantiene score histórico',  sub:'Sale pero su puntaje queda registrado para las estadísticas finales'},
+                  {v:'partial',     label:'Sigue parcialmente',        sub:'Permanece en la partida con capacidades limitadas (ej: solo observa sin votar)'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.elimAftermath===o.v}
+                    onClick={()=>{snd('tap');upd('elimAftermath',o.v);}}
+                    color="var(--purple)"/>
+                ))}
+
+                {/* Integración con Strike */}
+                {(tmpl.victoryMode==='elimination' || tmpl.elimMethod==='last_place') && (
+                  <div style={{
+                    marginTop:10,
+                    background:'rgba(255,107,53,.08)',border:'1px solid rgba(255,107,53,.25)',
+                    borderRadius:10,padding:'10px 12px'
+                  }}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--orange)',letterSpacing:1,marginBottom:4}}>
+                      🎳 MODO STRIKE
+                    </div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.45)',lineHeight:1.5}}>
+                      Esta configuración es compatible con el modo Strike. Al crear una partida desde este template, el runtime usará el motor de supervivencia con auto-eliminación por jugador.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Resumen visual de la config de eliminación */}
+              <div style={{
+                background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',
+                borderRadius:12,padding:'12px 14px',marginTop:4
+              }}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.7)',letterSpacing:2,marginBottom:8}}>
+                  RESUMEN — ELIMINACIÓN
+                </div>
+                {[
+                  {label:'Inicia', val:{round_1:'Ronda 1',round_2:'Ronda 2',round_3:'Ronda 3',round_n:`Ronda ${tmpl.elimStartRound}`}[tmpl.elimStartsAt]},
+                  {label:'Método', val:{last_place:'Último lugar',lowest_score:'Menor puntaje',zero_lives:'0 vidas',special_condition:'Condición especial',manual:'Manual'}[tmpl.elimMethod]},
+                  {label:'Empate', val:{nobody:'Nadie sale',all:'Todos salen',tool:'Herramienta',host:'Host decide',ai:'IA arbitra'}[tmpl.elimTieRule]},
+                  {label:'Después', val:{out:'Sale de la partida',spectator:'Espectador',keep_score:'Mantiene score',partial:'Sigue parcial'}[tmpl.elimAftermath]},
+                ].map((r,i)=>(
+                  <div key={i} style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                    <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,minWidth:50}}>{r.label}:</span>
+                    <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.65)',letterSpacing:.5}}>{r.val}</span>
+                  </div>
+                ))}
+              </div>
+
+            </>)}
+
+          </div>
+        )}
+
+        {/* ── PASO 7: HERRAMIENTAS ── */}
+        {step===7 && (
           <div className="anim-fade">
 
             {/* Título */}
@@ -1750,7 +1961,8 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                   tmpl.victoryMode==='objective'?'🎯 Objetivo':
                   tmpl.victoryMode==='time'?'⏱ Tiempo':'👑 Manual'
                 }</div>
-                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota</div>}
+                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota explícita</div>}
+                {tmpl.useElimination&&<div className="os-tag red">💀 Eliminación</div>}
                 {tmpl.registers.length>0&&<div className="os-tag green">📊 {tmpl.registers.length} registros</div>}
                 {tmpl.modifiers.length>0&&<div className="os-tag orange">⚡ {tmpl.modifiers.length} mods</div>}
                 {tmpl.tools.length>0&&<div className="os-tag purple">🧰 {tmpl.tools.length} herr.</div>}
