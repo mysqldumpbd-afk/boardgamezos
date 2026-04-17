@@ -4,17 +4,28 @@
 // la UI correcta. El usuario solo ve botones.
 // ═══════════════════════════════════════════════════════════════
 
-// ── NUMERIC MODAL ─────────────────────────────────────────────────
+// ── NUMERIC MODAL — redesigned ────────────────────────────────────
 function NumericModal({ action, player, onConfirm, onCancel }) {
-  const [value, setValue] = React.useState('');
+  const [value, setValue] = React.useState(0);
   const [condition, setCondition] = React.useState('');
   const allowNeg = action.allowNegative;
 
+  const positiveQuick = (action.quickValues||[]).filter(v=>v>0);
+  const negativeQuick = (action.quickValues||[]).filter(v=>v<0);
+
   function handleConfirm() {
-    const n = parseFloat(value);
-    if (isNaN(n)) return;
+    if(value===0) return;
     snd('score');
-    onConfirm({ value: n, condition: condition || null });
+    onConfirm({ value, condition: condition || null });
+  }
+
+  function step(delta) {
+    snd('tap');
+    setValue(v => {
+      const next = v + delta;
+      if(!allowNeg && next < 0) return 0;
+      return next;
+    });
   }
 
   return (
@@ -40,35 +51,67 @@ function NumericModal({ action, player, onConfirm, onCancel }) {
           </div>
         </div>
 
-        {/* Valores rápidos */}
-        {action.quickValues && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-            {action.quickValues.map(v => (
-              <button key={v} onClick={() => { snd('tap'); setValue(String(v)); }}
+        {/* Valores rápidos positivos */}
+        {positiveQuick.length > 0 && (
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+            {positiveQuick.map(v => (
+              <button key={v} onClick={() => { snd('tap'); setValue(v); }}
                 style={{
-                  padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  fontFamily: 'var(--font-display)', fontSize: 'var(--fs-sm)',
-                  background: String(value) === String(v) ? action.color : 'rgba(255,255,255,.08)',
-                  color: String(value) === String(v) ? 'var(--bg)' : (v < 0 ? '#FF6B6B' : 'rgba(255,255,255,.7)'),
-                  transition: 'all .15s',
+                  flex:1, padding:'9px 6px', borderRadius:10, border:'none', cursor:'pointer',
+                  fontFamily:'var(--font-display)', fontSize:'var(--fs-sm)',
+                  background: value===v ? action.color : 'rgba(255,255,255,.08)',
+                  color: value===v ? 'var(--bg)' : 'rgba(255,255,255,.8)',
+                  transition:'all .15s',
                 }}>
-                {v > 0 ? '+' : ''}{v}
+                +{v}
               </button>
             ))}
           </div>
         )}
 
-        {/* Input */}
-        <input
-          className="os-input"
-          type="number"
-          placeholder={allowNeg ? 'Valor (+ o -)' : 'Valor'}
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleConfirm()}
-          autoFocus
-          style={{ textAlign: 'center', fontSize: '1.5rem', fontFamily: 'var(--font-display)' }}
-        />
+        {/* Valor con stepper */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+          <button onClick={() => step(-1)}
+            style={{
+              width:48, height:56, borderRadius:12, border:'1px solid rgba(255,255,255,.15)',
+              background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.8)',
+              cursor:'pointer', fontFamily:'var(--font-display)', fontSize:'1.6rem',
+              flexShrink:0,
+            }}>−</button>
+          <div style={{
+            flex:1, textAlign:'center', fontFamily:'var(--font-display)',
+            fontSize:'2.4rem', color: value!==0 ? action.color : 'rgba(255,255,255,.25)',
+            borderBottom:'2px solid '+(value!==0?action.color:'rgba(255,255,255,.1)'),
+            paddingBottom:4, transition:'all .2s',
+          }}>
+            {value > 0 ? '+' : ''}{value}
+          </div>
+          <button onClick={() => step(1)}
+            style={{
+              width:48, height:56, borderRadius:12, border:'1px solid rgba(255,255,255,.15)',
+              background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.8)',
+              cursor:'pointer', fontFamily:'var(--font-display)', fontSize:'1.6rem',
+              flexShrink:0,
+            }}>+</button>
+        </div>
+
+        {/* Valores rápidos negativos (solo si allowNeg) */}
+        {allowNeg && negativeQuick.length > 0 && (
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+            {negativeQuick.map(v => (
+              <button key={v} onClick={() => { snd('tap'); setValue(v); }}
+                style={{
+                  flex:1, padding:'9px 6px', borderRadius:10, border:'none', cursor:'pointer',
+                  fontFamily:'var(--font-display)', fontSize:'var(--fs-sm)',
+                  background: value===v ? '#FF3B5C' : 'rgba(255,59,92,.12)',
+                  color: value===v ? '#fff' : '#FF6B6B',
+                  transition:'all .15s',
+                }}>
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Condición custom si aplica */}
         {action.category === 'score' && window._runtimeSpec?.winConditions?.length > 0 && (
@@ -93,8 +136,8 @@ function NumericModal({ action, player, onConfirm, onCancel }) {
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button className="btn btn-ghost" style={{ flex: 1, marginBottom: 0 }} onClick={onCancel}>Cancelar</button>
-          <button className="btn" disabled={value === ''}
-            style={{ flex: 1, marginBottom: 0, background: action.color, color: 'var(--bg)', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'var(--font-display)', fontSize: 'var(--fs-sm)', cursor: 'pointer', opacity: value === '' ? .4 : 1 }}
+          <button className="btn" disabled={value===0}
+            style={{ flex: 1, marginBottom: 0, background: value!==0?action.color:'rgba(255,255,255,.1)', color: value!==0?'var(--bg)':'rgba(255,255,255,.3)', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'var(--font-display)', fontSize: 'var(--fs-sm)', cursor: value!==0?'pointer':'not-allowed' }}
             onClick={handleConfirm}>
             Confirmar
           </button>
@@ -262,13 +305,7 @@ function PlayerActionCard({ player, spec, actions, isHost, myId, onAction, curre
           <div className="player-emoji">{player.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 'var(--fs-base)', color: player.color || '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
-              {/* Status dot */}
-              {(() => {
-                const pres = presence?.[player.id];
-                const status = player.eliminated ? 'eliminated' : !pres ? 'pending' : pres.status;
-                const col = getPresenceColor(status);
-                return <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,display:'inline-block',boxShadow:`0 0 6px ${col}`}} title={status}/>;
-              })()}
+              <StatusDot pid={player.id} presence={presence} eliminated={player.eliminated}/>
               {player.name}
               {isMe && <span style={{ fontFamily: 'var(--font-ui)', fontSize: '.5rem', color: 'var(--cyan)', letterSpacing: 2 }}>TÚ</span>}
               {player.activeShield && <span title="Escudo activo">🛡️</span>}
@@ -406,16 +443,39 @@ function HostPanel({ spec, room, onHostAction, isOpen, onToggle }) {
           background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.08)',
           borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '12px 14px',
         }}>
-          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-            {actions.map(a => (
+          {/* Acciones primarias y peligrosas — full width, grandes */}
+          <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:8 }}>
+            {actions.filter(a=>a.primary||a.dangerous).map(a => (
               <button key={a.id}
-                onClick={() => { snd(a.dangerous ? 'elim' : 'tap'); onHostAction(a.id); }}
+                onClick={() => { snd(a.dangerous?'elim':'round'); onHostAction(a.id); }}
                 style={{
-                  padding: '9px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                  fontFamily: 'var(--font-label)', fontWeight: 700, fontSize: 'var(--fs-micro)', letterSpacing: .5,
-                  background: a.dangerous ? 'rgba(255,59,92,.15)' : a.primary ? 'rgba(0,255,157,.15)' : 'rgba(255,255,255,.07)',
-                  color: a.dangerous ? 'var(--red)' : a.primary ? 'var(--green)' : 'rgba(255,255,255,.6)',
-                  display: 'flex', alignItems: 'center', gap: 5,
+                  width:'100%', padding:'18px 20px', borderRadius:14,
+                  border:`2px solid ${a.dangerous?'rgba(255,59,92,.4)':'rgba(0,255,157,.3)'}`,
+                  cursor:'pointer',
+                  fontFamily:'var(--font-display)', fontWeight:700,
+                  fontSize:'1.1rem', letterSpacing:1,
+                  background: a.dangerous?'rgba(255,59,92,.18)':'rgba(0,255,157,.15)',
+                  color: a.dangerous?'var(--red)':'var(--green)',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                  boxShadow: a.dangerous?'0 4px 16px rgba(255,59,92,.2)':'0 4px 16px rgba(0,255,157,.15)',
+                }}>
+                <span style={{fontSize:'1.3rem'}}>{a.icon}</span> {a.label}
+              </button>
+            ))}
+          </div>
+          {/* Acciones secundarias — fila compacta */}
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+            {actions.filter(a=>!a.primary&&!a.dangerous).map(a => (
+              <button key={a.id}
+                onClick={() => { snd('tap'); onHostAction(a.id); }}
+                style={{
+                  padding:'10px 14px', borderRadius:9,
+                  border:'1px solid rgba(255,255,255,.1)', cursor:'pointer',
+                  fontFamily:'var(--font-label)', fontWeight:700,
+                  fontSize:'var(--fs-sm)', letterSpacing:.5,
+                  background:'rgba(255,255,255,.06)',
+                  color:'rgba(255,255,255,.65)',
+                  display:'flex', alignItems:'center', gap:5,
                 }}>
                 {a.icon} {a.label}
               </button>

@@ -370,15 +370,23 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
           </div>
         )}
         <div className="os-section">JUGADORES · {players.length}</div>
-        {players.map((p,i)=>(
-          <div key={p.id} className="player-row active anim-fade" style={{animationDelay:i*.06+'s'}}>
-            <div className="player-emoji">{p.emoji}</div>
-            <div className="player-name" style={{color:p.color||'#fff'}}>
-              {p.name}{p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:6}}>TÚ</span>}
+        {players.map((p,i)=>{
+          const prs=presence[p.id];
+          const st=p.id===room?.hostId&&!prs?'online':(!prs?'pending':prs.status);
+          const col=getPresenceColor(st);
+          return(
+            <div key={p.id} className="player-row active anim-fade" style={{animationDelay:i*.06+'s'}}>
+              <div className="player-emoji">{p.emoji}</div>
+              <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,
+                  boxShadow:st!=='offline'?`0 0 6px ${col}`:'none',display:'inline-block'}}/>
+                {p.name}
+                {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
+              </div>
+              {p.id===room?.hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
             </div>
-            {p.id===room?.hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
-          </div>
-        ))}
+          );
+        })}
         <div className="g16"/>
         {effectiveIsHost
           ? <button className="btn btn-cyan" onClick={startGame} disabled={players.length<2}>⚔️ INICIAR PARTIDA</button>
@@ -447,12 +455,26 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 
   // Presencia
   const [presence,setPresence]=React.useState({});
+  const [elimToast,setElimToast]=React.useState(null);
   React.useEffect(()=>{
     if(!session?.code||!myId) return;
     setupPresence(session.code,myId);
     const unsub=listenPresence(session.code,setPresence);
     return ()=>{ teardownPresence(); unsub&&unsub(); };
   },[session?.code,myId]);
+
+  // Toast de eliminación broadcast
+  React.useEffect(()=>{
+    if(!session?.code) return;
+    const unsub2=db.listen(`rooms/${session.code}/lastElim`,data=>{
+      if(!data||!data.ts) return;
+      if(Date.now()-data.ts>5000) return;
+      setElimToast(data);
+      setTimeout(()=>setElimToast(null),3000);
+    });
+    return ()=>unsub2&&unsub2();
+  },[session?.code]);
+
   const winConditions=config.winConditions||[];
 
   // Auto-calcular ganador de ronda por puntos
@@ -598,6 +620,15 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 
   return(
     <div className="os-wrap">
+      {elimToast && (
+        <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+          <div style={{background:'linear-gradient(135deg,rgba(255,59,92,.95),rgba(180,0,40,.9))',border:'2px solid rgba(255,59,92,.6)',borderRadius:20,padding:'24px 32px',textAlign:'center',animation:'popIn .3s ease',boxShadow:'0 20px 60px rgba(255,59,92,.6)'}}>
+            <div style={{fontSize:'3rem',marginBottom:8}}>{elimToast.emoji}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',letterSpacing:2,color:'#fff',marginBottom:4}}>💀 ELIMINADO</div>
+            <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'1.1rem',color:'rgba(255,220,220,.9)'}}>{elimToast.name}</div>
+          </div>
+        </div>
+      )}
       {/* Modales inline */}
       {showEndConfirm&&(
         <ConfirmModal
@@ -672,9 +703,10 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
               </div>
               <div className="player-emoji">{p.emoji}</div>
               <div style={{flex:1}}>
-                <div className="player-name" style={{color:p.color||'#fff'}}>
+                <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:5}}>
+                  <StatusDot pid={p.id} presence={presence} eliminated={p.eliminated}/>
                   {p.name}
-                  {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
+                  {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
                   {effectiveIsHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.2)',marginLeft:5}}>✏️</span>}
                 </div>
                 {/* Última ronda */}
@@ -746,7 +778,9 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
                         upd={players:wUpd,status:'finished',endedAt:now,winner:{id:winner.id,name:winner.name,emoji:winner.emoji}};
                         snd('victory');
                       }
-                      await db.set(`rooms/${session.code}`,{...room,...upd});
+                      // Broadcast para toast
+                    await db.set(`rooms/${session.code}/lastElim`,{id:p.id,name:p.name,emoji:p.emoji,ts:Date.now()});
+                    await db.set(`rooms/${session.code}`,{...room,...upd});
                     }}>
                     💀 Eliminar
                   </button>
@@ -843,25 +877,44 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 
             {/* Cerrar ronda — en modo puntos es automático */}
             {config.mode!=='wins'&&(
-              <button className="btn btn-green" onClick={()=>closeRound(null)}>
-                ✓ Cerrar ronda {currentRound}
+              <button style={{
+                width:'100%',padding:'18px 20px',borderRadius:14,border:'2px solid rgba(0,255,157,.35)',
+                background:'rgba(0,255,157,.15)',color:'var(--green)',cursor:'pointer',
+                fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,
+                display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+                boxShadow:'0 4px 16px rgba(0,255,157,.15)',marginBottom:8,
+              }} onClick={()=>closeRound(null)}>
+                <span style={{fontSize:'1.3rem'}}>✓</span>
+                Cerrar ronda {currentRound}
                 {suggestedWinner&&(
-                  <span style={{fontSize:'var(--fs-micro)',opacity:.8,marginLeft:8}}>
-                    · {players.find(p=>p.id===suggestedWinner)?.name} gana
+                  <span style={{fontSize:'var(--fs-sm)',opacity:.8}}>
+                    · {players.find(p=>p.id===suggestedWinner)?.name}
                   </span>
                 )}
               </button>
             )}
 
-            <button className="btn btn-red" onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
-              🏁 Terminar partida
+            <button style={{
+              width:'100%',padding:'18px 20px',borderRadius:14,border:'2px solid rgba(255,59,92,.35)',
+              background:'rgba(255,59,92,.15)',color:'var(--red)',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,
+              display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+              boxShadow:'0 4px 16px rgba(255,59,92,.15)',
+            }} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
+              <span style={{fontSize:'1.3rem'}}>🏁</span> Terminar partida
             </button>
           </>
         )}
 
         {effectiveIsHost&&isSurvival&&(
-          <button className="btn btn-red" style={{marginTop:16}} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
-            🏁 Terminar partida
+          <button style={{
+            width:'100%',padding:'18px 20px',borderRadius:14,border:'2px solid rgba(255,59,92,.35)',
+            background:'rgba(255,59,92,.15)',color:'var(--red)',cursor:'pointer',
+            fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,
+            display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+            boxShadow:'0 4px 16px rgba(255,59,92,.15)',marginTop:8,
+          }} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
+            <span style={{fontSize:'1.3rem'}}>🏁</span> Terminar partida
           </button>
         )}
 

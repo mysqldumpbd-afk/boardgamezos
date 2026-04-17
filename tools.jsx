@@ -4,6 +4,32 @@
 // PPS modo batalla simultánea
 // ═══════════════════════════════════════════════════════════════
 
+// ── SHARED COMPONENTS (disponibles para todos los archivos) ──────
+
+/**
+ * StatusDot — punto de color que indica el status de presencia
+ * del jugador. Usa getPresenceColor() del app.js.
+ * Estados: online(verde) | away(amarillo) | offline(gris)
+ *          pending(azul) | eliminated(rojo) | spectator(morado)
+ */
+function StatusDot({ pid, presence, eliminated, size=8 }) {
+  const prs = presence?.[pid];
+  const status = eliminated ? 'eliminated' : !prs ? 'pending' : (prs.status || 'offline');
+  const col = getPresenceColor(status);
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: size, height: size,
+      borderRadius: '50%',
+      background: col,
+      flexShrink: 0,
+      boxShadow: status !== 'offline' ? `0 0 ${size-2}px ${col}` : 'none',
+      transition: 'background .5s, box-shadow .5s',
+      verticalAlign: 'middle',
+    }}/>
+  );
+}
+
 // ── COIN FLIP 3D ─────────────────────────────────────────────────
 function CoinTool({onBack}){
   const [result,setResult]=React.useState(null);

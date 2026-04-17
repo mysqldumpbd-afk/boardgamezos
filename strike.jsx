@@ -23,6 +23,8 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const [elimReason,setElimReason]=React.useState(null);
   const [presence,setPresence]=React.useState({});
 
+  const [elimToast,setElimToast]=React.useState(null);
+
   // Presencia — setup + listen
   React.useEffect(()=>{
     if(!session?.code||!myId) return;
@@ -30,6 +32,19 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     const unsub=listenPresence(session.code,setPresence);
     return ()=>{ teardownPresence(); unsub&&unsub(); };
   },[session?.code,myId]);
+
+  // Escuchar broadcast de eliminación
+  React.useEffect(()=>{
+    if(!session?.code) return;
+    const unsub=db.listen(`rooms/${session.code}/lastElim`,data=>{
+      if(!data||!data.ts) return;
+      // Solo mostrar si es reciente (< 5s)
+      if(Date.now()-data.ts>5000) return;
+      setElimToast(data);
+      setTimeout(()=>setElimToast(null),3000);
+    });
+    return ()=>unsub&&unsub();
+  },[session?.code]);
   const [showEndScreen,setShowEndScreen]=React.useState(false);
   const timerRef=React.useRef(null);
 
@@ -114,6 +129,13 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     await db.set(`rooms/${session.code}`,{...room,...updates});
     setShowElimPanel(false);
     setElimReason(null);
+    // Broadcast eliminación para que todos vean la animación
+    if(!updates.status) { // no broadcast si ya terminó el juego (lo maneja la pantalla final)
+      await db.set(`rooms/${session.code}/lastElim`,{
+        id:myId, name:me?.name||'?', emoji:me?.emoji||'💀',
+        ts:Date.now()
+      });
+    }
   }
 
   async function handleHostEliminate(targetId, reason){
@@ -168,6 +190,32 @@ function StrikeGame({session,onBack,isHost,myId,db}){
 
   return(
     <div className="os-wrap">
+      {/* Eliminación broadcast toast */}
+      {elimToast && (
+        <div style={{
+          position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:9999,
+          display:'flex',alignItems:'center',justifyContent:'center',
+          pointerEvents:'none',
+        }}>
+          <div style={{
+            background:'linear-gradient(135deg,rgba(255,59,92,.95),rgba(180,0,40,.9))',
+            border:'2px solid rgba(255,59,92,.6)',
+            borderRadius:20,padding:'24px 32px',textAlign:'center',
+            animation:'popIn .3s ease',
+            boxShadow:'0 20px 60px rgba(255,59,92,.6)',
+          }}>
+            <div style={{fontSize:'3rem',marginBottom:8}}>{elimToast.emoji}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',
+              letterSpacing:2,color:'#fff',marginBottom:4}}>
+              💀 ELIMINADO
+            </div>
+            <div style={{fontFamily:'var(--font-body)',fontWeight:700,
+              fontSize:'1.1rem',color:'rgba(255,220,220,.9)'}}>
+              {elimToast.name}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="os-header">
         <div>
           <div className="os-logo">BOARD<span>GAMEZ</span></div>
@@ -293,7 +341,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
               <div className="player-emoji">{p.emoji}</div>
               <div className="survival-info">
                 <div className="survival-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:5}}>
-                  {(()=>{const prs=presence[p.id];const st=!prs?'pending':prs.status;const col=getPresenceColor(st);return <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,boxShadow:`0 0 6px ${col}`}}/>;}())}
+                  <StatusDot pid={p.id} presence={presence} eliminated={p.eliminated}/>
                   {p.name}
                   {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
                 </div>
@@ -397,6 +445,32 @@ function StrikeEndScreen({room,myId,onBack}){
         })}
       </div>
       <button className="btn btn-cyan" style={{maxWidth:320}} onClick={onBack}>🏠 Volver al menú</button>
+      {myId===room.hostId && (
+        <button className="btn btn-ghost" style={{maxWidth:320,marginTop:8}} onClick={async()=>{
+          const code=uid4();
+          const newPlayers=(room.players||[]).map(p=>({
+            ...p,total:0,wins:0,rounds:[],lives:5,
+            eliminated:false,finalPosition:null,survivalMs:null,elimReason:null,
+            activeShield:false,activeBlock:false,activeDouble:false,
+          }));
+          const db2=makeDB(false);
+          await db2.set(`rooms/${code}`,{
+            code,gameType:'preset:strike',
+            customTitle:(room.customTitle||'Strike 🎳')+' (revancha)',
+            status:'lobby',hostId:myId,createdAt:Date.now(),
+            config:room.config||null,players:newPlayers,events:[]
+          });
+          saveActiveSession({code,isHost:true,gameType:'preset:strike',screen:'strike-lobby',myId});
+          localStorage.setItem('bgos_rematch_code','strike:'+code);
+          window.location.reload();
+        }}>🔁 Revancha — mismos jugadores</button>
+      )}
+      {myId!==room.hostId && (
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
+          color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:8,textAlign:'center'}}>
+          ⏳ Esperando decisión del host para revancha
+        </div>
+      )}
     </div>
   );
 }
@@ -442,16 +516,23 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
           <div className="lobby-hint">COMPARTE PARA UNIRSE</div>
         </div>
         <div className="os-section">JUGADORES · {players.length}</div>
-        {players.map((p,i)=>(
-          <div key={p.id} className="player-row active anim-fade" style={{animationDelay:i*.06+'s'}}>
-            <div className="player-emoji">{p.emoji}</div>
-            <div className="player-name" style={{color:p.color||'#fff'}}>
-              {p.name}
-              {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:6}}>TÚ</span>}
+        {players.map((p,i)=>{
+          const prs=presence[p.id];
+          const st=p.id===room?.hostId&&!prs?'online':(!prs?'pending':prs.status);
+          const col=getPresenceColor(st);
+          return(
+            <div key={p.id} className="player-row active anim-fade" style={{animationDelay:i*.06+'s'}}>
+              <div className="player-emoji">{p.emoji}</div>
+              <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
+                <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,
+                  boxShadow:st!=='offline'?`0 0 6px ${col}`:'none',display:'inline-block'}}/>
+                {p.name}
+                {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
+              </div>
+              {p.id===room?.hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
             </div>
-            {p.id===room?.hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
-          </div>
-        ))}
+          );
+        })}
         {players.length<2&&<div className="os-alert alert-cyan">⏳ Mínimo 2 jugadores...</div>}
         <div className="g16"/>
         {effectiveIsHost

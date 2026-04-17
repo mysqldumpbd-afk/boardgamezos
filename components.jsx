@@ -489,8 +489,16 @@ function App(){
       const rematchCode=localStorage.getItem('bgos_rematch_code');
       if(rematchCode){
         localStorage.removeItem('bgos_rematch_code');
-        setSpectateCode(rematchCode);
-        setScreen('live-scoreboard');
+        if(rematchCode.startsWith('strike:')){
+          // Revancha de Strike — ir directamente al lobby
+          const code=rematchCode.replace('strike:','');
+          setSession({code,demo:false,date:Date.now()});
+          setIsHost(true);
+          setScreen('strike-lobby');
+        } else {
+          setSpectateCode(rematchCode);
+          setScreen('live-scoreboard');
+        }
       } else {
         setScreen('home');
       }
@@ -1193,7 +1201,7 @@ function JoinRoom({onBack,onJoin,myId,profile,db,onSpectate}){
 
 // ── STATS SCREEN ──────────────────────────────────────────────────
 function StatsScreen({onBack,db}){
-  const [tab,setTab]=useState('leaderboard');
+  const [tab,setTab]=useState('overview');
   const [players,setPlayers]=useState([]);
   const [sessions,setSessions]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1202,49 +1210,108 @@ function StatsScreen({onBack,db}){
   useEffect(()=>{
     async function load(){
       setLoading(true);
-      try{const [lb,sess]=await Promise.all([loadLeaderboard(false),loadRecentSessions(30,false)]);
-        setPlayers(lb);setSessions(sess);
+      try{
+        const [lb,sess]=await Promise.all([loadLeaderboard(false),loadRecentSessions(50,false)]);
+        setPlayers(lb); setSessions(sess);
       }catch(e){console.error(e);}finally{setLoading(false);}
     }
     load();
   },[]);
 
+  // Computed global stats from sessions
+  const globalStats = React.useMemo(()=>{
+    if(!sessions.length) return null;
+    const totalTime = sessions.reduce((s,x)=>s+(x.durationMs||0),0);
+    const avgTime = sessions.length ? totalTime/sessions.length : 0;
+    // Longest/shortest sessions
+    const sorted = [...sessions].sort((a,b)=>(b.durationMs||0)-(a.durationMs||0));
+    const longest = sorted[0];
+    const shortest = sorted[sorted.length-1];
+    // Most played game
+    const gameCounts = {};
+    sessions.forEach(s=>{ gameCounts[s.customTitle||s.gameTitle]=(gameCounts[s.customTitle||s.gameTitle]||0)+1; });
+    const mostPlayed = Object.entries(gameCounts).sort((a,b)=>b[1]-a[1])[0];
+    // Slowest/fastest players by survival
+    const allPlayers = sessions.flatMap(s=>(s.players||[]).map(p=>({...p,game:s.customTitle||s.gameTitle})));
+    const withSurvival = allPlayers.filter(p=>p.survivalMs>0).sort((a,b)=>b.survivalMs-a.survivalMs);
+    return { totalTime, avgTime, longest, shortest, mostPlayed, slowest:withSurvival[0], fastest:withSurvival[withSurvival.length-1] };
+  },[sessions]);
+
   if(selectedPlayer){
     const p=selectedPlayer;
     const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
+    const pSessions=sessions.filter(s=>(s.players||[]).some(sp=>sp.name===p.name));
+    const totalMs=pSessions.reduce((acc,s)=>acc+(s.durationMs||0),0);
+    const wins1=pSessions.filter(s=>(s.players||[]).find(sp=>sp.name===p.name)?.finalPosition===1).length;
     return(
       <div className="os-wrap">
         <div className="os-header">
-          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setSelectedPlayer(null)}>← Ranking</button>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.4)',letterSpacing:3}}>PERFIL</div>
+          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setSelectedPlayer(null)}>← Stats</button>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.4)',letterSpacing:3}}>JUGADOR</div>
           <div style={{width:70}}/>
         </div>
         <div className="os-page" style={{paddingTop:20}}>
           <div style={{textAlign:'center',marginBottom:20}}>
-            <div style={{fontSize:'3.8rem',marginBottom:6}}>{p.emoji}</div>
+            <div style={{fontSize:'4rem',marginBottom:6}}>{p.emoji}</div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'1.7rem',letterSpacing:2,color:p.color||'#fff'}}>{p.name}</div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>Última: {p.lastGameTitle||'—'}</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:2,marginTop:4}}>
+              {p.lastGameTitle||'—'} · {fmtShortDate(p.lastPlayed)||''}
+            </div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:20}}>
+          {/* Win rate bar */}
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'16px',marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2}}>WIN RATE</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>{wr}%</div>
+            </div>
+            <div style={{height:8,background:'rgba(255,255,255,.08)',borderRadius:4,overflow:'hidden'}}>
+              <div style={{height:'100%',width:wr+'%',background:'linear-gradient(90deg,var(--cyan),var(--gold))',borderRadius:4,transition:'width 1s ease'}}/>
+            </div>
+          </div>
+          {/* Stats grid */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
             {[
-              {label:'PARTIDAS',value:p.games||0,color:'var(--cyan)'},
-              {label:'VICTORIAS',value:p.wins||0,color:'var(--gold)'},
-              {label:'WIN RATE',value:wr+'%',color:'var(--green)'},
-              {label:'MEJOR POS.',value:'#'+(p.bestPosition||'—'),color:'var(--orange)'},
-              {label:'PROM. SUPERV.',value:p.avgSurvivalMs?fmtDuration(p.avgSurvivalMs):'—',color:'var(--purple)'},
-              {label:'💀 1° ELIM.',value:p.firstEliminations||0,color:'var(--red)'},
+              {label:'PARTIDAS',value:p.games||0,color:'var(--cyan)',icon:'🎮'},
+              {label:'VICTORIAS',value:p.wins||0,color:'var(--gold)',icon:'🏆'},
+              {label:'TIEMPO TOTAL',value:fmtDuration(totalMs),color:'var(--green)',icon:'⏱'},
+              {label:'MEJOR POS.',value:'#'+(p.bestPosition||'—'),color:'var(--orange)',icon:'🥇'},
             ].map(s=>(
-              <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 14px',textAlign:'center'}}>
-                <div style={{fontFamily:'var(--font-display)',fontSize:'1.7rem',color:s.color,marginBottom:3}}>{s.value}</div>
+              <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'14px',textAlign:'center'}}>
+                <div style={{fontSize:'1.4rem',marginBottom:4}}>{s.icon}</div>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',color:s.color,marginBottom:3}}>{s.value}</div>
                 <div style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
               </div>
             ))}
           </div>
+          {/* Recent sessions for this player */}
+          {pSessions.length>0&&(
+            <>
+              <div className="os-section">PARTIDAS RECIENTES</div>
+              {pSessions.slice(0,5).map((s,i)=>{
+                const me=(s.players||[]).find(sp=>sp.name===p.name);
+                const pos=me?.finalPosition;
+                return(
+                  <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',width:28,textAlign:'center'}}>
+                      {pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':'#'+(pos||'?')}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)'}}>{s.customTitle||s.gameTitle}</div>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:2}}>{fmtShortDate(s.startedAt)} · {fmtDuration(s.durationMs)}</div>
+                    </div>
+                    {me?.survivalMs&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>⏱ {fmtDuration(me.survivalMs)}</div>}
+                  </div>
+                );
+              })}
+            </>
+          )}
           <button className="btn btn-ghost" onClick={()=>setSelectedPlayer(null)}>← Volver</button>
         </div>
       </div>
     );
   }
+
+  const TABS=[['overview','📊 Overview'],['ranking','🏆 Ranking'],['sessions','🎮 Partidas']];
 
   return(
     <div className="os-wrap">
@@ -1254,18 +1321,93 @@ function StatsScreen({onBack,db}){
         <div style={{width:70}}/>
       </div>
       <div className="os-page" style={{paddingTop:16}}>
-        <div style={{display:'flex',gap:6,marginBottom:16}}>
-          {[['leaderboard','🏆 Ranking'],['sessions','🎮 Partidas']].map(([id,lbl])=>(
-            <button key={id} style={{flex:1,border:'none',borderRadius:10,padding:'10px 4px',cursor:'pointer',fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'}}
-              onClick={()=>{snd('tap');setTab(id);}}>
+        {/* Tabs */}
+        <div style={{display:'flex',gap:5,marginBottom:16}}>
+          {TABS.map(([id,lbl])=>(
+            <button key={id} onClick={()=>{snd('tap');setTab(id);}}
+              style={{flex:1,border:'none',borderRadius:10,padding:'9px 4px',cursor:'pointer',
+                fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',
+                background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',
+                color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'}}>
               {lbl}
             </button>
           ))}
         </div>
+
         {loading&&<div style={{textAlign:'center',paddingTop:40}}><div className="os-spin" style={{marginBottom:14}}/></div>}
-        {!loading&&tab==='leaderboard'&&(
-          <>
-            {players.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>📊</div><div>Completa una partida para ver el ranking</div></div>}
+
+        {/* ── OVERVIEW ── */}
+        {!loading&&tab==='overview'&&(
+          <div className="anim-fade">
+            {/* Big numbers */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+              {[
+                {label:'PARTIDAS',value:sessions.length,color:'var(--cyan)',icon:'🎮'},
+                {label:'JUGADORES',value:players.length,color:'var(--purple)',icon:'👥'},
+                {label:'TIEMPO TOTAL',value:fmtDuration(globalStats?.totalTime||0),color:'var(--green)',icon:'⏱'},
+              ].map(s=>(
+                <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 10px',textAlign:'center'}}>
+                  <div style={{fontSize:'1.3rem',marginBottom:4}}>{s.icon}</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:s.color,marginBottom:3}}>{s.value}</div>
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'.48rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {globalStats&&(<>
+              {/* Records */}
+              <div className="os-section">🏅 RÉCORDS</div>
+              {[
+                {label:'Partida más larga',icon:'🐢',value:globalStats.longest?`${fmtDuration(globalStats.longest.durationMs)} — ${globalStats.longest.customTitle||globalStats.longest.gameTitle}`:'—'},
+                {label:'Partida más corta',icon:'⚡',value:globalStats.shortest?`${fmtDuration(globalStats.shortest.durationMs)} — ${globalStats.shortest.customTitle||globalStats.shortest.gameTitle}`:'—'},
+                {label:'Duración promedio',icon:'📊',value:fmtDuration(globalStats.avgTime)},
+                {label:'Juego más jugado',icon:'🎮',value:globalStats.mostPlayed?`${globalStats.mostPlayed[0]} (${globalStats.mostPlayed[1]}×)`:'—'},
+                {label:'Jugador más lento',icon:'🐌',value:globalStats.slowest?`${globalStats.slowest.emoji} ${globalStats.slowest.name} — ${fmtDuration(globalStats.slowest.survivalMs)} (${globalStats.slowest.game})`:'—'},
+                {label:'Jugador más rápido',icon:'🚀',value:globalStats.fastest?`${globalStats.fastest.emoji} ${globalStats.fastest.name} — ${fmtDuration(globalStats.fastest.survivalMs)} (${globalStats.fastest.game})`:'—'},
+              ].map((r,i)=>(
+                <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'flex-start',gap:12}}>
+                  <div style={{fontSize:'1.4rem',flexShrink:0}}>{r.icon}</div>
+                  <div>
+                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.52rem',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:3}}>{r.label.toUpperCase()}</div>
+                    <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.8)',lineHeight:1.4}}>{r.value}</div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Top 3 players mini */}
+              {players.length>0&&(
+                <>
+                  <div className="os-section">👑 TOP JUGADORES</div>
+                  {players.slice(0,3).map((p,i)=>{
+                    const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
+                    return(
+                      <div key={i} style={{background:'var(--surface)',border:`1px solid ${i===0?'rgba(255,212,71,.3)':'var(--border)'}`,borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}
+                        onClick={()=>{snd('tap');setSelectedPlayer(p);}}>
+                        <div style={{fontSize:'1.5rem'}}>{i===0?'🥇':i===1?'🥈':'🥉'}</div>
+                        <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontFamily:'var(--font-body)',fontWeight:700,color:p.color||'#fff'}}>{p.name}</div>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:2}}>{p.games} partidas · {wr}% WR</div>
+                        </div>
+                        <div style={{textAlign:'right'}}>
+                          <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>{p.wins}</div>
+                          <div style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆 wins</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </>)}
+
+            {!globalStats&&!loading&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>📊</div><div>Completa partidas para ver estadísticas</div></div>}
+          </div>
+        )}
+
+        {/* ── RANKING ── */}
+        {!loading&&tab==='ranking'&&(
+          <div className="anim-fade">
+            {players.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🏆</div><div>Sin jugadores registrados aún</div></div>}
             {players.map((p,i)=>{
               const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
               return(
@@ -1275,54 +1417,64 @@ function StatsScreen({onBack,db}){
                   <div style={{fontSize:'1.7rem'}}>{p.emoji}</div>
                   <div style={{flex:1}}>
                     <div className="stat-name" style={{color:p.color||'#fff'}}>{p.name}</div>
-                    <div className="stat-meta">{p.games||0} partidas · {wr}% wins{p.firstEliminations>0?` · 💀 ×${p.firstEliminations}`:''}</div>
+                    <div className="stat-meta">{p.games||0} partidas · {wr}% WR</div>
+                    {/* Mini win rate bar */}
+                    <div style={{height:3,background:'rgba(255,255,255,.08)',borderRadius:2,marginTop:5,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:wr+'%',background:i===0?'var(--gold)':'var(--cyan)',borderRadius:2}}/>
+                    </div>
                   </div>
                   <div style={{textAlign:'right'}}>
                     <div className="stat-value" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>{p.wins||0}</div>
-                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.48rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆 WINS</div>
+                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆</div>
                   </div>
                   <div style={{color:'rgba(255,255,255,.2)',fontSize:'.95rem'}}>›</div>
                 </div>
               );
             })}
-          </>
+          </div>
         )}
+
+        {/* ── PARTIDAS ── */}
         {!loading&&tab==='sessions'&&(
-          <>
+          <div className="anim-fade">
             {sessions.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🎮</div><div>Sin partidas registradas</div></div>}
             {sessions.map((s,i)=>(
               <div key={s.sessionId||i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:13,padding:'13px 15px',marginBottom:8}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                   <div>
                     <div style={{fontWeight:700,fontSize:'var(--fs-sm)',display:'flex',alignItems:'center',gap:6}}>
-                      <span>{s.gameType==='preset:strike'?'🎳':'⚔️'}</span>{s.customTitle||s.gameTitle}
+                      <span>{s.gameType==='preset:strike'?'🎳':s.gameType?.includes('template')?'🎮':'⚔️'}</span>
+                      {s.customTitle||s.gameTitle}
                     </div>
                     <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>
-                      {fmtDate(s.startedAt)} · {fmtDuration(s.durationMs)}
+                      {fmtDate(s.startedAt)} · <strong>{fmtDuration(s.durationMs)}</strong>
                     </div>
                   </div>
                   <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,color:'rgba(255,255,255,.3)',background:'rgba(255,255,255,.06)',padding:'3px 9px',borderRadius:20}}>
                     {s.playerCount||0} jug.
                   </div>
                 </div>
-                {(s.players||[]).slice(0,3).map((p,pi)=>(
+                {(s.players||[]).slice(0,4).map((p,pi)=>(
                   <div key={p.id||pi} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,.04)'}}>
-                    <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',width:22,color:'rgba(255,255,255,.25)'}}>{pi===0?'🥇':pi===1?'🥈':'🥉'}</div>
+                    <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',width:22,color:'rgba(255,255,255,.3)'}}>{pi===0?'🥇':pi===1?'🥈':pi===2?'🥉':'#'+(pi+1)}</div>
                     <div style={{fontSize:'1.05rem'}}>{p.emoji}</div>
                     <div style={{fontWeight:800,flex:1,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
                     <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>
-                      {p.survivalLabel&&`⏱ ${p.survivalLabel}`}{p.points&&`${p.points}pts`}
+                      {p.survivalMs?`⏱ ${fmtDuration(p.survivalMs)}`:''}
+                      {p.points?` · ${p.points}pts`:''}
+                      {p.wins?` · ${p.wins}🏆`:''}
                     </div>
                   </div>
                 ))}
               </div>
             ))}
-          </>
+          </div>
         )}
       </div>
     </div>
   );
 }
+
 
 // ── GENERIC SETUP FROM TEMPLATE ───────────────────────────────────
 function GenericSetupFromTemplate({template,hostPlayer,onBack,onCreateRoom}){
