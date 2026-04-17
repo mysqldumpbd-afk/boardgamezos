@@ -326,7 +326,7 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
 
 // ── GAME BUILDER WIZARD ──────────────────────────────────────────
 function GameBuilder({ user, editingTemplate, onBack, onSaved }){
-  const TOTAL_STEPS = 5;
+  const TOTAL_STEPS = 6;
   const [step, setStep] = React.useState(1);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -341,6 +341,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       description: '',
       // Sec 1 — Identidad
       type: 'individual',
+      numTeams: 2,              // cuántos equipos (solo si type==='teams')
       minPlayers: 2,
       maxPlayers: 8,
       // Sec 2 — Estructura (árbol completo)
@@ -369,12 +370,39 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       timerExpireAction: 'nothing', // nothing | skip | assign_zero | penalty | auto
       // Sec 3 — Victoria
       victoryMode: 'points',
+      // Puntos
+      pointsWinMode: 'most',        // most | reach_x | exact_x
+      pointsValidation: 'instant',  // instant | round_end
       useTarget: false,
       targetScore: 100,
-      winsMode: 'most',             // most | target
+      // Victorias
+      winsMode: 'most',             // most | target | last_decisive
       winsTarget: 3,
+      // Vidas
+      livesWinMode: 'last_alive',   // last_alive | most_rounds | most_lives
+      // Eliminación
+      elimWinMode: 'last_player',   // last_player | last_team | eliminate_all
+      // Objetivo
+      objectiveWinMode: 'complete_mission', // complete_mission | get_resource | activate_cond | unique_event
+      // Manual
+      manualWinMode: 'host_end',    // host_end | host_winner
       winConditions: [],
       tiebreak: 'share',
+      // Sec 4 — Derrota
+      useDefeat: false,         // false = sin derrota explícita
+      defeatType: 'points',     // points | wins | lives | elimination | time | objective | external
+      defeatPoints: 'last',     // last | below_x | no_min | too_behind
+      defeatPointsX: 0,
+      defeatWins: 'fewer',      // fewer | cant_reach | lose_n
+      defeatLoseN: 3,
+      defeatLives: 'zero',      // zero | damage | instant_event
+      defeatElim: 'last_round', // last_round | elim_rule | specific_round | manual
+      defeatElimRound: 1,
+      defeatTime: 'timeout',    // timeout | no_act | excess_penalty
+      defeatObjective: 'no_mission', // no_mission | fail_key | fail_critical
+      defeatExternal: 'dice',   // dice | wheel | coin | ai | host
+      defeatMoment: 'round_end',// immediate | turn_end | round_end | phase | game_end
+      defeatConsequence: 'eliminated', // eliminated | spectator | lose_turn | lose_points | temp_penalty | weakened | log_only
       // Sec 4 — Puntos
       accumulates: 'points',
       scoreSign: 'positive',
@@ -405,6 +433,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       config: {
         // Identidad
         type: tmpl.type,
+        numTeams: tmpl.numTeams,
         minPlayers: tmpl.minPlayers,
         maxPlayers: tmpl.maxPlayers,
         // Estructura — Rondas
@@ -432,12 +461,33 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         timerExpireAction: tmpl.timerExpireAction,
         // Victoria
         victoryMode: tmpl.victoryMode,
+        pointsWinMode: tmpl.pointsWinMode,
+        pointsValidation: tmpl.pointsValidation,
         useTarget: tmpl.useTarget,
         targetScore: tmpl.targetScore,
         winsMode: tmpl.winsMode,
         winsTarget: tmpl.winsTarget,
+        livesWinMode: tmpl.livesWinMode,
+        elimWinMode: tmpl.elimWinMode,
+        objectiveWinMode: tmpl.objectiveWinMode,
+        manualWinMode: tmpl.manualWinMode,
         winConditions: tmpl.winConditions,
         tiebreak: tmpl.tiebreak,
+        // Derrota
+        useDefeat: tmpl.useDefeat,
+        defeatType: tmpl.defeatType,
+        defeatPoints: tmpl.defeatPoints,
+        defeatPointsX: tmpl.defeatPointsX,
+        defeatWins: tmpl.defeatWins,
+        defeatLoseN: tmpl.defeatLoseN,
+        defeatLives: tmpl.defeatLives,
+        defeatElim: tmpl.defeatElim,
+        defeatElimRound: tmpl.defeatElimRound,
+        defeatTime: tmpl.defeatTime,
+        defeatObjective: tmpl.defeatObjective,
+        defeatExternal: tmpl.defeatExternal,
+        defeatMoment: tmpl.defeatMoment,
+        defeatConsequence: tmpl.defeatConsequence,
         // Puntos
         accumulates: tmpl.accumulates,
         scoreSign: tmpl.scoreSign,
@@ -453,7 +503,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     setTimeout(()=>onSaved(saved), 1200);
   }
 
-  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','PUNTOS','HERRAMIENTAS'];
+  const stepTitles = ['IDENTIDAD','ESTRUCTURA','VICTORIA','DERROTA','PUNTOS','HERRAMIENTAS'];
   const canNext = step===1 ? tmpl.name.trim().length>=2 : true;
 
   // ── Sección helpers ──
@@ -590,6 +640,32 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
             <OptionRow label="👥 Por equipos" sub="Jugadores agrupados en equipos"
               active={tmpl.type==='teams'} onClick={()=>{snd('tap');upd('type','teams');}}/>
 
+            {tmpl.type==='teams' && (
+              <div style={{
+                background:'rgba(0,245,255,.05)',border:'1px solid rgba(0,245,255,.2)',
+                borderRadius:12,padding:'12px 14px',marginBottom:8
+              }}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.6)',letterSpacing:2,marginBottom:10}}>¿CUÁNTOS EQUIPOS?</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  {[2,3,4,5,6].map(n=>(
+                    <button key={n} onClick={()=>{snd('tap');upd('numTeams',n);}}
+                      style={{
+                        width:52,height:52,borderRadius:12,border:'none',cursor:'pointer',
+                        fontFamily:'var(--font-display)',fontSize:'1.2rem',
+                        background:tmpl.numTeams===n?'var(--cyan)':'rgba(255,255,255,.08)',
+                        color:tmpl.numTeams===n?'var(--bg)':'rgba(255,255,255,.6)',
+                        transition:'all .15s'
+                      }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:8}}>
+                  {tmpl.numTeams} equipos · los jugadores se distribuirán al iniciar la partida
+                </div>
+              </div>
+            )}
+
             <div className="os-section">NÚMERO DE JUGADORES</div>
             <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:16}}>
               <div style={{flex:1}}>
@@ -613,8 +689,23 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         {/* ── PASO 2: ESTRUCTURA ── */}
         {step===2 && (
           <div className="anim-fade">
-
-            {/* ══════════════════════════════
+            {/* Título de sección */}
+            <div style={{
+              textAlign:'center',
+              background:'linear-gradient(135deg,rgba(0,245,255,.08),rgba(155,93,229,.06))',
+              border:'1px solid rgba(0,245,255,.2)',borderRadius:14,
+              padding:'14px 16px',marginBottom:20
+            }}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>🏗️</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,
+                background:'linear-gradient(135deg,var(--cyan),var(--purple))',
+                WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
+                ESTRUCTURA DE LA PARTIDA
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>
+                RONDAS · TURNOS · TOKEN · TEMPORIZADOR
+              </div>
+            </div>
                 BLOQUE A: RONDAS
             ══════════════════════════════ */}
             <div style={{
@@ -854,16 +945,34 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
           </div>
         )}
 
-        {/* ── PASO 3: VICTORIA ── */}
+        {/* ── PASO 3: CONDICIÓN DE VICTORIA ── */}
         {step===3 && (
           <div className="anim-fade">
-            <div className="os-section">CONDICIÓN DE VICTORIA</div>
+            {/* Título */}
+            <div style={{
+              textAlign:'center',
+              background:'linear-gradient(135deg,rgba(255,212,71,.08),rgba(255,107,53,.06))',
+              border:'1px solid rgba(255,212,71,.2)',borderRadius:14,
+              padding:'14px 16px',marginBottom:20
+            }}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>🏆</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--gold)'}}>
+                CONDICIÓN DE VICTORIA
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>
+                ¿CÓMO SE GANA ESTE JUEGO?
+              </div>
+            </div>
 
+            {/* Modos principales */}
             {[
-              {v:'points', icon:'🏅', label:'Por puntos acumulados', sub:'Gana quien más puntos tenga o llegue primero a la meta', color:'var(--gold)'},
-              {v:'wins',   icon:'🏆', label:'Por victorias de ronda', sub:'Se cuentan rondas ganadas, no puntos', color:'var(--cyan)'},
-              {v:'elimination', icon:'💀', label:'Por eliminación', sub:'Se van eliminando jugadores hasta que queda uno', color:'var(--red)'},
-              {v:'manual', icon:'🎯', label:'Manual / Decisión del host', sub:'El host decide cuándo y quién gana', color:'var(--purple)'},
+              {v:'points',      icon:'🏅', label:'Por puntos',              sub:'Gana quien acumule o llegue primero a X puntos',    color:'var(--gold)'},
+              {v:'wins',        icon:'🏆', label:'Por victorias de ronda',  sub:'Se cuentan rondas ganadas',                         color:'var(--cyan)'},
+              {v:'lives',       icon:'❤️', label:'Por vidas / supervivencia',sub:'Gana quien conserve más vidas o sobreviva más',    color:'var(--red)'},
+              {v:'elimination', icon:'💀', label:'Por eliminación',          sub:'Gana el último jugador o equipo activo',            color:'var(--orange)'},
+              {v:'objective',   icon:'🎯', label:'Por objetivo / evento',    sub:'Completar una misión o activar una condición',      color:'var(--purple)'},
+              {v:'time',        icon:'⏱', label:'Por tiempo',               sub:'Gana el mejor posicionado cuando acaba el tiempo',  color:'var(--blue)'},
+              {v:'manual',      icon:'👑', label:'Manual / Host decide',     sub:'El host decide cuándo y quién gana',                color:'var(--green)'},
             ].map(m=>(
               <div key={m.v} className="os-card" style={{
                 marginBottom:8,padding:'13px 14px',cursor:'pointer',
@@ -883,58 +992,398 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
               </div>
             ))}
 
-            {/* Victorias de ronda — opciones propias */}
-            {tmpl.victoryMode==='wins' && (
-              <>
-                <div className="os-section">MODO DE VICTORIAS</div>
-                <OptionRow label="Gana quien más rondas gane" sub="Al final se cuenta quién ganó más rondas"
-                  active={tmpl.winsMode==='most'}
-                  onClick={()=>{snd('tap');upd('winsMode','most');}}
-                  color="var(--cyan)"/>
-                <OptionRow label="Meta de victorias" sub="Gana el primero en llegar a N victorias"
-                  active={tmpl.winsMode==='target'}
-                  onClick={()=>{snd('tap');upd('winsMode','target');}}
-                  color="var(--cyan)"/>
-                {tmpl.winsMode==='target' && (
-                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Meta de victorias:</div>
-                    <select className="os-select" style={{marginBottom:0,width:110}} value={tmpl.winsTarget}
-                      onChange={e=>upd('winsTarget',parseInt(e.target.value))}>
-                      {[1,2,3,4,5,6,7,8,10,15,20].map(n=><option key={n} value={n}>{n} victorias</option>)}
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
+            {/* ── SUB-OPCIONES POR MODO ── */}
 
-            {/* Meta de puntos — solo modo points */}
+            {/* PUNTOS */}
             {tmpl.victoryMode==='points' && (
-              <>
-                <div className="os-section">META DE PUNTOS</div>
-                <OptionRow label="¿Con meta numérica?" sub="Si no, gana quien más tenga al cerrar la partida"
-                  active={tmpl.useTarget} onClick={()=>{snd('tap');upd('useTarget',!tmpl.useTarget);}}
-                  color="var(--gold)"/>
-                {tmpl.useTarget && (
+              <div style={{background:'rgba(255,212,71,.05)',border:'1px solid rgba(255,212,71,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--gold)',letterSpacing:2,marginBottom:10}}>DETALLE — PUNTOS</div>
+                {[
+                  {v:'most',   label:'Gana quien tenga más puntos',       sub:'Al cerrar la partida se compara el total'},
+                  {v:'reach_x',label:'Gana quien llegue a X puntos',      sub:'El primero en alcanzar la meta gana'},
+                  {v:'exact_x',label:'Debe llegar exacto a X',            sub:'Hay que acertar exactamente la meta'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.pointsWinMode===o.v}
+                    onClick={()=>{snd('tap');upd('pointsWinMode',o.v);}}
+                    color="var(--gold)"/>
+                ))}
+                {(tmpl.pointsWinMode==='reach_x'||tmpl.pointsWinMode==='exact_x') && (
                   <input className="os-input" type="number" min="1" max="99999"
                     placeholder="Meta de puntos (ej: 200)"
                     value={tmpl.targetScore||''}
                     onChange={e=>upd('targetScore',Math.min(99999,parseInt(e.target.value)||0))}/>
                 )}
-              </>
+                <div className="os-section">¿CUÁNDO SE VALIDA?</div>
+                <OptionRow label="Al instante" sub="Tan pronto alguien llega a la meta, gana"
+                  active={tmpl.pointsValidation==='instant'}
+                  onClick={()=>{snd('tap');upd('pointsValidation','instant');}}
+                  color="var(--gold)"/>
+                <OptionRow label="Al final de ronda" sub="Se revisa solo cuando el host cierra la ronda"
+                  active={tmpl.pointsValidation==='round_end'}
+                  onClick={()=>{snd('tap');upd('pointsValidation','round_end');}}
+                  color="var(--gold)"/>
+              </div>
             )}
+
+            {/* VICTORIAS */}
+            {tmpl.victoryMode==='wins' && (
+              <div style={{background:'rgba(0,245,255,.05)',border:'1px solid rgba(0,245,255,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--cyan)',letterSpacing:2,marginBottom:10}}>DETALLE — VICTORIAS</div>
+                <OptionRow label="Gana quien más rondas gane" sub="Al final se suma quién ganó más rondas"
+                  active={tmpl.winsMode==='most'}
+                  onClick={()=>{snd('tap');upd('winsMode','most');}} color="var(--cyan)"/>
+                <OptionRow label="Meta de victorias" sub="Gana el primero en llegar a N victorias"
+                  active={tmpl.winsMode==='target'}
+                  onClick={()=>{snd('tap');upd('winsMode','target');}} color="var(--cyan)"/>
+                <OptionRow label="Gana quien gane la última ronda decisiva" sub="La última ronda decide si hay empate"
+                  active={tmpl.winsMode==='last_decisive'}
+                  onClick={()=>{snd('tap');upd('winsMode','last_decisive');}} color="var(--cyan)"/>
+                {tmpl.winsMode==='target' && (
+                  <div style={{display:'flex',alignItems:'center',gap:12,marginTop:4}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Meta:</div>
+                    <select className="os-select" style={{marginBottom:0,width:120}} value={tmpl.winsTarget}
+                      onChange={e=>upd('winsTarget',parseInt(e.target.value))}>
+                      {[1,2,3,4,5,6,7,8,10,15,20].map(n=><option key={n} value={n}>{n} victorias</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VIDAS / SUPERVIVENCIA */}
+            {tmpl.victoryMode==='lives' && (
+              <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--red)',letterSpacing:2,marginBottom:10}}>DETALLE — VIDAS</div>
+                {[
+                  {v:'last_alive',    label:'Gana el último con vida',         sub:'Todos los demás deben perder sus vidas'},
+                  {v:'most_rounds',   label:'Gana quien sobreviva más rondas', sub:'El que más rondas aguante activo'},
+                  {v:'most_lives',    label:'Gana quien conserve más vidas',   sub:'Al finalizar, se comparan vidas restantes'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.livesWinMode===o.v}
+                    onClick={()=>{snd('tap');upd('livesWinMode',o.v);}} color="var(--red)"/>
+                ))}
+              </div>
+            )}
+
+            {/* ELIMINACIÓN */}
+            {tmpl.victoryMode==='elimination' && (
+              <div style={{background:'rgba(255,107,53,.05)',border:'1px solid rgba(255,107,53,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--orange)',letterSpacing:2,marginBottom:10}}>DETALLE — ELIMINACIÓN</div>
+                {[
+                  {v:'last_player',label:'Gana el último jugador activo', sub:'Todos los demás deben ser eliminados'},
+                  {v:'last_team',  label:'Gana el último equipo activo',  sub:'Para partidas por equipos'},
+                  {v:'eliminate_all',label:'Gana al eliminar a todos los demás', sub:'El objetivo es eliminar a los oponentes'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.elimWinMode===o.v}
+                    onClick={()=>{snd('tap');upd('elimWinMode',o.v);}} color="var(--orange)"/>
+                ))}
+              </div>
+            )}
+
+            {/* OBJETIVO / EVENTO */}
+            {tmpl.victoryMode==='objective' && (
+              <div style={{background:'rgba(155,93,229,.05)',border:'1px solid rgba(155,93,229,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--purple)',letterSpacing:2,marginBottom:10}}>DETALLE — OBJETIVO</div>
+                {[
+                  {v:'complete_mission', label:'Completar misión',         sub:'El jugador completa una misión definida'},
+                  {v:'get_resource',     label:'Obtener recurso/meta',     sub:'Conseguir un objeto o recurso específico'},
+                  {v:'activate_cond',   label:'Activar condición especial',sub:'Disparar una condición del juego'},
+                  {v:'unique_event',     label:'Cumplir evento único',      sub:'Un evento irrepetible determina al ganador'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.objectiveWinMode===o.v}
+                    onClick={()=>{snd('tap');upd('objectiveWinMode',o.v);}} color="var(--purple)"/>
+                ))}
+              </div>
+            )}
+
+            {/* TIEMPO */}
+            {tmpl.victoryMode==='time' && (
+              <div style={{background:'rgba(74,144,255,.05)',border:'1px solid rgba(74,144,255,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--blue)',letterSpacing:2,marginBottom:10}}>DETALLE — TIEMPO</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',marginBottom:8}}>
+                  Cuando termina el tiempo total de la partida, gana el mejor posicionado (más puntos, más victorias, o el que no fue eliminado).
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1}}>
+                  La duración del tiempo total se configura en la sección de Estructura → Temporizador.
+                </div>
+              </div>
+            )}
+
+            {/* MANUAL */}
+            {tmpl.victoryMode==='manual' && (
+              <div style={{background:'rgba(0,255,157,.05)',border:'1px solid rgba(0,255,157,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--green)',letterSpacing:2,marginBottom:10}}>DETALLE — MANUAL</div>
+                {[
+                  {v:'host_end',    label:'El host decide cuándo termina', sub:'El host cierra la partida cuando lo considera'},
+                  {v:'host_winner', label:'El host define el ganador',      sub:'El host señala explícitamente quién ganó'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.manualWinMode===o.v}
+                    onClick={()=>{snd('tap');upd('manualWinMode',o.v);}} color="var(--green)"/>
+                ))}
+              </div>
+            )}
+
+            {/* Condiciones personalizadas */}
+            <div className="os-section" style={{marginTop:8}}>CONDICIONES PERSONALIZADAS (OPCIONAL)</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10}}>
+              Ej: Full house, Corrida, Flush... Al registrar una ronda podrás seleccionar cómo ganaste.
+            </div>
+            {(tmpl.winConditions||[]).map((c,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.2)',borderRadius:10,padding:'8px 12px',marginBottom:6}}>
+                <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'var(--gold)'}}>{c}</div>
+                <button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.1rem',cursor:'pointer'}}
+                  onClick={()=>{snd('tap');upd('winConditions',(tmpl.winConditions||[]).filter((_,j)=>j!==i));}}>×</button>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:8,marginBottom:8}}>
+              <input className="os-input" id="wc-input" style={{marginBottom:0,flex:1}}
+                placeholder="Ej: Full house, Corrida, Flush..."
+                maxLength={30}
+                onKeyDown={e=>{
+                  if(e.key==='Enter'&&e.target.value.trim()){
+                    snd('tap');
+                    upd('winConditions',[...(tmpl.winConditions||[]),e.target.value.trim()]);
+                    e.target.value='';
+                  }
+                }}/>
+              <button style={{background:'rgba(255,212,71,.1)',border:'1px solid rgba(255,212,71,.3)',color:'var(--gold)',borderRadius:11,padding:'0 16px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.1rem',flexShrink:0}}
+                onClick={()=>{
+                  const inp=document.getElementById('wc-input');
+                  if(inp&&inp.value.trim()){snd('tap');upd('winConditions',[...(tmpl.winConditions||[]),inp.value.trim()]);inp.value='';}
+                }}>+</button>
+            </div>
 
             {/* Desempate */}
             <div className="os-section">DESEMPATE</div>
             <SelectRow value={tmpl.tiebreak} onChange={v=>upd('tiebreak',v)} label="" options={[
-              {value:'share', label:'Compartir'},
-              {value:'tool',  label:'Herramienta'},
+              {value:'share', label:'Compartir victoria'},
+              {value:'tool',  label:'Herramienta (moneda, etc)'},
               {value:'host',  label:'Host decide'},
             ]}/>
           </div>
         )}
 
-        {/* ── PASO 4: PUNTOS ── */}
+        {/* ── PASO 4: CONDICIÓN DE DERROTA ── */}
         {step===4 && (
+          <div className="anim-fade">
+            {/* Título */}
+            <div style={{
+              textAlign:'center',
+              background:'linear-gradient(135deg,rgba(255,59,92,.08),rgba(255,107,53,.06))',
+              border:'1px solid rgba(255,59,92,.2)',borderRadius:14,
+              padding:'14px 16px',marginBottom:20
+            }}>
+              <div style={{fontSize:'2rem',marginBottom:6}}>💀</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--red)'}}>
+                CONDICIÓN DE DERROTA
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>
+                ¿HAY UNA FORMA EXPLÍCITA DE PERDER?
+              </div>
+            </div>
+
+            <OptionRow label="Sin derrota explícita" sub="Solo pierde quien no gana — no hay condición adicional"
+              active={!tmpl.useDefeat} onClick={()=>{snd('tap');upd('useDefeat',false);}} color="var(--green)"/>
+            <OptionRow label="Con derrota explícita" sub="Hay condiciones específicas que eliminan o penalizan a un jugador"
+              active={tmpl.useDefeat} onClick={()=>{snd('tap');upd('useDefeat',true);}} color="var(--red)"/>
+
+            {tmpl.useDefeat && (<>
+
+              {/* Tipo de derrota */}
+              <div className="os-section">¿POR QUÉ SE PIERDE?</div>
+              {[
+                {v:'points',    icon:'🏅', label:'Por puntos',          sub:'Bajar de X, quedar último, no alcanzar mínimo...'},
+                {v:'wins',      icon:'🏆', label:'Por victorias',        sub:'Tener menos victorias, no poder alcanzar al líder...'},
+                {v:'lives',     icon:'❤️', label:'Por vidas',            sub:'Llegar a 0, daño acumulado, muerte por evento...'},
+                {v:'elimination',icon:'💀',label:'Por eliminación',      sub:'Último lugar de ronda, ronda específica, manual...'},
+                {v:'time',      icon:'⏱', label:'Por tiempo',           sub:'Timeout, no actuar a tiempo, exceso de penalizaciones'},
+                {v:'objective', icon:'🎯', label:'Por objetivo fallido', sub:'No cumplir misión, fallar condición clave...'},
+                {v:'external',  icon:'🎲', label:'Por evento externo',   sub:'Resultado de dado, ruleta, moneda, IA, host...'},
+              ].map(m=>(
+                <div key={m.v} className="os-card" style={{
+                  marginBottom:8,padding:'12px 14px',cursor:'pointer',
+                  borderColor:tmpl.defeatType===m.v?'rgba(255,59,92,.6)':undefined,
+                  background:tmpl.defeatType===m.v?'rgba(255,59,92,.08)':undefined
+                }} onClick={()=>{snd('tap');upd('defeatType',m.v);}}>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{fontSize:'1.6rem'}}>{m.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',letterSpacing:1,
+                        color:tmpl.defeatType===m.v?'var(--red)':'#fff'}}>{m.label}</div>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{m.sub}</div>
+                    </div>
+                    {tmpl.defeatType===m.v && <div style={{color:'var(--red)',fontSize:'1.2rem'}}>✓</div>}
+                  </div>
+                </div>
+              ))}
+
+              {/* Sub-opciones por tipo */}
+              {tmpl.defeatType==='points' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'below_x',  label:'Bajar de X puntos',          sub:'Si un jugador cae por debajo de cierta cantidad'},
+                    {v:'last',     label:'Quedar último',               sub:'El jugador en último lugar pierde'},
+                    {v:'no_min',   label:'No alcanzar mínimo requerido',sub:'Hay un umbral mínimo que se debe superar'},
+                    {v:'too_behind',label:'Quedar demasiado atrás',     sub:'Una diferencia excesiva con el líder'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatPoints===o.v}
+                      onClick={()=>{snd('tap');upd('defeatPoints',o.v);}} color="var(--red)"/>
+                  ))}
+                  {tmpl.defeatPoints==='below_x' && (
+                    <input className="os-input" type="number" placeholder="Umbral mínimo de puntos"
+                      value={tmpl.defeatPointsX||''} onChange={e=>upd('defeatPointsX',parseInt(e.target.value)||0)}/>
+                  )}
+                </div>
+              )}
+
+              {tmpl.defeatType==='wins' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'fewer',      label:'Tener menos victorias',       sub:'El que menos victorias tiene pierde'},
+                    {v:'cant_reach', label:'No poder alcanzar al líder',  sub:'Matemáticamente imposible alcanzar el primero'},
+                    {v:'lose_n',     label:'Perder N rondas seguidas',    sub:'Una racha de derrotas consecutivas'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatWins===o.v}
+                      onClick={()=>{snd('tap');upd('defeatWins',o.v);}} color="var(--red)"/>
+                  ))}
+                  {tmpl.defeatWins==='lose_n' && (
+                    <div style={{display:'flex',alignItems:'center',gap:12,marginTop:4}}>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Número de derrotas seguidas:</div>
+                      <select className="os-select" style={{marginBottom:0,width:80}} value={tmpl.defeatLoseN}
+                        onChange={e=>upd('defeatLoseN',parseInt(e.target.value))}>
+                        {[2,3,4,5,6,7,8,10].map(n=><option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tmpl.defeatType==='lives' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'zero',         label:'Llegar a 0 vidas',                sub:'El jugador pierde cuando no tiene vidas'},
+                    {v:'damage',       label:'Daño acumulado',                  sub:'La suma de daño supera un umbral'},
+                    {v:'instant_event',label:'Muerte instantánea por evento',   sub:'Un evento específico elimina al jugador de inmediato'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatLives===o.v}
+                      onClick={()=>{snd('tap');upd('defeatLives',o.v);}} color="var(--red)"/>
+                  ))}
+                </div>
+              )}
+
+              {tmpl.defeatType==='elimination' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'last_round',   label:'Último lugar de ronda',    sub:'El que queda último en la ronda es eliminado'},
+                    {v:'elim_rule',    label:'Regla de eliminación',     sub:'Una regla específica del juego lo elimina'},
+                    {v:'specific_round',label:'Ronda específica',        sub:'A partir de cierta ronda se activa la eliminación'},
+                    {v:'manual',       label:'Decisión manual',          sub:'El host o un evento decide quién se elimina'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatElim===o.v}
+                      onClick={()=>{snd('tap');upd('defeatElim',o.v);}} color="var(--red)"/>
+                  ))}
+                  {tmpl.defeatElim==='specific_round' && (
+                    <div style={{display:'flex',alignItems:'center',gap:12,marginTop:4}}>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Empieza en ronda:</div>
+                      <select className="os-select" style={{marginBottom:0,width:80}} value={tmpl.defeatElimRound}
+                        onChange={e=>upd('defeatElimRound',parseInt(e.target.value))}>
+                        {Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tmpl.defeatType==='time' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'timeout',         label:'Timeout',                  sub:'El jugador agota su tiempo de turno'},
+                    {v:'no_act',          label:'No actuar a tiempo',       sub:'No realizó ninguna acción antes de que cerrara'},
+                    {v:'excess_penalty',  label:'Exceso de penalizaciones', sub:'Acumula demasiadas penalizaciones por tiempo'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatTime===o.v}
+                      onClick={()=>{snd('tap');upd('defeatTime',o.v);}} color="var(--red)"/>
+                  ))}
+                </div>
+              )}
+
+              {tmpl.defeatType==='objective' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'no_mission',   label:'No cumplir misión',       sub:'El jugador no completó su misión a tiempo'},
+                    {v:'fail_key',     label:'Fallar condición clave',   sub:'Una condición esencial del juego fue fallida'},
+                    {v:'fail_critical',label:'Fallar evento crítico',    sub:'Un evento irreversible que determina la derrota'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatObjective===o.v}
+                      onClick={()=>{snd('tap');upd('defeatObjective',o.v);}} color="var(--red)"/>
+                  ))}
+                </div>
+              )}
+
+              {tmpl.defeatType==='external' && (
+                <div style={{background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',borderRadius:12,padding:'12px 14px',marginTop:4}}>
+                  {[
+                    {v:'dice',  label:'Resultado de dado', sub:'Un dado determina la derrota de un jugador'},
+                    {v:'wheel', label:'Resultado de ruleta',sub:'La ruleta señala al perdedor'},
+                    {v:'coin',  label:'Resultado de moneda',sub:'Un lanzamiento de moneda decide'},
+                    {v:'ai',    label:'Decisión IA',        sub:'La IA actúa como árbitro y decide la derrota'},
+                    {v:'host',  label:'Decisión del host',  sub:'El host manualmente señala al perdedor'},
+                  ].map(o=>(
+                    <OptionRow key={o.v} label={o.label} sub={o.sub}
+                      active={tmpl.defeatExternal===o.v}
+                      onClick={()=>{snd('tap');upd('defeatExternal',o.v);}} color="var(--red)"/>
+                  ))}
+                </div>
+              )}
+
+              {/* Momento de evaluación */}
+              <div className="os-section" style={{marginTop:8}}>MOMENTO DE EVALUACIÓN</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:8}}>¿Cuándo se revisa si se cumplió la condición de derrota?</div>
+              {[
+                {v:'immediate', label:'Inmediato',       sub:'En cuanto ocurre el evento'},
+                {v:'turn_end',  label:'Fin de turno',    sub:'Al terminar el turno del jugador'},
+                {v:'round_end', label:'Fin de ronda',    sub:'Cuando el host cierra la ronda'},
+                {v:'phase',     label:'Fase específica', sub:'En un momento particular de la partida'},
+                {v:'game_end',  label:'Fin de partida',  sub:'Solo se evalúa al terminar la partida'},
+              ].map(o=>(
+                <OptionRow key={o.v} label={o.label} sub={o.sub}
+                  active={tmpl.defeatMoment===o.v}
+                  onClick={()=>{snd('tap');upd('defeatMoment',o.v);}} color="var(--orange)"/>
+              ))}
+
+              {/* Consecuencia */}
+              <div className="os-section">CONSECUENCIA DE LA DERROTA</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:8}}>¿Qué le pasa al jugador que pierde?</div>
+              {[
+                {v:'eliminated',    label:'Eliminación total',       sub:'Sale completamente de la partida'},
+                {v:'spectator',     label:'Pasa a espectador',       sub:'Sigue viendo pero sin participar'},
+                {v:'lose_turn',     label:'Pierde turno(s)',         sub:'Se salta su próximo o próximos turnos'},
+                {v:'lose_points',   label:'Pierde puntos',           sub:'Se le descuenta una cantidad de puntos'},
+                {v:'temp_penalty',  label:'Penalización temporal',   sub:'Sufre un debuff por N rondas'},
+                {v:'weakened',      label:'Estado debilitado',       sub:'Continúa pero con capacidades reducidas'},
+                {v:'log_only',      label:'Solo registro sin salir', sub:'Se registra pero el jugador sigue activo'},
+              ].map(o=>(
+                <OptionRow key={o.v} label={o.label} sub={o.sub}
+                  active={tmpl.defeatConsequence===o.v}
+                  onClick={()=>{snd('tap');upd('defeatConsequence',o.v);}} color="var(--red)"/>
+              ))}
+            </>)}
+          </div>
+        )}
+
+        {/* ── PASO 5: PUNTOS ── */}
+        {step===5 && (
           <div className="anim-fade">
             <div className="os-section">¿QUÉ SE ACUMULA?</div>
             <SelectRow value={tmpl.accumulates} onChange={v=>upd('accumulates',v)} label="" options={[
@@ -971,8 +1420,8 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
           </div>
         )}
 
-        {/* ── PASO 5: HERRAMIENTAS ── */}
-        {step===5 && (
+        {/* ── PASO 6: HERRAMIENTAS ── */}
+        {step===6 && (
           <div className="anim-fade">
             <div className="os-section">HERRAMIENTAS DISPONIBLES EN LA PARTIDA</div>
             <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.4)',marginBottom:14}}>
@@ -1038,14 +1487,15 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 </div>
               </div>
               <div className="os-tags">
-                <div className="os-tag">{tmpl.type==='teams'?'👥 Equipos':'👤 Individual'}</div>
+                <div className="os-tag">{tmpl.type==='teams'?`👥 ${tmpl.numTeams} equipos`:'👤 Individual'}</div>
                 <div className="os-tag">{tmpl.minPlayers}-{tmpl.maxPlayers} jug.</div>
                 <div className="os-tag">{tmpl.useRounds?(tmpl.rounds==='libre'?'∞ Libre':`${tmpl.rounds} rondas`):'Sin rondas'}</div>
                 {tmpl.useRounds&&tmpl.roundClose!=='manual'&&<div className="os-tag orange">{tmpl.roundClose==='timer'?`⏱ ${tmpl.roundTimerSecs}s/ronda`:'Auto-cierre'}</div>}
-                {tmpl.useTurns&&<div className="os-tag purple">↕️ Turnos {tmpl.turnOrder==='fixed'?'fijos':tmpl.turnOrder==='random'?'aleatorios':tmpl.turnOrder==='rotating'?'rotativos':'por puntaje'}</div>}
-                {tmpl.useFirstPlayerToken&&<div className="os-tag gold">👑 Token 1er jugador</div>}
-                {tmpl.useTimer&&<div className="os-tag orange">⏱ Timer {tmpl.timerSecs<60?tmpl.timerSecs+'s':Math.floor(tmpl.timerSecs/60)+'min'}/{tmpl.timerScope==='turn'?'turno':tmpl.timerScope==='round'?'ronda':'partida'}</div>}
-                <div className="os-tag gold">{tmpl.victoryMode==='points'?'🏅 Puntos':tmpl.victoryMode==='wins'?'🏆 Victorias':tmpl.victoryMode==='elimination'?'💀 Eliminación':'🎯 Manual'}</div>
+                {tmpl.useTurns&&<div className="os-tag purple">↕️ Turnos</div>}
+                {tmpl.useFirstPlayerToken&&<div className="os-tag gold">👑 Token</div>}
+                {tmpl.useTimer&&<div className="os-tag orange">⏱ Timer</div>}
+                <div className="os-tag gold">{tmpl.victoryMode==='points'?'🏅 Puntos':tmpl.victoryMode==='wins'?'🏆 Victorias':tmpl.victoryMode==='lives'?'❤️ Vidas':tmpl.victoryMode==='elimination'?'💀 Eliminación':tmpl.victoryMode==='objective'?'🎯 Objetivo':tmpl.victoryMode==='time'?'⏱ Tiempo':'👑 Manual'}</div>
+                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota explícita</div>}
                 {tmpl.tools.length>0&&<div className="os-tag purple">🎲 {tmpl.tools.length} herr.</div>}
               </div>
             </div>
