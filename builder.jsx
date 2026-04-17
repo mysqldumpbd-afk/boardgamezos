@@ -283,6 +283,9 @@ function MyGamesScreen({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplat
                   {t.config?.rounds==='libre'?'∞ Libre':`${t.config?.rounds} rondas`}
                 </div>
               )}
+              {t.config?.useTurns && <div className="os-tag purple">↕️ Turnos</div>}
+              {t.config?.useFirstPlayerToken && <div className="os-tag gold">👑 Token</div>}
+              {t.config?.useTimer && <div className="os-tag orange">⏱ Timer</div>}
               {t.config?.type && (
                 <div className="os-tag">{t.config.type==='teams'?'👥 Equipos':'👤 Individual'}</div>
               )}
@@ -336,27 +339,49 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       name: '',
       emoji: '🎮',
       description: '',
-      // Sec 1
-      type: 'individual',      // individual | teams
+      // Sec 1 — Identidad
+      type: 'individual',
       minPlayers: 2,
       maxPlayers: 8,
-      // Sec 2 — Estructura
+      // Sec 2 — Estructura (árbol completo)
+      // ── Rondas
       useRounds: true,
-      rounds: 3,               // número | 'libre'
-      roundClose: 'manual',    // manual | timer
+      rounds: 3,                    // número | 'libre'
+      roundClose: 'manual',         // manual | timer | all_done
       roundTimerSecs: 60,
+      roundReset: 'nothing',        // nothing | round_points | turns | temp_tools
+      // ── Turnos
+      useTurns: false,
+      turnOrder: 'fixed',           // fixed | random | rotating | by_score
+      canSkipTurn: false,
+      hasExtraTurns: false,
+      turnLimitPerRound: false,
+      turnLimitCount: 1,
+      noTurnMode: 'simultaneous',   // simultaneous | mixed (si useTurns=false)
+      // ── Token de primer jugador
+      useFirstPlayerToken: false,
+      // ── Temporizador
+      useTimer: false,
+      timerScope: 'turn',           // turn | round | total
+      timerSecs: 60,
+      timerVisualAlert: true,
+      timerSoundAlert: true,
+      timerExpireAction: 'nothing', // nothing | skip | assign_zero | penalty | auto
       // Sec 3 — Victoria
-      victoryMode: 'points',   // points | wins | elimination | manual
+      victoryMode: 'points',
       useTarget: false,
       targetScore: 100,
-      tiebreak: 'share',       // share | tool | host
+      winsMode: 'most',             // most | target
+      winsTarget: 3,
+      winConditions: [],
+      tiebreak: 'share',
       // Sec 4 — Puntos
-      accumulates: 'points',   // points | wins | lives
-      scoreSign: 'positive',   // positive | both
-      capturedBy: 'host',      // host | self | all
-      scoreVisibility: 'all',  // all | host | hidden
+      accumulates: 'points',
+      scoreSign: 'positive',
+      capturedBy: 'host',
+      scoreVisibility: 'all',
       // Sec 5 — Herramientas
-      tools: [],               // ['coin','dice','wheel','ai']
+      tools: [],
       diceType: 'd6',
     };
   });
@@ -378,21 +403,47 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     const saved = await saveGameTemplate(user.uid, {
       ...tmpl,
       config: {
+        // Identidad
         type: tmpl.type,
         minPlayers: tmpl.minPlayers,
         maxPlayers: tmpl.maxPlayers,
+        // Estructura — Rondas
         useRounds: tmpl.useRounds,
         rounds: tmpl.rounds,
         roundClose: tmpl.roundClose,
         roundTimerSecs: tmpl.roundTimerSecs,
+        roundReset: tmpl.roundReset,
+        // Estructura — Turnos
+        useTurns: tmpl.useTurns,
+        turnOrder: tmpl.turnOrder,
+        canSkipTurn: tmpl.canSkipTurn,
+        hasExtraTurns: tmpl.hasExtraTurns,
+        turnLimitPerRound: tmpl.turnLimitPerRound,
+        turnLimitCount: tmpl.turnLimitCount,
+        noTurnMode: tmpl.noTurnMode,
+        // Token primer jugador
+        useFirstPlayerToken: tmpl.useFirstPlayerToken,
+        // Temporizador
+        useTimer: tmpl.useTimer,
+        timerScope: tmpl.timerScope,
+        timerSecs: tmpl.timerSecs,
+        timerVisualAlert: tmpl.timerVisualAlert,
+        timerSoundAlert: tmpl.timerSoundAlert,
+        timerExpireAction: tmpl.timerExpireAction,
+        // Victoria
         victoryMode: tmpl.victoryMode,
         useTarget: tmpl.useTarget,
         targetScore: tmpl.targetScore,
+        winsMode: tmpl.winsMode,
+        winsTarget: tmpl.winsTarget,
+        winConditions: tmpl.winConditions,
         tiebreak: tmpl.tiebreak,
+        // Puntos
         accumulates: tmpl.accumulates,
         scoreSign: tmpl.scoreSign,
         capturedBy: tmpl.capturedBy,
         scoreVisibility: tmpl.scoreVisibility,
+        // Herramientas
         tools: tmpl.tools,
         diceType: tmpl.diceType,
       }
@@ -562,34 +613,45 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         {/* ── PASO 2: ESTRUCTURA ── */}
         {step===2 && (
           <div className="anim-fade">
-            <div className="os-section">¿SE JUEGA POR RONDAS?</div>
-            <OptionRow label="Sí, hay rondas" sub="La partida se divide en rondas numeradas"
-              active={tmpl.useRounds} onClick={()=>{snd('tap');upd('useRounds',true);}}/>
-            <OptionRow label="No, partida continua" sub="Sin división en rondas, flujo libre"
-              active={!tmpl.useRounds} onClick={()=>{snd('tap');upd('useRounds',false);}}/>
 
-            {tmpl.useRounds && (
-              <>
+            {/* ══════════════════════════════
+                BLOQUE A: RONDAS
+            ══════════════════════════════ */}
+            <div style={{
+              background:'rgba(0,245,255,.04)',border:'1px solid rgba(0,245,255,.15)',
+              borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+            }}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--cyan)',marginBottom:12}}>
+                🔄 RONDAS
+              </div>
+
+              <div className="os-section" style={{marginTop:0}}>¿HAY RONDAS?</div>
+              <OptionRow label="Sí — partida por rondas" sub="La partida se divide en rondas numeradas"
+                active={tmpl.useRounds} onClick={()=>{snd('tap');upd('useRounds',true);}}/>
+              <OptionRow label="No — partida continua" sub="Flujo libre, sin separación en rondas"
+                active={!tmpl.useRounds} onClick={()=>{snd('tap');upd('useRounds',false);}}/>
+
+              {tmpl.useRounds && (<>
                 <div className="os-section">NÚMERO DE RONDAS</div>
                 <select className="os-select" value={tmpl.rounds}
                   onChange={e=>upd('rounds', e.target.value==='libre'?'libre':parseInt(e.target.value))}>
                   {Array.from({length:20},(_,i)=>i+1).map(n=>(
                     <option key={n} value={n}>{n} ronda{n>1?'s':''}</option>
                   ))}
-                  <option value="libre">∞ Libre (cierre manual)</option>
+                  <option value="libre">∞ Infinito / Libre</option>
                 </select>
 
                 <div className="os-section">CIERRE DE RONDA</div>
                 <OptionRow label="Manual" sub="El host cierra la ronda cuando lo decide"
                   active={tmpl.roundClose==='manual'} onClick={()=>{snd('tap');upd('roundClose','manual');}}/>
-                <OptionRow label="Por tiempo" sub="La ronda cierra automáticamente al acabar el timer"
+                <OptionRow label="Automático por tiempo" sub="Cierra al agotarse el timer de ronda"
                   active={tmpl.roundClose==='timer'} onClick={()=>{snd('tap');upd('roundClose','timer');}}/>
+                <OptionRow label="Automático cuando todos terminan" sub="Cierra cuando cada jugador marca su acción"
+                  active={tmpl.roundClose==='all_done'} onClick={()=>{snd('tap');upd('roundClose','all_done');}}/>
 
                 {tmpl.roundClose==='timer' && (
                   <>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2,marginBottom:8,textTransform:'uppercase'}}>
-                      Segundos por ronda
-                    </div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2,marginBottom:6,marginTop:4,textTransform:'uppercase'}}>Duración de ronda</div>
                     <select className="os-select" value={tmpl.roundTimerSecs}
                       onChange={e=>upd('roundTimerSecs',parseInt(e.target.value))}>
                       {[15,30,45,60,90,120,180,300,600].map(s=>(
@@ -598,8 +660,197 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                     </select>
                   </>
                 )}
-              </>
-            )}
+
+                <div className="os-section">REINICIO ENTRE RONDAS</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:8}}>
+                  ¿Qué se resetea al iniciar cada ronda nueva?
+                </div>
+                {[
+                  {v:'nothing',     label:'Nada',                     sub:'Todo persiste de ronda a ronda'},
+                  {v:'round_points',label:'Puntos de ronda',          sub:'Se limpian los puntos de esa ronda (acumulado se mantiene)'},
+                  {v:'turns',       label:'Turnos',                   sub:'El orden de turnos se reinicia'},
+                  {v:'temp_tools',  label:'Herramientas temporales',  sub:'Las herramientas de un solo uso se recargan'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.roundReset===o.v}
+                    onClick={()=>{snd('tap');upd('roundReset',o.v);}}/>
+                ))}
+              </>)}
+            </div>
+
+            {/* ══════════════════════════════
+                BLOQUE B: TURNOS
+            ══════════════════════════════ */}
+            <div style={{
+              background:'rgba(155,93,229,.04)',border:'1px solid rgba(155,93,229,.18)',
+              borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+            }}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--purple)',marginBottom:12}}>
+                ↕️ TURNOS
+              </div>
+
+              <div className="os-section" style={{marginTop:0}}>¿HAY TURNOS?</div>
+              <OptionRow label="Sí — los jugadores actúan por turno"
+                sub="Un jugador a la vez en orden definido"
+                active={tmpl.useTurns} onClick={()=>{snd('tap');upd('useTurns',true);}}
+                color="var(--purple)"/>
+              <OptionRow label="No — acción libre"
+                sub="Los jugadores actúan simultáneamente o cuando quieran"
+                active={!tmpl.useTurns} onClick={()=>{snd('tap');upd('useTurns',false);}}
+                color="var(--purple)"/>
+
+              {tmpl.useTurns && (<>
+                <div className="os-section">ORDEN DE TURNOS</div>
+                {[
+                  {v:'fixed',    label:'Fijo',              sub:'Siempre el mismo orden desde el inicio'},
+                  {v:'random',   label:'Aleatorio',         sub:'Se sortea cada ronda'},
+                  {v:'rotating', label:'Rotativo',          sub:'El primer jugador rota cada ronda'},
+                  {v:'by_score', label:'Por posición/puntaje', sub:'Lidera quien tenga más puntos o esté primero'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.turnOrder===o.v}
+                    onClick={()=>{snd('tap');upd('turnOrder',o.v);}}
+                    color="var(--purple)"/>
+                ))}
+
+                <div className="os-section">OPCIONES DE TURNO</div>
+                <div className={`check-row ${tmpl.canSkipTurn?'active':''}`}
+                  style={{borderColor:tmpl.canSkipTurn?'rgba(155,93,229,.4)':undefined,background:tmpl.canSkipTurn?'rgba(155,93,229,.08)':undefined}}
+                  onClick={()=>{snd('tap');upd('canSkipTurn',!tmpl.canSkipTurn);}}>
+                  <div className="check-box" style={{borderColor:tmpl.canSkipTurn?'var(--purple)':undefined,background:tmpl.canSkipTurn?'var(--purple)':undefined,color:tmpl.canSkipTurn?'var(--bg)':undefined}}>{tmpl.canSkipTurn?'✓':''}</div>
+                  <div><div className="check-label">Se puede saltar turno</div><div className="check-sub">Un jugador puede pasar su turno</div></div>
+                </div>
+                <div className={`check-row ${tmpl.hasExtraTurns?'active':''}`}
+                  style={{borderColor:tmpl.hasExtraTurns?'rgba(155,93,229,.4)':undefined,background:tmpl.hasExtraTurns?'rgba(155,93,229,.08)':undefined}}
+                  onClick={()=>{snd('tap');upd('hasExtraTurns',!tmpl.hasExtraTurns);}}>
+                  <div className="check-box" style={{borderColor:tmpl.hasExtraTurns?'var(--purple)':undefined,background:tmpl.hasExtraTurns?'var(--purple)':undefined,color:tmpl.hasExtraTurns?'var(--bg)':undefined}}>{tmpl.hasExtraTurns?'✓':''}</div>
+                  <div><div className="check-label">Hay turnos extra</div><div className="check-sub">Ciertos eventos pueden dar un turno adicional</div></div>
+                </div>
+                <div className={`check-row ${tmpl.turnLimitPerRound?'active':''}`}
+                  style={{borderColor:tmpl.turnLimitPerRound?'rgba(155,93,229,.4)':undefined,background:tmpl.turnLimitPerRound?'rgba(155,93,229,.08)':undefined}}
+                  onClick={()=>{snd('tap');upd('turnLimitPerRound',!tmpl.turnLimitPerRound);}}>
+                  <div className="check-box" style={{borderColor:tmpl.turnLimitPerRound?'var(--purple)':undefined,background:tmpl.turnLimitPerRound?'var(--purple)':undefined,color:tmpl.turnLimitPerRound?'var(--bg)':undefined}}>{tmpl.turnLimitPerRound?'✓':''}</div>
+                  <div><div className="check-label">Límite de turnos por ronda</div><div className="check-sub">Cada jugador tiene N turnos máximo por ronda</div></div>
+                </div>
+                {tmpl.turnLimitPerRound && (
+                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Turnos por jugador por ronda:</div>
+                    <select className="os-select" style={{marginBottom:0,width:100}} value={tmpl.turnLimitCount}
+                      onChange={e=>upd('turnLimitCount',parseInt(e.target.value))}>
+                      {[1,2,3,4,5,6,8,10].map(n=><option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                )}
+              </>)}
+
+              {!tmpl.useTurns && (<>
+                <div className="os-section">MODO SIN TURNOS</div>
+                <OptionRow label="Simultáneo" sub="Todos actúan al mismo tiempo"
+                  active={tmpl.noTurnMode==='simultaneous'}
+                  onClick={()=>{snd('tap');upd('noTurnMode','simultaneous');}}
+                  color="var(--purple)"/>
+                <OptionRow label="Mixto" sub="Algunas fases son simultáneas, otras por turno"
+                  active={tmpl.noTurnMode==='mixed'}
+                  onClick={()=>{snd('tap');upd('noTurnMode','mixed');}}
+                  color="var(--purple)"/>
+              </>)}
+            </div>
+
+            {/* ══════════════════════════════
+                BLOQUE C: TOKEN PRIMER JUGADOR
+            ══════════════════════════════ */}
+            <div style={{
+              background:'rgba(255,212,71,.04)',border:'1px solid rgba(255,212,71,.18)',
+              borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+            }}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--gold)',marginBottom:12}}>
+                👑 TOKEN DE PRIMER JUGADOR
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:10,lineHeight:1.5}}>
+                Un token visual que indica quién es el "primer jugador" en un momento dado. Se puede pasar entre jugadores durante la partida.
+              </div>
+              <div className={`check-row ${tmpl.useFirstPlayerToken?'active':''}`}
+                style={{borderColor:tmpl.useFirstPlayerToken?'rgba(255,212,71,.4)':undefined,background:tmpl.useFirstPlayerToken?'rgba(255,212,71,.08)':undefined}}
+                onClick={()=>{snd('tap');upd('useFirstPlayerToken',!tmpl.useFirstPlayerToken);}}>
+                <div className="check-box" style={{borderColor:tmpl.useFirstPlayerToken?'var(--gold)':undefined,background:tmpl.useFirstPlayerToken?'var(--gold)':undefined,color:tmpl.useFirstPlayerToken?'var(--bg)':undefined}}>{tmpl.useFirstPlayerToken?'✓':''}</div>
+                <div>
+                  <div className="check-label">Habilitar token de primer jugador 👑</div>
+                  <div className="check-sub">Aparecerá en el marcador y los jugadores podrán tomarlo o pasarlo</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ══════════════════════════════
+                BLOQUE D: TEMPORIZADOR
+            ══════════════════════════════ */}
+            <div style={{
+              background:'rgba(255,107,53,.04)',border:'1px solid rgba(255,107,53,.18)',
+              borderRadius:14,padding:'14px 14px 8px',marginBottom:14
+            }}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--orange)',marginBottom:12}}>
+                ⏱ TEMPORIZADOR
+              </div>
+
+              <OptionRow label="Sin temporizador" sub="Los jugadores no tienen límite de tiempo"
+                active={!tmpl.useTimer} onClick={()=>{snd('tap');upd('useTimer',false);}}
+                color="var(--orange)"/>
+              <OptionRow label="Con temporizador" sub="Se aplica un límite de tiempo configurable"
+                active={tmpl.useTimer} onClick={()=>{snd('tap');upd('useTimer',true);}}
+                color="var(--orange)"/>
+
+              {tmpl.useTimer && (<>
+                <div className="os-section">ALCANCE DEL TIMER</div>
+                {[
+                  {v:'turn',  label:'Por turno',          sub:'Cada jugador tiene X segundos por turno'},
+                  {v:'round', label:'Por ronda',          sub:'Toda la ronda tiene X segundos totales'},
+                  {v:'total', label:'Total de la partida',sub:'La partida completa tiene X minutos'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.timerScope===o.v}
+                    onClick={()=>{snd('tap');upd('timerScope',o.v);}}
+                    color="var(--orange)"/>
+                ))}
+
+                <div className="os-section">DURACIÓN</div>
+                <select className="os-select" value={tmpl.timerSecs}
+                  onChange={e=>upd('timerSecs',parseInt(e.target.value))}>
+                  {[10,15,20,30,45,60,90,120,180,300,600,900,1800].map(s=>(
+                    <option key={s} value={s}>
+                      {s<60?s+' segundos':Math.floor(s/60)+' min'+(s%60?' '+s%60+' seg':'')}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="os-section">ALERTAS</div>
+                <div className={`check-row ${tmpl.timerVisualAlert?'active':''}`}
+                  style={{borderColor:tmpl.timerVisualAlert?'rgba(255,107,53,.4)':undefined,background:tmpl.timerVisualAlert?'rgba(255,107,53,.08)':undefined}}
+                  onClick={()=>{snd('tap');upd('timerVisualAlert',!tmpl.timerVisualAlert);}}>
+                  <div className="check-box" style={{borderColor:tmpl.timerVisualAlert?'var(--orange)':undefined,background:tmpl.timerVisualAlert?'var(--orange)':undefined,color:tmpl.timerVisualAlert?'var(--bg)':undefined}}>{tmpl.timerVisualAlert?'✓':''}</div>
+                  <div><div className="check-label">Aviso visual</div><div className="check-sub">La pantalla parpadea o cambia color al acercarse al límite</div></div>
+                </div>
+                <div className={`check-row ${tmpl.timerSoundAlert?'active':''}`}
+                  style={{borderColor:tmpl.timerSoundAlert?'rgba(255,107,53,.4)':undefined,background:tmpl.timerSoundAlert?'rgba(255,107,53,.08)':undefined}}
+                  onClick={()=>{snd('tap');upd('timerSoundAlert',!tmpl.timerSoundAlert);}}>
+                  <div className="check-box" style={{borderColor:tmpl.timerSoundAlert?'var(--orange)':undefined,background:tmpl.timerSoundAlert?'var(--orange)':undefined,color:tmpl.timerSoundAlert?'var(--bg)':undefined}}>{tmpl.timerSoundAlert?'✓':''}</div>
+                  <div><div className="check-label">Aviso sonoro</div><div className="check-sub">Beep al acercarse y al agotarse el tiempo</div></div>
+                </div>
+
+                <div className="os-section">AL ACABARSE EL TIEMPO</div>
+                {[
+                  {v:'nothing',    label:'No pasa nada',       sub:'Solo referencial, el juego continúa'},
+                  {v:'skip',       label:'Se salta el turno',  sub:'El turno pasa automáticamente al siguiente jugador'},
+                  {v:'assign_zero',label:'Se asigna 0 puntos', sub:'El jugador recibe 0 en esa ronda/turno'},
+                  {v:'penalty',    label:'Penalización',       sub:'Se aplica una penalización configurable'},
+                  {v:'auto',       label:'Acción automática',  sub:'El sistema ejecuta una acción predefinida'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub}
+                    active={tmpl.timerExpireAction===o.v}
+                    onClick={()=>{snd('tap');upd('timerExpireAction',o.v);}}
+                    color="var(--orange)"/>
+                ))}
+              </>)}
+            </div>
+
           </div>
         )}
 
@@ -632,7 +883,31 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
               </div>
             ))}
 
-            {/* Meta de puntos */}
+            {/* Victorias de ronda — opciones propias */}
+            {tmpl.victoryMode==='wins' && (
+              <>
+                <div className="os-section">MODO DE VICTORIAS</div>
+                <OptionRow label="Gana quien más rondas gane" sub="Al final se cuenta quién ganó más rondas"
+                  active={tmpl.winsMode==='most'}
+                  onClick={()=>{snd('tap');upd('winsMode','most');}}
+                  color="var(--cyan)"/>
+                <OptionRow label="Meta de victorias" sub="Gana el primero en llegar a N victorias"
+                  active={tmpl.winsMode==='target'}
+                  onClick={()=>{snd('tap');upd('winsMode','target');}}
+                  color="var(--cyan)"/>
+                {tmpl.winsMode==='target' && (
+                  <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Meta de victorias:</div>
+                    <select className="os-select" style={{marginBottom:0,width:110}} value={tmpl.winsTarget}
+                      onChange={e=>upd('winsTarget',parseInt(e.target.value))}>
+                      {[1,2,3,4,5,6,7,8,10,15,20].map(n=><option key={n} value={n}>{n} victorias</option>)}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Meta de puntos — solo modo points */}
             {tmpl.victoryMode==='points' && (
               <>
                 <div className="os-section">META DE PUNTOS</div>
@@ -764,10 +1039,14 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
               </div>
               <div className="os-tags">
                 <div className="os-tag">{tmpl.type==='teams'?'👥 Equipos':'👤 Individual'}</div>
-                <div className="os-tag">{tmpl.minPlayers}-{tmpl.maxPlayers} jugadores</div>
+                <div className="os-tag">{tmpl.minPlayers}-{tmpl.maxPlayers} jug.</div>
                 <div className="os-tag">{tmpl.useRounds?(tmpl.rounds==='libre'?'∞ Libre':`${tmpl.rounds} rondas`):'Sin rondas'}</div>
+                {tmpl.useRounds&&tmpl.roundClose!=='manual'&&<div className="os-tag orange">{tmpl.roundClose==='timer'?`⏱ ${tmpl.roundTimerSecs}s/ronda`:'Auto-cierre'}</div>}
+                {tmpl.useTurns&&<div className="os-tag purple">↕️ Turnos {tmpl.turnOrder==='fixed'?'fijos':tmpl.turnOrder==='random'?'aleatorios':tmpl.turnOrder==='rotating'?'rotativos':'por puntaje'}</div>}
+                {tmpl.useFirstPlayerToken&&<div className="os-tag gold">👑 Token 1er jugador</div>}
+                {tmpl.useTimer&&<div className="os-tag orange">⏱ Timer {tmpl.timerSecs<60?tmpl.timerSecs+'s':Math.floor(tmpl.timerSecs/60)+'min'}/{tmpl.timerScope==='turn'?'turno':tmpl.timerScope==='round'?'ronda':'partida'}</div>}
                 <div className="os-tag gold">{tmpl.victoryMode==='points'?'🏅 Puntos':tmpl.victoryMode==='wins'?'🏆 Victorias':tmpl.victoryMode==='elimination'?'💀 Eliminación':'🎯 Manual'}</div>
-                {tmpl.tools.length>0 && <div className="os-tag purple">🎲 {tmpl.tools.length} herr.</div>}
+                {tmpl.tools.length>0&&<div className="os-tag purple">🎲 {tmpl.tools.length} herr.</div>}
               </div>
             </div>
 
