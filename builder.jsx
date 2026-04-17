@@ -340,8 +340,8 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       emoji: '🎮',
       description: '',
       // Sec 1 — Identidad
-      type: 'individual',
-      numTeams: 2,              // cuántos equipos (solo si type==='teams')
+      type: 'individual',          // individual | teams | cooperative
+      roomAccess: 'code',          // public | private | code | link
       minPlayers: 2,
       maxPlayers: 8,
       // Sec 2 — Estructura (árbol completo)
@@ -544,6 +544,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         // Identidad
         type: tmpl.type,
         numTeams: tmpl.numTeams,
+        roomAccess: tmpl.roomAccess,
         minPlayers: tmpl.minPlayers,
         maxPlayers: tmpl.maxPlayers,
         // Estructura — Rondas
@@ -789,8 +790,18 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
             <div className="os-section">TIPO DE PARTIDA</div>
             <OptionRow label="👤 Individual" sub="Cada jugador compite por su cuenta"
               active={tmpl.type==='individual'} onClick={()=>{snd('tap');upd('type','individual');}}/>
-            <OptionRow label="👥 Por equipos" sub="Jugadores agrupados en equipos"
+            <OptionRow label="👥 Por equipos" sub="Jugadores agrupados en equipos que compiten entre sí"
               active={tmpl.type==='teams'} onClick={()=>{snd('tap');upd('type','teams');}}/>
+            <OptionRow label="🤝 Cooperativo" sub="Todos los jugadores juegan juntos contra el juego"
+              active={tmpl.type==='cooperative'} onClick={()=>{snd('tap');upd('type','cooperative');}}/>
+
+            {tmpl.type==='cooperative' && (
+              <div style={{background:'rgba(0,255,157,.05)',border:'1px solid rgba(0,255,157,.2)',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(0,255,157,.7)',lineHeight:1.5}}>
+                  🤝 En modo cooperativo todos ganan o pierden juntos. La condición de victoria aplica al grupo, no a un jugador individual.
+                </div>
+              </div>
+            )}
 
             {tmpl.type==='teams' && (
               <div style={{
@@ -819,7 +830,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
             )}
 
             <div className="os-section">NÚMERO DE JUGADORES</div>
-            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:16}}>
+            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:4}}>
               <div style={{flex:1}}>
                 <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2,marginBottom:6}}>MÍNIMO</div>
                 <select className="os-select" style={{marginBottom:0}} value={tmpl.minPlayers}
@@ -835,6 +846,23 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 </select>
               </div>
             </div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.25)',letterSpacing:1,marginBottom:16,textAlign:'right'}}>
+              Fijo o variable — el host puede agregar jugadores al crear la sala
+            </div>
+
+            <div className="os-section">ACCESO A SALA</div>
+            {[
+              {v:'public',  icon:'🌐', label:'Pública',  sub:'Cualquiera puede unirse con el código'},
+              {v:'private', icon:'🔒', label:'Privada',  sub:'Solo el host puede agregar jugadores manualmente'},
+              {v:'code',    icon:'🔑', label:'Por código',sub:'Se comparte un código de 4 letras para unirse (default)'},
+              {v:'link',    icon:'🔗', label:'Por link',  sub:'Se genera un enlace directo para compartir'},
+            ].map(o=>(
+              <OptionRow key={o.v}
+                label={<span>{o.icon} {o.label}</span>}
+                sub={o.sub}
+                active={tmpl.roomAccess===o.v}
+                onClick={()=>{snd('tap');upd('roomAccess',o.v);}}/>
+            ))}
           </div>
         )}
 
