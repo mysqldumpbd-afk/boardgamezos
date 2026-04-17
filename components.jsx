@@ -626,8 +626,27 @@ function App(){
           onBack={()=>setScreen('my-games')}
           onCreateRoom={async({players})=>{
             await createRoom('generic:template',playTemplate.name,players,playTemplate.config||{});
-            setScreen('generic-lobby');
+            // Use universal runtime for template-based games
+            setScreen('universal-lobby');
           }}
+        />
+      )}
+
+      {/* UNIVERSAL RUNTIME — para templates del builder */}
+      {screen==='universal-lobby' && session && (
+        <GenericLobby
+          {...{session,onBack:goHome,isHost,myId,db}}
+          onStart={()=>setScreen('universal-game')}
+        />
+      )}
+      {screen==='universal-game' && session && playTemplate && (
+        <UniversalRuntime
+          session={session}
+          onBack={goHome}
+          isHost={isHost}
+          myId={myId}
+          db={db}
+          templateConfig={playTemplate.config||{}}
         />
       )}
 
