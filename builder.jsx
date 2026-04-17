@@ -429,9 +429,21 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       // Legado (para compatibilidad con runtime actual)
       accumulates: 'points',
       scoreSign: 'positive',
-      // Sec 5 — Herramientas
-      tools: [],
+      // Sec 7 — Herramientas integradas
+      useTools: true,                  // ¿se habilitan herramientas en la app?
+      tools: [],                       // cuáles están activas: ['coin','dice','wheel','rps','counter','ai']
+      toolsMode: 'informal',           // informal | formal
+      toolsRegistered: 'no',           // no | manual | auto | mixed
+      toolsAffect: [],                 // ['score','turn','elimination','events','rules']
+      // Dado
       diceType: 'd6',
+      diceCustomSides: 6,
+      // Moneda
+      coinUse: 'free',                 // free | tiebreak | order | events
+      // Ruleta
+      wheelSegments: 'fixed',          // fixed | custom | weighted
+      // PPS
+      rpsScope: 'any',                 // any | active_only
     };
   });
 
@@ -458,6 +470,14 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
       modifiers: prev.modifiers.includes(mod)
         ? prev.modifiers.filter(m=>m!==mod)
         : [...prev.modifiers, mod]
+    }));
+  }
+  function toggleToolsAffect(effect){
+    setTmpl(prev=>({
+      ...prev,
+      toolsAffect: prev.toolsAffect.includes(effect)
+        ? prev.toolsAffect.filter(e=>e!==effect)
+        : [...prev.toolsAffect, effect]
     }));
   }
   function toggleArr(field, val){
@@ -553,8 +573,16 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         accumulates: tmpl.registers.includes('points')?'points':tmpl.registers.includes('wins')?'wins':'lives',
         scoreSign: tmpl.valueNature==='positive'?'positive':'both',
         // Herramientas
+        useTools: tmpl.useTools,
         tools: tmpl.tools,
+        toolsMode: tmpl.toolsMode,
+        toolsRegistered: tmpl.toolsRegistered,
+        toolsAffect: tmpl.toolsAffect,
         diceType: tmpl.diceType,
+        diceCustomSides: tmpl.diceCustomSides,
+        coinUse: tmpl.coinUse,
+        wheelSegments: tmpl.wheelSegments,
+        rpsScope: tmpl.rpsScope,
       }
     });
     setSaving(false);
@@ -1863,87 +1891,185 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
           </div>
         )}
 
-        {/* ── PASO 7: HERRAMIENTAS ── */}
+        {/* ── PASO 7: HERRAMIENTAS INTEGRADAS ── */}
         {step===7 && (
           <div className="anim-fade">
 
             {/* Título */}
-            <div style={{
-              textAlign:'center',
-              background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',
-              border:'1px solid rgba(155,93,229,.2)',borderRadius:14,
-              padding:'14px 16px',marginBottom:20
-            }}>
+            <div style={{textAlign:'center',background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',border:'1px solid rgba(155,93,229,.2)',borderRadius:14,padding:'14px 16px',marginBottom:20}}>
               <div style={{fontSize:'2rem',marginBottom:6}}>🧰</div>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--purple)'}}>
-                HERRAMIENTAS
-              </div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>
-                DISPONIBLES DURANTE LA PARTIDA
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--purple)'}}>HERRAMIENTAS INTEGRADAS</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:4}}>COMPLEMENTO OPCIONAL · NO ENTORPECEN EL JUEGO FÍSICO</div>
+            </div>
+
+            {/* Nota filosófica */}
+            <div style={{background:'rgba(0,245,255,.05)',border:'1px solid rgba(0,245,255,.15)',borderRadius:12,padding:'12px 14px',marginBottom:16}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)',lineHeight:1.6}}>
+                💡 <strong style={{color:'var(--cyan)'}}>Las herramientas son complemento.</strong> Puedes tenerlas físicas y no activarlas aquí, o activarlas para que formen parte formal del marcador. El jugador decide si las usa — no son obligatorias.
               </div>
             </div>
 
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.4)',marginBottom:14}}>
-              Selecciona las herramientas que estarán accesibles para los jugadores durante la partida.
-            </div>
+            <OptionRow label="No — solo herramientas físicas" sub="Los jugadores usan sus propias herramientas, la app solo lleva el marcador"
+              active={!tmpl.useTools} onClick={()=>{snd('tap');upd('useTools',false);}} color="var(--green)"/>
+            <OptionRow label="Sí — herramientas disponibles en la app" sub="Se habilitan en el menú durante la partida para quien las quiera usar"
+              active={tmpl.useTools} onClick={()=>{snd('tap');upd('useTools',true);}} color="var(--purple)"/>
 
-            {[
-              {id:'coin',  icon:'🪙', label:'Moneda',              sub:'Cara o cruz — para desempates o decisiones'},
-              {id:'dice',  icon:'🎲', label:'Dados',               sub:'Lanzar dado durante la partida'},
-              {id:'wheel', icon:'🎡', label:'Ruleta / Spin Wheel', sub:'Girar ruleta con segmentos personalizados'},
-              {id:'rps',   icon:'✊', label:'Piedra Papel Tijera', sub:'Resolver disputas o decidir orden'},
-              {id:'ai',    icon:'🤖', label:'Juez IA',             sub:'IA como árbitro para resolver conflictos (próximamente)'},
-            ].map(tool=>(
-              <div key={tool.id} className="check-row"
-                style={{
-                  borderColor:tmpl.tools.includes(tool.id)?'rgba(155,93,229,.4)':undefined,
-                  background:tmpl.tools.includes(tool.id)?'rgba(155,93,229,.07)':undefined,
-                  marginBottom:8
-                }}
-                onClick={()=>{snd('tap');toggleTool(tool.id);}}>
-                <div style={{fontSize:'1.6rem',width:36,textAlign:'center',flexShrink:0}}>{tool.icon}</div>
-                <div style={{flex:1}}>
-                  <div className="check-label">{tool.label}</div>
-                  <div className="check-sub">{tool.sub}</div>
-                </div>
-                <div className="check-box" style={{
-                  borderColor:tmpl.tools.includes(tool.id)?'var(--purple)':undefined,
-                  background:tmpl.tools.includes(tool.id)?'var(--purple)':undefined,
-                  color:tmpl.tools.includes(tool.id)?'var(--bg)':undefined
-                }}>
-                  {tmpl.tools.includes(tool.id)?'✓':''}
-                </div>
+            {tmpl.useTools && (<>
+
+              {/* Formal vs informal */}
+              <div style={{background:'rgba(155,93,229,.04)',border:'1px solid rgba(155,93,229,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14,marginTop:8}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--purple)',marginBottom:10}}>🎭 ¿PARTE FORMAL O COMPLEMENTO LIBRE?</div>
+                <OptionRow label="Complemento libre / informal" sub="Disponibles pero no afectan el marcador oficial — el jugador las usa cuando quiere"
+                  active={tmpl.toolsMode==='informal'} onClick={()=>{snd('tap');upd('toolsMode','informal');upd('toolsAffect',[]);}} color="var(--cyan)"/>
+                <OptionRow label="Parte formal de la partida" sub="Los resultados pueden afectar puntos, turnos o eventos del juego"
+                  active={tmpl.toolsMode==='formal'} onClick={()=>{snd('tap');upd('toolsMode','formal');}} color="var(--purple)"/>
+                {tmpl.toolsMode==='formal' && (<>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.7)',letterSpacing:2,marginTop:10,marginBottom:8}}>¿QUÉ AFECTAN?</div>
+                  {[
+                    {id:'score',label:'Puntaje',sub:'El resultado puede sumar o restar puntos'},
+                    {id:'turn',label:'Turno',sub:'Puede cambiar el orden o saltarse un turno'},
+                    {id:'elimination',label:'Eliminación',sub:'Puede ser el desempate para eliminar a alguien'},
+                    {id:'events',label:'Eventos',sub:'Activa eventos especiales del juego'},
+                    {id:'rules',label:'Reglas',sub:'Modifica temporalmente una regla'},
+                  ].map(e=>{
+                    const a=tmpl.toolsAffect.includes(e.id);
+                    return(
+                      <div key={e.id} className="check-row" style={{borderColor:a?'rgba(155,93,229,.4)':undefined,background:a?'rgba(155,93,229,.07)':undefined,marginBottom:6}} onClick={()=>{snd('tap');toggleToolsAffect(e.id);}}>
+                        <div className="check-box" style={{borderColor:a?'var(--purple)':undefined,background:a?'var(--purple)':undefined,color:a?'var(--bg)':undefined}}>{a?'✓':''}</div>
+                        <div><div className="check-label">{e.label}</div><div className="check-sub">{e.sub}</div></div>
+                      </div>
+                    );
+                  })}
+                </>)}
               </div>
-            ))}
 
-            {tmpl.tools.includes('dice') && (
-              <>
-                <div className="os-section">TIPO DE DADO</div>
-                <SelectRow value={tmpl.diceType} onChange={v=>upd('diceType',v)} label="" options={[
-                  {value:'d4', label:'d4 — 4 caras'},
-                  {value:'d6', label:'d6 — 6 caras (estándar)'},
-                  {value:'d8', label:'d8 — 8 caras'},
-                  {value:'d10',label:'d10 — 10 caras'},
-                  {value:'d12',label:'d12 — 12 caras'},
-                  {value:'d20',label:'d20 — 20 caras'},
-                ]}/>
-              </>
-            )}
+              {/* Registro */}
+              <div style={{background:'rgba(0,245,255,.04)',border:'1px solid rgba(0,245,255,.15)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--cyan)',marginBottom:10}}>📝 ¿CÓMO SE REGISTRAN LOS RESULTADOS?</div>
+                {[
+                  {v:'no',label:'No se registran',sub:'Solo apoyo visual — nada queda en el historial'},
+                  {v:'manual',label:'Manual',sub:'El host decide si el resultado se aplica'},
+                  {v:'auto',label:'Automático',sub:'El resultado se aplica directamente sin confirmación'},
+                  {v:'mixed',label:'Mixto',sub:'Algunas automáticas, otras requieren confirmación'},
+                ].map(o=>(
+                  <OptionRow key={o.v} label={o.label} sub={o.sub} active={tmpl.toolsRegistered===o.v}
+                    onClick={()=>{snd('tap');upd('toolsRegistered',o.v);}} color="var(--cyan)"/>
+                ))}
+              </div>
 
-            {/* Resumen final antes de guardar */}
-            <div className="os-section" style={{marginTop:24}}>RESUMEN DEL JUEGO</div>
-            <div style={{
-              background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',
-              border:'1px solid rgba(155,93,229,.2)',
-              borderRadius:14,padding:'16px 15px',marginBottom:20
-            }}>
+              {/* Herramientas disponibles */}
+              <div style={{background:'rgba(255,212,71,.04)',border:'1px solid rgba(255,212,71,.18)',borderRadius:14,padding:'14px 14px 8px',marginBottom:14}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--gold)',marginBottom:6}}>🛠 HERRAMIENTAS DISPONIBLES</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:12}}>Selecciona cuáles estarán en el menú durante la partida.</div>
+
+                {[
+                  {id:'coin',icon:'🪙',label:'Moneda',col:'var(--gold)'},
+                  {id:'dice',icon:'🎲',label:'Dados',col:'var(--cyan)'},
+                  {id:'wheel',icon:'🎡',label:'Ruleta / Spin Wheel',col:'var(--orange)'},
+                  {id:'rps',icon:'✊',label:'Piedra Papel Tijera',col:'var(--purple)'},
+                  {id:'counter',icon:'🔢',label:'Contador manual',col:'var(--green)'},
+                  {id:'ai',icon:'🤖',label:'Juez IA',col:'rgba(255,255,255,.4)'},
+                ].map(tool=>{
+                  const active=tmpl.tools.includes(tool.id);
+                  const isSoon=tool.id==='ai';
+                  return(
+                    <div key={tool.id}>
+                      <div className="check-row" style={{borderColor:active?tool.col+'66':undefined,background:active?tool.col+'0D':undefined,marginBottom:active&&!isSoon?4:8,opacity:isSoon?.7:1}}
+                        onClick={()=>{if(!isSoon){snd('tap');toggleTool(tool.id);}}}>
+                        <div style={{fontSize:'1.5rem',width:34,textAlign:'center',flexShrink:0}}>{tool.icon}</div>
+                        <div style={{flex:1}}>
+                          <div className="check-label" style={{color:active?tool.col:'#fff'}}>
+                            {tool.label}{isSoon&&<span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--orange)',marginLeft:8}}>★ próximamente</span>}
+                          </div>
+                        </div>
+                        <div className="check-box" style={{borderColor:active?tool.col:undefined,background:active?tool.col:undefined,color:active?'var(--bg)':undefined}}>{active&&!isSoon?'✓':''}</div>
+                      </div>
+
+                      {active && tool.id==='coin' && (
+                        <div style={{background:'rgba(255,212,71,.05)',borderRadius:10,padding:'10px 12px',marginBottom:8,marginLeft:8}}>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,212,71,.6)',letterSpacing:2,marginBottom:8}}>USO DE LA MONEDA</div>
+                          {[
+                            {v:'free',label:'Libre',sub:'El jugador la lanza cuando quiera'},
+                            {v:'tiebreak',label:'Solo desempate',sub:'Disponible solo cuando hay empate'},
+                            {v:'order',label:'Decidir orden',sub:'Para sortear quién va primero'},
+                            {v:'events',label:'Obligatoria en eventos',sub:'Ciertos eventos del juego exigen lanzarla'},
+                          ].map(o=>(
+                            <OptionRow key={o.v} label={o.label} sub={o.sub} active={tmpl.coinUse===o.v}
+                              onClick={()=>{snd('tap');upd('coinUse',o.v);}} color="var(--gold)"/>
+                          ))}
+                        </div>
+                      )}
+
+                      {active && tool.id==='dice' && (
+                        <div style={{background:'rgba(0,245,255,.05)',borderRadius:10,padding:'10px 12px',marginBottom:8,marginLeft:8}}>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.6)',letterSpacing:2,marginBottom:8}}>TIPO DE DADO</div>
+                          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                            {['d4','d6','d8','d10','d12','d20','custom'].map(d=>(
+                              <button key={d} onClick={()=>{snd('tap');upd('diceType',d);}}
+                                style={{padding:'7px 12px',borderRadius:9,border:'none',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
+                                  background:tmpl.diceType===d?(d==='custom'?'var(--orange)':'var(--cyan)'):'rgba(255,255,255,.08)',
+                                  color:tmpl.diceType===d?'var(--bg)':'rgba(255,255,255,.6)',transition:'all .15s'}}>{d}</button>
+                            ))}
+                          </div>
+                          {tmpl.diceType==='custom' && (
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.5)',flex:1}}>Lados:</div>
+                              <select className="os-select" style={{marginBottom:0,width:90}} value={tmpl.diceCustomSides} onChange={e=>upd('diceCustomSides',parseInt(e.target.value))}>
+                                {[3,4,5,6,7,8,10,12,14,16,18,20,24,30,100].map(n=><option key={n} value={n}>d{n}</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {active && tool.id==='wheel' && (
+                        <div style={{background:'rgba(255,107,53,.05)',borderRadius:10,padding:'10px 12px',marginBottom:8,marginLeft:8}}>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,107,53,.6)',letterSpacing:2,marginBottom:8}}>SEGMENTOS DE LA RULETA</div>
+                          {[
+                            {v:'fixed',label:'Segmentos fijos',sub:'Los segmentos son los jugadores activos de la partida'},
+                            {v:'custom',label:'Segmentos personalizados',sub:'El host define los segmentos al iniciar'},
+                            {v:'weighted',label:'Pesos / probabilidades',sub:'Cada segmento tiene diferente probabilidad'},
+                          ].map(o=>(
+                            <OptionRow key={o.v} label={o.label} sub={o.sub} active={tmpl.wheelSegments===o.v}
+                              onClick={()=>{snd('tap');upd('wheelSegments',o.v);}} color="var(--orange)"/>
+                          ))}
+                        </div>
+                      )}
+
+                      {active && tool.id==='rps' && (
+                        <div style={{background:'rgba(155,93,229,.05)',borderRadius:10,padding:'10px 12px',marginBottom:8,marginLeft:8}}>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.6)',letterSpacing:2,marginBottom:8}}>¿QUIÉNES PUEDEN JUGAR PPS?</div>
+                          {[
+                            {v:'any',label:'Cualquier combinación',sub:'Cualquier jugador puede retarse con otro'},
+                            {v:'active_only',label:'Solo jugadores activos',sub:'Solo quienes siguen en la partida — útil en eliminación'},
+                          ].map(o=>(
+                            <OptionRow key={o.v} label={o.label} sub={o.sub} active={tmpl.rpsScope===o.v}
+                              onClick={()=>{snd('tap');upd('rpsScope',o.v);}} color="var(--purple)"/>
+                          ))}
+                        </div>
+                      )}
+
+                      {active && tool.id==='counter' && (
+                        <div style={{background:'rgba(0,255,157,.05)',borderRadius:10,padding:'10px 12px',marginBottom:8,marginLeft:8}}>
+                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(0,255,157,.6)',lineHeight:1.5}}>
+                            Contador de apoyo — para vida, maná, recursos u otras métricas secundarias que no van al marcador principal.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>)}
+
+            {/* Resumen final */}
+            <div className="os-section" style={{marginTop:20}}>RESUMEN DEL JUEGO</div>
+            <div style={{background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',border:'1px solid rgba(155,93,229,.2)',borderRadius:14,padding:'16px 15px',marginBottom:20}}>
               <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                 <div style={{fontSize:'2.5rem'}}>{tmpl.emoji}</div>
                 <div>
                   <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:1}}>{tmpl.name}</div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>
-                    {tmpl.description||'Sin descripción'}
-                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{tmpl.description||'Sin descripción'}</div>
                 </div>
               </div>
               <div className="os-tags">
@@ -1953,54 +2079,50 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 {tmpl.useTurns&&<div className="os-tag purple">↕️ Turnos</div>}
                 {tmpl.useFirstPlayerToken&&<div className="os-tag gold">👑 Token</div>}
                 {tmpl.useTimer&&<div className="os-tag orange">⏱ Timer</div>}
-                <div className="os-tag gold">{
-                  tmpl.victoryMode==='points'?'🏅 Puntos':
-                  tmpl.victoryMode==='wins'?'🏆 Victorias':
-                  tmpl.victoryMode==='lives'?'❤️ Vidas':
-                  tmpl.victoryMode==='elimination'?'💀 Eliminación':
-                  tmpl.victoryMode==='objective'?'🎯 Objetivo':
-                  tmpl.victoryMode==='time'?'⏱ Tiempo':'👑 Manual'
-                }</div>
-                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota explícita</div>}
+                <div className="os-tag gold">{tmpl.victoryMode==='points'?'🏅 Puntos':tmpl.victoryMode==='wins'?'🏆 Victorias':tmpl.victoryMode==='lives'?'❤️ Vidas':tmpl.victoryMode==='elimination'?'💀 Eliminación':tmpl.victoryMode==='objective'?'🎯 Objetivo':tmpl.victoryMode==='time'?'⏱ Tiempo':'👑 Manual'}</div>
+                {tmpl.useDefeat&&<div className="os-tag red">⚠ Derrota</div>}
                 {tmpl.useElimination&&<div className="os-tag red">💀 Eliminación</div>}
                 {tmpl.registers.length>0&&<div className="os-tag green">📊 {tmpl.registers.length} registros</div>}
                 {tmpl.modifiers.length>0&&<div className="os-tag orange">⚡ {tmpl.modifiers.length} mods</div>}
-                {tmpl.tools.length>0&&<div className="os-tag purple">🧰 {tmpl.tools.length} herr.</div>}
+                {tmpl.useTools&&tmpl.tools.length>0&&<div className={`os-tag ${tmpl.toolsMode==='formal'?'purple':'cyan'}`}>🧰 {tmpl.tools.length} herr. {tmpl.toolsMode==='formal'?'(formal)':'(libre)'}</div>}
               </div>
-
-              {/* Resumen de modificadores si hay */}
-              {tmpl.modifiers.length>0&&(
-                <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.08)'}}>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,107,53,.6)',letterSpacing:2,marginBottom:6}}>MODIFICADORES ACTIVOS</div>
+              {tmpl.useTools&&tmpl.tools.length>0&&(
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.08)'}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.6)',letterSpacing:2,marginBottom:6}}>HERRAMIENTAS</div>
                   <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-                    {tmpl.modifiers.map(m=>({
-                      bonus:'⭐ Bonus',penalty:'💢 Penalización',multiplier:'✖️ Multiplicador',
-                      steal:'🦊 Robo',shield:'🛡️ Escudo',block:'🚫 Bloqueo',double_next:'🎯 Doble siguiente'
-                    }[m]||m)).map((label,i)=>(
-                      <div key={i} style={{
-                        padding:'3px 10px',borderRadius:20,
-                        background:'rgba(255,107,53,.1)',border:'1px solid rgba(255,107,53,.25)',
-                        fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--orange)',letterSpacing:1
-                      }}>{label}</div>
+                    {tmpl.tools.map(t=>({coin:'🪙 Moneda',dice:`🎲 ${tmpl.diceType==='custom'?`d${tmpl.diceCustomSides}`:tmpl.diceType}`,wheel:'🎡 Ruleta',rps:'✊ PPS',counter:'🔢 Contador',ai:'🤖 IA'}[t]||t)).map((label,i)=>(
+                      <div key={i} style={{padding:'3px 10px',borderRadius:20,background:'rgba(155,93,229,.1)',border:'1px solid rgba(155,93,229,.25)',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--purple)',letterSpacing:1}}>{label}</div>
+                    ))}
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:6}}>
+                    {tmpl.toolsMode==='formal'?`Formales · Afectan: ${tmpl.toolsAffect.length>0?tmpl.toolsAffect.map(e=>({score:'puntaje',turn:'turno',elimination:'eliminación',events:'eventos',rules:'reglas'}[e])).join(', '):'nada aún'}`:'Complemento libre — no afectan el marcador'}
+                    {tmpl.toolsRegistered!=='no'&&` · Registro: ${tmpl.toolsRegistered}`}
+                  </div>
+                </div>
+              )}
+              {tmpl.modifiers.length>0&&(
+                <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.08)'}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,107,53,.6)',letterSpacing:2,marginBottom:6}}>MODIFICADORES</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                    {tmpl.modifiers.map(m=>({bonus:'⬆️ Bonus',penalty:'⬇️ Penalización',multiplier:'✖️ Multiplicador',steal:'🦹 Robo',shield:'🛡️ Escudo',block:'🚫 Bloqueo',double_next:'2️⃣ Doble'}[m]||m)).map((label,i)=>(
+                      <div key={i} style={{padding:'3px 10px',borderRadius:20,background:'rgba(255,107,53,.1)',border:'1px solid rgba(255,107,53,.25)',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'var(--orange)',letterSpacing:1}}>{label}</div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Resumen del sistema de captura */}
-              <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.08)'}}>
-                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,255,157,.5)',letterSpacing:2,marginBottom:6}}>SISTEMA DE REGISTRO</div>
+              <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid rgba(255,255,255,.08)'}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,255,157,.5)',letterSpacing:2,marginBottom:4}}>SISTEMA DE REGISTRO</div>
                 <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',lineHeight:1.6}}>
-                  Captura {tmpl.captureType==='manual'?'manual':tmpl.captureType==='auto'?'automática':tmpl.captureType==='tool'?'con herramienta':tmpl.captureType==='camera'?'por cámara 📷':tmpl.captureType==='ai'?'con IA 🤖':'mixta'} ·{' '}
-                  Valores {tmpl.valueNature==='positive'?'solo positivos':tmpl.valueNature==='both'?'pos. y neg.':tmpl.valueNature==='integers'?'enteros':'decimales'} ·{' '}
-                  Acumulación {tmpl.accumulation==='global'?'global':tmpl.accumulation==='per_round'?'por ronda':tmpl.accumulation==='reset'?'con reinicio':'híbrida'} ·{' '}
-                  Visible para {tmpl.scoreVisibility==='all'?'todos':tmpl.scoreVisibility==='host'?'solo host':tmpl.scoreVisibility==='player'?'c/jugador':'oculto hasta fin de ronda'}
+                  Captura: <strong>{({manual:'manual',auto:'automática',tool:'con herramienta',camera:'por cámara 📷',ai:'con IA 🤖',mixed:'mixta'})[tmpl.captureType]}</strong>
+                  {' · '}Valores: <strong>{({positive:'solo positivos',both:'pos. y neg.',integers:'enteros',decimals:'decimales'})[tmpl.valueNature]}</strong>
+                  {' · '}Acumulación: <strong>{({global:'global',per_round:'por ronda',reset:'reinicia c/ronda',always_keep:'siempre conserva'})[tmpl.accumulation]}</strong>
+                  {' · '}Visible: <strong>{({all:'todos',host:'solo host',player:'c/jugador',hidden_round_end:'oculto/ronda'})[tmpl.scoreVisibility]}</strong>
                 </div>
               </div>
             </div>
 
             <button className="btn btn-purple" disabled={saving} onClick={handleSave}>
-              {saving ? '⏳ Guardando...' : saved ? '✓ Guardado' : `💾 Guardar "${tmpl.name}"`}
+              {saving?'⏳ Guardando...':saved?'✅ ¡Guardado!':`💾 Guardar "${tmpl.name}"`}
             </button>
           </div>
         )}
