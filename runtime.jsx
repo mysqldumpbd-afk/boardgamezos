@@ -738,7 +738,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         ))}
 
         {/* Botón de auto-eliminación para jugador no-host en modo survival */}
-        {!effectiveIsHost && (() => {
+        {(() => {
           const me = players.find(p => p.id === myId);
           const isSurvival = spec.hasElimination || spec.victoryMode === 'lives' || spec.victoryMode === 'elimination';
           if (!me || me.eliminated || !isSurvival) return null;

@@ -22,6 +22,24 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const [showElimPanel,setShowElimPanel]=React.useState(false);
   const [elimReason,setElimReason]=React.useState(null);
   const [presence,setPresence]=React.useState({});
+  const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
+  const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
+
+  function sendEmoji(){
+    if(!session?.code) return;
+    snd('tap');
+    const id=Date.now()+Math.random();
+    const x=10+Math.random()*80;const y=20+Math.random()*60;
+    setShowSpamEmojis(prev=>[...prev,{id,emoji:myEmoji,x,y}]);
+    setTimeout(()=>setShowSpamEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+    const spamId=uid4()+Math.random().toString(36).slice(2,5);
+    const prof=getProfile();
+    db.set(`rooms/${session.code}/emojiSpam/${spamId}`,{
+      emoji:myEmoji,ts:Date.now(),by:prof?.name||'?',x,y
+    }).catch(()=>{});
+    setTimeout(()=>db.set(`rooms/${session.code}/emojiSpam/${spamId}`,null).catch(()=>{}),4000);
+  }
+  const [showEndConfirm,setShowEndConfirm]=React.useState(false);
 
   const [elimToast,setElimToast]=React.useState(null);
 
@@ -186,11 +204,47 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     await db.set(`rooms/${session.code}`,{...room,...updates});
   }
 
+  async function handleHostEndMatch(){
+    const now=Date.now();
+    const sorted=[...players].sort((a,b)=>{
+      if(!a.eliminated&&b.eliminated) return -1;
+      if(a.eliminated&&!b.eliminated) return 1;
+      return (b.eliminatedOrder||0)-(a.eliminatedOrder||0);
+    });
+    const winner=sorted[0];
+    const winnerUpdated=players.map(p=>p.id===winner.id?{...p,finalPosition:1,survivalMs:now-room.startedAt,survivalLabel:fmtDuration(now-room.startedAt)}:p);
+    await saveSession({
+      sessionId:session.code+"_"+room.startedAt,
+      gameType:'preset:strike',gameTitle:'Strike 🎳',
+      customTitle:room.customTitle||'Strike 🎳',
+      startedAt:room.startedAt,endedAt:now,durationMs:now-room.startedAt,
+      hostId:room.hostId,playerCount:players.length,
+      players:winnerUpdated.map(p=>({
+        id:p.id,name:p.name,emoji:p.emoji,color:p.color,
+        finalPosition:p.finalPosition,eliminatedAt:p.eliminatedAt||null,
+        survivalMs:p.survivalMs||(now-room.startedAt),
+        survivalLabel:p.survivalLabel||fmtDuration(now-room.startedAt),
+        points:null,wins:null
+      })),
+      events:room.events||[]
+    },session.demo);
+    await db.set(`rooms/${session.code}`,{...room,players:winnerUpdated,status:'finished',endedAt:now,winner:{id:winner.id,name:winner.name,emoji:winner.emoji}});
+    snd('victory');
+  }
+
   if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack}/>;
 
   return(
     <div className="os-wrap">
       {/* Eliminación broadcast toast */}
+      {/* Emoji spam local */}
+      {showSpamEmojis.map(e=>(
+        <div key={e.id} style={{position:'fixed',left:`${e.x}%`,top:`${e.y}%`,
+          zIndex:9998,pointerEvents:'none',fontSize:'2.8rem',
+          animation:'emojiFloat 2s ease-out forwards',textShadow:'0 2px 8px rgba(0,0,0,.5)'}}>
+          {e.emoji}
+        </div>
+      ))}
       {elimToast && (
         <div style={{
           position:'fixed',top:0,left:0,right:0,bottom:0,zIndex:9999,
@@ -241,39 +295,79 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           <div className="os-tag green">● EN JUEGO</div>
         </div>
 
-        {/* ── PANEL HOST: eliminar cualquier jugador ── */}
-        {effectiveIsHost && activePlayers.length > 0 && (
-          <div style={{
-            background:'rgba(255,59,92,.05)',border:'1px solid rgba(255,59,92,.2)',
-            borderRadius:14,padding:'12px 14px',marginBottom:14
-          }}>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.6)',letterSpacing:2,marginBottom:10}}>
-              ⚙️ PANEL HOST — ELIMINAR JUGADOR
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {activePlayers.map(p=>(
-                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,
-                  background:'rgba(255,255,255,.03)',borderRadius:10,padding:'8px 12px'}}>
-                  <div style={{fontSize:'1.3rem'}}>{p.emoji}</div>
-                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,
-                    fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
-                  <button
-                    style={{
-                      background:'rgba(255,59,92,.15)',border:'1px solid rgba(255,59,92,.3)',
-                      color:'var(--red)',borderRadius:8,padding:'6px 12px',cursor:'pointer',
-                      fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700
-                    }}
-                    onClick={()=>handleHostEliminate(p.id,'manual')}>
-                    💀 Eliminar
-                  </button>
+        {/* ── PANEL HOST: terminar + eliminar ── */}
+        {effectiveIsHost && (
+          <>
+            {/* Confirmación de terminar */}
+            {showEndConfirm && (
+              <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.85)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+                <div className="anim-pop" style={{background:'#0D0D1C',border:'2px solid rgba(255,59,92,.4)',borderRadius:20,padding:'28px 22px',width:'100%',maxWidth:340,textAlign:'center'}}>
+                  <div style={{fontSize:'3rem',marginBottom:12}}>🏁</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:2,color:'var(--red)',marginBottom:8}}>TERMINAR PARTIDA</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.45)',marginBottom:20}}>
+                    ¿Estás seguro? Se guardarán las estadísticas y se mostrará el resultado final.
+                  </div>
+                  <div style={{display:'flex',gap:10}}>
+                    <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={()=>setShowEndConfirm(false)}>Cancelar</button>
+                    <button className="btn btn-red" style={{flex:1,marginBottom:0}} onClick={()=>{setShowEndConfirm(false);handleHostEndMatch();}}>🏁 Terminar</button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
+            {/* Botón terminar — siempre visible */}
+            <button style={{
+              width:'100%',padding:'16px 20px',borderRadius:14,border:'2px solid rgba(255,59,92,.35)',
+              background:'rgba(255,59,92,.12)',color:'var(--red)',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,
+              display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+              boxShadow:'0 4px 16px rgba(255,59,92,.12)',marginBottom:10,
+            }} onClick={()=>{snd('tap');setShowEndConfirm(true);}}>
+              🏁 Terminar partida
+            </button>
+            {/* Eliminar jugadores */}
+            {activePlayers.length > 0 && (
+              <div style={{background:'rgba(255,59,92,.04)',border:'1px solid rgba(255,59,92,.15)',borderRadius:14,padding:'12px 14px',marginBottom:14}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.5)',letterSpacing:2,marginBottom:8}}>⚙️ ELIMINAR JUGADOR</div>
+                <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                  {activePlayers.filter(p=>p.id!==myId).map(p=>(
+                    <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,background:'rgba(255,255,255,.03)',borderRadius:10,padding:'8px 12px'}}>
+                      <div style={{fontSize:'1.3rem'}}>{p.emoji}</div>
+                      <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
+                      <button style={{background:'rgba(255,59,92,.15)',border:'1px solid rgba(255,59,92,.3)',color:'var(--red)',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700}}
+                        onClick={()=>handleHostEliminate(p.id,'manual')}>💀 Elim.</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── PANEL DE ELIMINACIÓN — grande, visible para el propio jugador ── */}
-        {!alreadyElim && me && !effectiveIsHost && (
+        {/* Emoji spam button — para todos los jugadores */}
+        {me && !alreadyElim && (
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',gap:8,marginBottom:6}}>
+              {/* Cycle through fun emojis */}
+              {['🔥','💥','⚡','🎉','❤️','💀','👑','😈','🤡','🚀'].map(e=>(
+                <button key={e} onClick={()=>{snd('tap');setMyEmoji(e);}}
+                  style={{width:36,height:36,borderRadius:8,border:`2px solid ${myEmoji===e?'var(--cyan)':'rgba(255,255,255,.1)'}`,
+                    background:myEmoji===e?'rgba(0,245,255,.15)':'rgba(255,255,255,.05)',
+                    cursor:'pointer',fontSize:'1.2rem',flexShrink:0}}>
+                  {e}
+                </button>
+              ))}
+            </div>
+            <button onClick={sendEmoji}
+              style={{width:'100%',height:48,borderRadius:12,border:'2px solid rgba(0,245,255,.2)',
+                background:'rgba(0,245,255,.08)',cursor:'pointer',
+                fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'var(--cyan)',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              <span style={{fontSize:'1.4rem'}}>{myEmoji}</span> ENVIAR A TODOS
+            </button>
+          </div>
+        )}
+        {!alreadyElim && me && (
           <div className="anim-slide" style={{marginBottom:20}}>
             {!showElimPanel ? (
               <button className="btn-elim-big" onClick={()=>{snd('tap');setShowElimPanel(true);}}>
@@ -486,6 +580,23 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
   const players=room?.players||[];
   const effectiveIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
   const [presence,setPresence]=React.useState({});
+  const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
+  const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
+
+  function sendEmoji(){
+    if(!session?.code) return;
+    snd('tap');
+    const id=Date.now()+Math.random();
+    const x=10+Math.random()*80;const y=20+Math.random()*60;
+    setShowSpamEmojis(prev=>[...prev,{id,emoji:myEmoji,x,y}]);
+    setTimeout(()=>setShowSpamEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+    const spamId=uid4()+Math.random().toString(36).slice(2,5);
+    const prof=getProfile();
+    db.set(`rooms/${session.code}/emojiSpam/${spamId}`,{
+      emoji:myEmoji,ts:Date.now(),by:prof?.name||'?',x,y
+    }).catch(()=>{});
+    setTimeout(()=>db.set(`rooms/${session.code}/emojiSpam/${spamId}`,null).catch(()=>{}),4000);
+  }
   React.useEffect(()=>{
     if(!session?.code||!myId) return;
     setupPresence(session.code,myId);

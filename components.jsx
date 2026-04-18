@@ -260,27 +260,36 @@ function LiveScoreboard({ code, onBack, db }){
 
       {/* Fin animado */}
       {showFinishAnim&&(
-        <div style={{
-          position:'fixed',inset:0,zIndex:9990,
-          background:'rgba(0,0,0,.85)',backdropFilter:'blur(8px)',
+        <div style={{position:'fixed',inset:0,zIndex:9990,
+          background:'radial-gradient(circle at 50% 30%,#120800 0%,#07070F 65%)',
           display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-          animation:'popIn .4s ease',
+          padding:28,animation:'popIn .4s ease',overflow:'hidden',
         }} onClick={()=>setShowFinishAnim(false)}>
-          <div style={{fontSize:'5rem',animation:'bounce 1s ease infinite',marginBottom:16}}>🏆</div>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'2rem',letterSpacing:4,
-            background:'linear-gradient(135deg,var(--gold),var(--orange))',
-            WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:8}}>
-            PARTIDA TERMINADA
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'hidden'}}>
+            {Array.from({length:20},(_,i)=>({
+              c:['#FFD447','#FF6B35','#00F5FF','#00FF9D','#9B5DE5'][i%5],
+              l:Math.round(i/20*100)+'%',dl:(i*.1)+'s',dr:(2.5+i*.05)+'s',sz:(6+i%6)+'px'
+            })).map((d,i)=>(
+              <div key={i} style={{position:'absolute',background:d.c,width:d.sz,height:d.sz,
+                left:d.l,top:-20,borderRadius:i%2?'50%':'3px',
+                animation:`confettiFall ${d.dr} ${d.dl} linear infinite`}}/>
+            ))}
           </div>
-          {winner&&(
-            <div style={{textAlign:'center'}}>
-              <div style={{fontSize:'3rem',marginBottom:6}}>{winner.emoji}</div>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',color:winner.color||'var(--gold)',letterSpacing:2}}>{winner.name}</div>
+          <div style={{fontSize:'5.5rem',animation:'trophyFloat 2.2s ease-in-out infinite',marginBottom:8,filter:'drop-shadow(0 0 24px rgba(255,212,71,.6))',position:'relative',zIndex:1}}>🏆</div>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'.72rem',letterSpacing:5,color:'var(--cyan)',marginBottom:4,position:'relative',zIndex:1}}>CAMPEÓN</div>
+          {winner&&(<>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'2rem',letterSpacing:2,
+              background:'linear-gradient(135deg,var(--gold),#FFAA00,var(--orange))',
+              WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',
+              filter:'drop-shadow(0 0 20px rgba(255,212,71,.5))',
+              lineHeight:1,marginBottom:10,position:'relative',zIndex:1}}>
+              {room.customTitle||'PARTIDA'}
             </div>
-          )}
-          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',
-            letterSpacing:2,marginTop:24}}>
-            TOCA PARA VER RESULTADOS
+            <div style={{fontSize:'3rem',marginBottom:6,position:'relative',zIndex:1}}>{winner.emoji}</div>
+            <div style={{fontFamily:'Exo 2',fontWeight:900,fontSize:'1.8rem',color:winner.color||'#fff',letterSpacing:1,marginBottom:4,position:'relative',zIndex:1}}>{winner.name}</div>
+          </>)}
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginTop:20,position:'relative',zIndex:1}}>
+            TOCA PARA VER MARCADOR
           </div>
         </div>
       )}
@@ -421,40 +430,15 @@ function LiveScoreboard({ code, onBack, db }){
         )}
       </div>
 
-      {/* Barra de acciones flotante — emoji spam */}
-      <div style={{
-        position:'fixed',bottom:0,left:0,right:0,zIndex:200,
+      {/* Barra inferior: solo salir */}
+      <div style={{position:'fixed',bottom:0,left:0,right:0,maxWidth:480,margin:'0 auto',zIndex:200,
         background:'linear-gradient(0deg,rgba(8,8,16,.99) 70%,transparent)',
-        padding:'12px 16px 20px',
-        display:'flex',alignItems:'center',gap:10,
-      }}>
-        {/* Botón elegir emoji */}
-        <button onClick={()=>{snd('tap');setShowEmojiPicker(true);}}
-          style={{
-            width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.15)',
-            background:'rgba(255,255,255,.06)',cursor:'pointer',fontSize:'1.6rem',
-            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
-          }}>
-          {myEmoji}
-        </button>
-        {/* Botón spam */}
-        <button onClick={sendSpam}
-          style={{
-            flex:1,height:52,borderRadius:14,border:'2px solid rgba(0,245,255,.3)',
-            background:'rgba(0,245,255,.1)',cursor:'pointer',
-            fontFamily:'var(--font-display)',fontSize:'.9rem',letterSpacing:2,color:'var(--cyan)',
-            display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          }}>
-          <span style={{fontSize:'1.4rem'}}>{myEmoji}</span> ENVIAR A TODOS
-        </button>
-        <button onClick={onBack}
-          style={{
-            width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.1)',
-            background:'rgba(255,255,255,.04)',cursor:'pointer',
-            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-          }}>
-          ✕
+        padding:'10px 16px 20px',display:'flex',gap:8}}>
+        <button onClick={onBack} style={{flex:1,height:48,borderRadius:12,border:'1px solid rgba(255,255,255,.1)',
+          background:'rgba(255,255,255,.04)',cursor:'pointer',
+          fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:700,color:'rgba(255,255,255,.5)',
+          display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          ← Salir del marcador
         </button>
       </div>
     </div>
@@ -953,35 +937,79 @@ function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames
   const [recentSessions,setRecentSessions]=useState([]);
   useEffect(()=>{loadRecentSessions(3).then(setRecentSessions).catch(()=>{});},[]);
 
+  // Card component for consistent sizing
+  function MenuCard({color,glow,icon,iconBg,title,sub,desc,tags,onClick,badge}){
+    return(
+      <div onClick={()=>{snd('tap');onClick();}} style={{
+        borderRadius:18,border:`1.5px solid ${color}44`,
+        background:`linear-gradient(135deg,${color}0D 0%,${color}05 100%)`,
+        padding:'18px 17px',marginBottom:10,cursor:'pointer',
+        transition:'all .22s',position:'relative',overflow:'hidden',
+      }}
+        onMouseEnter={e=>{e.currentTarget.style.boxShadow=`0 6px 32px ${color}30`;e.currentTarget.style.borderColor=`${color}88`;}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='none';e.currentTarget.style.borderColor=`${color}44`;}}>
+        {/* Top shimmer */}
+        <div style={{position:'absolute',top:0,left:0,right:0,height:1,
+          background:`linear-gradient(90deg,transparent,${color}55,transparent)`,pointerEvents:'none'}}/>
+        {badge&&<div style={{position:'absolute',top:12,right:14,background:color,color:'#07070F',
+          fontFamily:'var(--font-ui)',fontSize:'.5rem',fontWeight:700,letterSpacing:2,
+          padding:'3px 8px',borderRadius:20}}>{badge}</div>}
+        <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:desc?10:0}}>
+          <div style={{width:56,height:56,borderRadius:14,
+            background:iconBg||`${color}18`,border:`1.5px solid ${color}33`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:'1.9rem',flexShrink:0}}>
+            {icon}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.15rem',letterSpacing:1,color:'#fff',marginBottom:2}}>{title}</div>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'.55rem',fontWeight:700,
+              color:`${color}BB`,letterSpacing:3}}>{sub}</div>
+          </div>
+        </div>
+        {desc&&<div style={{fontFamily:'var(--font-body)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.42)',lineHeight:1.55,marginBottom:tags?10:0}}>{desc}</div>}
+        {tags&&<div style={{display:'flex',flexWrap:'wrap',gap:5}}>{tags.map((t,i)=>(
+          <span key={i} style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,
+            letterSpacing:.8,padding:'3px 9px',borderRadius:20,
+            background:`${color}18`,border:`1px solid ${color}33`,color:`${color}CC`}}>{t}</span>
+        ))}</div>}
+      </div>
+    );
+  }
+
   return(
     <div className="os-wrap">
       <div className="os-header">
-        <div><div className="os-logo">BOARD<span>GAMEZ</span></div><div className="os-logo-sub">OS · v1.3</div></div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {/* Avatar del usuario — toca para editar perfil */}
-          <div style={{
-            fontSize:'1.5rem',width:38,height:38,borderRadius:10,
-            background:'rgba(0,245,255,.08)',border:'1px solid rgba(0,245,255,.2)',
-            display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'
-          }} onClick={()=>{ snd('tap'); onGoProfile(); }}>
-            {profile?.emoji||'👤'}
-          </div>
+        <div>
+          <div className="os-logo">BOARD<span>GAMEZ</span></div>
+          <div className="os-logo-sub">OS · v2.0</div>
+        </div>
+        <div onClick={()=>{snd('tap');onGoProfile();}} style={{
+          width:42,height:42,borderRadius:12,fontSize:'1.6rem',cursor:'pointer',
+          background:'rgba(0,245,255,.08)',border:'1.5px solid rgba(0,245,255,.2)',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          transition:'all .2s',
+        }}>
+          {profile?.emoji||'👤'}
         </div>
       </div>
 
       <div className="os-page" style={{paddingTop:0}}>
-        {/* Saludo personalizado */}
-        <div style={{padding:'16px 0 8px',display:'flex',alignItems:'center',gap:10}}>
-          <div style={{
-            width:44,height:44,borderRadius:12,fontSize:'1.8rem',
-            background:'rgba(0,245,255,.08)',border:'1px solid rgba(0,245,255,.15)',
-            display:'flex',alignItems:'center',justifyContent:'center'
-          }}>{profile?.emoji||'👤'}</div>
+        {/* Greeting */}
+        <div style={{padding:'18px 0 6px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{width:48,height:48,borderRadius:14,fontSize:'2rem',
+            background:`${profile?.color||'rgba(0,245,255,.1)'}22`,
+            border:`1.5px solid ${profile?.color||'rgba(0,245,255,.25)'}44`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            boxShadow:`0 0 20px ${profile?.color||'rgba(0,245,255,.3)'}33`,
+          }}>
+            {profile?.emoji||'👤'}
+          </div>
           <div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'#fff'}}>
               Hola, <span style={{color:profile?.color||'var(--cyan)'}}>{profile?.name||'Jugador'}</span>
             </div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'.52rem',color:'rgba(255,255,255,.3)',letterSpacing:2,marginTop:2}}>
               BOARDGAMEZ OS · LISTO PARA JUGAR
             </div>
           </div>
@@ -989,741 +1017,111 @@ function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames
 
         {/* GAME BUILDER */}
         <div className="os-section">GAME BUILDER</div>
-        <div className="os-card" style={{
-          borderColor:'rgba(155,93,229,.4)',
-          background:'linear-gradient(135deg,rgba(155,93,229,.1) 0%,rgba(0,245,255,.04) 100%)'
-        }} onClick={()=>{snd('tap');onGoMyGames();}}>
-          <div className="os-card-header">
-            <div className="os-card-icon" style={{background:'rgba(155,93,229,.15)',border:'1px solid rgba(155,93,229,.3)',fontSize:'1.8rem'}}>🎮</div>
-            <div>
-              <div className="os-card-title">Mis Juegos</div>
-              <div className="os-card-sub">
-                {authUser?`SESIÓN: ${authUser.displayName||authUser.email||'Usuario'}`:'CREA · GUARDA · REUTILIZA'}
-              </div>
-            </div>
-          </div>
-          <div className="os-card-desc">Diseña la configuración de tus juegos y guárdalos. La próxima vez solo los cargas.</div>
-          <div className="os-tags">
-            <div className="os-tag purple">5 secciones</div>
-            <div className="os-tag purple">Nube</div>
-            <div className="os-tag purple">Reutilizable</div>
-          </div>
-        </div>
+        <MenuCard
+          color="#9B5DE5" icon="🎮"
+          title="Mis Juegos"
+          sub={authUser?`SESIÓN: ${authUser.displayName||authUser.email||'Usuario'}`:'CREA · GUARDA · REUTILIZA'}
+          desc="Diseña la configuración de tus juegos y guárdalos. La próxima vez solo los cargas."
+          tags={['9 secciones','Nube','Reutilizable']}
+          onClick={onGoMyGames}/>
 
-        <div className="os-section" style={{marginTop:4}}>JUEGOS ESPECIALIZADOS</div>
-        <div className="preset-card" style={{borderColor:'rgba(255,107,53,.3)',background:'linear-gradient(135deg,rgba(255,107,53,.06),rgba(255,107,53,.02))'}}
-          onClick={()=>{snd('tap');onGoStrike();}}>
-          <div className="preset-icon">🎳</div>
-          <div className="preset-info">
-            <div className="preset-title">Strike</div>
-            <div className="preset-desc">Supervivencia · Auto-eliminación · Stats</div>
-            <div style={{display:'flex',gap:5,marginTop:7}}>
-              <div className="os-tag orange" style={{fontSize:'var(--fs-micro)'}}>PRECONFIGURADO</div>
-            </div>
-          </div>
-        </div>
+        {/* JUEGOS ESPECIALIZADOS */}
+        <div className="os-section">JUEGOS ESPECIALIZADOS</div>
+        <MenuCard
+          color="#FF6B35" icon="🎳"
+          title="Strike"
+          sub="SUPERVIVENCIA · ÚLTIMO EN PIE GANA"
+          desc="Auto-eliminación por rondas. Estadísticas automáticas. Perfecto para grupos."
+          tags={['Preconfigured','Survival','Stats']}
+          badge="HOT"
+          onClick={onGoStrike}/>
 
-        <div className="os-section" style={{marginTop:4}}>PARTIDA RÁPIDA</div>
-        <div className="os-card primary" onClick={()=>{snd('tap');onGoGeneric();}}>
-          <div className="os-card-header">
-            <div className="os-card-icon">⚔️</div>
-            <div><div className="os-card-title">Crear partida</div><div className="os-card-sub">SIN TEMPLATE · CONFIGURA AL MOMENTO</div></div>
-          </div>
-          <div className="os-card-desc">Configura rápido sin necesidad de un juego guardado.</div>
-        </div>
+        {/* PARTIDA RÁPIDA */}
+        <div className="os-section">PARTIDA RÁPIDA</div>
+        <MenuCard
+          color="#00F5FF" icon="⚔️"
+          title="Crear partida"
+          sub="SIN TEMPLATE · CONFIGURA AL MOMENTO"
+          desc="Configura rápido sin necesidad de un juego guardado. Ideal para improvisar."
+          onClick={onGoGeneric}/>
+        <MenuCard
+          color="#FF6B35" icon="🚪"
+          title="Unirse / Ver marcador"
+          sub="CÓDIGO DE 4 LETRAS"
+          desc="Únete como jugador o mira el marcador en vivo como espectador."
+          onClick={onGoJoin}/>
 
-        <div className="os-card secondary" onClick={()=>{snd('tap');onGoJoin();}}>
-          <div className="os-card-header">
-            <div className="os-card-icon">🚪</div>
-            <div><div className="os-card-title">Unirse / Ver marcador</div><div className="os-card-sub">CÓDIGO DE 4 LETRAS</div></div>
-          </div>
-          <div className="os-card-desc">Únete como jugador o mira el marcador en vivo como espectador.</div>
-        </div>
-
+        {/* PLATAFORMA */}
         <div className="os-section">PLATAFORMA</div>
-        <div className="os-card tertiary" onClick={()=>{snd('tap');onGoStats();}}>
-          <div className="os-card-header">
-            <div className="os-card-icon">📊</div>
-            <div><div className="os-card-title">Estadísticas</div><div className="os-card-sub">TODOS LOS JUEGOS</div></div>
-          </div>
-          <div className="os-card-desc">Ranking, historial y vergüenza histórica 💀</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+          {[
+            {color:'#00FF9D',icon:'📊',title:'Stats',sub:'RANKING',onClick:onGoStats},
+            {color:'#00FF9D',icon:'🧰',title:'Herramientas',sub:'MONEDA · DADOS',onClick:onGoTools},
+          ].map(card=>(
+            <div key={card.title} onClick={()=>{snd('tap');card.onClick();}} style={{
+              borderRadius:16,border:`1.5px solid ${card.color}33`,
+              background:`${card.color}09`,
+              padding:'16px 14px',cursor:'pointer',transition:'all .22s',
+              position:'relative',overflow:'hidden',
+            }}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:1,
+                background:`linear-gradient(90deg,transparent,${card.color}44,transparent)`,pointerEvents:'none'}}/>
+              <div style={{fontSize:'2rem',marginBottom:8}}>{card.icon}</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',letterSpacing:1,color:'#fff',marginBottom:2}}>{card.title}</div>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:`${card.color}99`,letterSpacing:2}}>{card.sub}</div>
+            </div>
+          ))}
         </div>
 
-        {/* HERRAMIENTAS */}
-        <div className="os-card" style={{borderColor:'rgba(0,255,157,.25)',background:'rgba(0,255,157,.04)'}}
-          onClick={()=>{snd('tap');onGoTools();}}>
-          <div className="os-card-header">
-            <div className="os-card-icon" style={{background:'rgba(0,255,157,.1)',border:'1px solid rgba(0,255,157,.2)'}}>🧰</div>
-            <div><div className="os-card-title">Herramientas</div><div className="os-card-sub">MONEDA · DADOS · RULETA · PPS</div></div>
-          </div>
-          <div className="os-card-desc">Herramientas de apoyo para cualquier partida.</div>
-          <div className="os-tags">
-            <div className="os-tag green">🪙 Moneda</div>
-            <div className="os-tag green">🎲 Dados</div>
-            <div className="os-tag green">🎡 Ruleta</div>
-            <div className="os-tag green">✊ PPS</div>
-          </div>
-        </div>
-
+        {/* Recientes */}
         {recentSessions.length>0&&(
           <>
             <div className="os-section">RECIENTES</div>
             {recentSessions.map((s,i)=>(
-              <div key={s.sessionId||i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'11px 14px',marginBottom:8,display:'flex',alignItems:'center',gap:10}}>
-                <div style={{fontSize:'1.5rem'}}>{s.gameType==='preset:strike'?'🎳':'⚔️'}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)'}}>{s.customTitle||s.gameTitle}</div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
+              <div key={s.sessionId||i} style={{
+                background:'var(--surface)',border:'1px solid var(--border)',
+                borderRadius:12,padding:'11px 14px',marginBottom:7,
+                display:'flex',alignItems:'center',gap:10,
+              }}>
+                <div style={{fontSize:'1.5rem',width:34,textAlign:'center',flexShrink:0}}>
+                  {s.gameType==='preset:strike'?'🎳':s.gameType?.includes('template')?'🎮':'⚔️'}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {s.customTitle||s.gameTitle}
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+                    color:'rgba(255,255,255,.32)',letterSpacing:1,marginTop:1}}>
                     {fmtShortDate(s.startedAt)} · {s.playerCount} jug. · {fmtDuration(s.durationMs)}
                   </div>
                 </div>
-                <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>
-                  {s.players?.find(p=>p.finalPosition===1)?.emoji||'🏆'}
+                <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)',flexShrink:0}}>
+                  {s.players?.[0]?.emoji||'🏆'}
                 </div>
               </div>
             ))}
           </>
         )}
-        <div className="g16"/>
+        <div style={{height:20}}/>
       </div>
     </div>
   );
 }
 
-// ── JOIN ROOM v1.3 — con opción Marcador en vivo ──────────────────
-function JoinRoom({onBack,onJoin,myId,profile,db,onSpectate}){
-  const [code,setCode]=useState('');
-  const [step,setStep]=useState('code');
-  const [roomData,setRoomData]=useState(null);
-  const [loadingRoom,setLoadingRoom]=useState(false);
-  const [roomError,setRoomError]=useState('');
-  const [selectedSlot,setSelectedSlot]=useState(null);
-  const [name,setName]=useState(profile?.name||'');
-  const [emoji,setEmoji]=useState(profile?.emoji||'🎮');
-  const [color,setColor]=useState(profile?.color||'#00F5FF');
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState('');
-  const [pickMode,setPickMode]=useState(null);
-
-  // Jugadores habituales
-  const contacts = getSavedPlayers();
-
-  async function lookupRoom(){
-    if(code.length<4) return;
-    setLoadingRoom(true);setRoomError('');
-    const data=await db.get(`rooms/${code.toUpperCase()}`);
-    setLoadingRoom(false);
-    if(!data){setRoomError('Sala no encontrada');return;}
-    if(data.status==='finished'){setRoomError('Esta partida ya terminó');return;}
-    setRoomData(data);setStep('select');
-  }
-
-  async function handleJoin(){
-    setLoading(true);setError('');
-    let joinName=name,joinEmoji=emoji,joinColor=color,joinId=myId;
-    if(selectedSlot&&selectedSlot!=='new'){
-      const p=roomData.players.find(pl=>pl.id===selectedSlot);
-      if(p){joinName=p.name;joinEmoji=p.emoji||emoji;joinColor=p.color||color;}
-      joinId=selectedSlot;
-    }
-    const result=await onJoin(code.toUpperCase(),joinId,joinName,joinEmoji,joinColor);
-    if(result?.error){setError(result.error);setLoading(false);}
-  }
-
-  if(pickMode) return(
-    <div className="os-wrap">
-      <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setPickMode(null)}>← Listo</button>
-        <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:3}}>PERSONALIZAR</div>
-        <div style={{width:70}}/>
-      </div>
-      <div className="os-page" style={{paddingTop:16}}>
-        <div style={{display:'flex',gap:6,marginBottom:16}}>
-          {['emoji','color'].map(m=>(
-            <button key={m} className="btn btn-ghost btn-sm"
-              style={{flex:1,background:pickMode===m?'var(--cyan)':undefined,
-                color:pickMode===m?'var(--bg)':undefined,border:pickMode===m?'none':undefined}}
-              onClick={()=>setPickMode(m)}>
-              {m==='emoji'?'🐉 Emoji':'🎨 Color'}
-            </button>
-          ))}
-        </div>
-        {pickMode==='emoji'&&<div className="picker-grid">{EMOJIS.map((e,i)=><div key={i} className={`picker-item ${emoji===e?'sel':''}`} onClick={()=>{snd('tap');setEmoji(e);}}>{e}</div>)}</div>}
-        {pickMode==='color'&&<div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'8px 0'}}>{COLORS.map((col,i)=><div key={i} className={`color-dot ${color===col?'sel':''}`} style={{background:col}} onClick={()=>{snd('tap');setColor(col);}}/>)}</div>}
-      </div>
-    </div>
-  );
-
-  return(
-    <div className="os-wrap">
-      <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}}
-          onClick={()=>step==='select'?setStep('code'):onBack()}>← Atrás</button>
-        <div className="os-logo" style={{fontSize:'1.1rem'}}>UNIRSE <span>A SALA</span></div>
-        <div style={{width:70}}/>
-      </div>
-      <div className="os-page" style={{paddingTop:16}}>
-
-        {/* ── STEP: CÓDIGO ── */}
-        {step==='code'&&(
-          <div className="anim-fade">
-            {/* Hero */}
-            <div style={{textAlign:'center',marginBottom:28}}>
-              <div style={{fontSize:'3.5rem',marginBottom:10}}>🚪</div>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',letterSpacing:3,color:'var(--cyan)',marginBottom:6}}>
-                INGRESA A LA PARTIDA
-              </div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>
-                Pide el código de 4 letras al host
-              </div>
-            </div>
-
-            {/* Código input grande */}
-            <div style={{position:'relative',marginBottom:12}}>
-              <input className="os-input os-code-input"
-                placeholder="XXXX"
-                value={code}
-                onChange={e=>setCode(e.target.value.toUpperCase().slice(0,4))}
-                maxLength={4} autoFocus
-                onKeyDown={e=>e.key==='Enter'&&code.length===4&&lookupRoom()}
-                style={{textAlign:'center',fontSize:'2.4rem',letterSpacing:12,fontFamily:'var(--font-display)',
-                  padding:'20px',height:'auto',borderWidth:2}}/>
-              {code.length>0&&code.length<4&&(
-                <div style={{position:'absolute',bottom:-18,left:0,right:0,textAlign:'center',
-                  fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.25)',letterSpacing:2}}>
-                  {4-code.length} letras más
-                </div>
-              )}
-            </div>
-
-            {roomError&&<div className="os-alert alert-red" style={{marginTop:16}}>{roomError}</div>}
-
-            <button className="btn btn-cyan" disabled={code.length<4||loadingRoom}
-              onClick={lookupRoom} style={{marginTop:16,fontSize:'1rem',padding:'16px'}}>
-              {loadingRoom?'⏳ Buscando...':`🔍 Buscar sala`}
-            </button>
-          </div>
-        )}
-
-        {/* ── STEP: SELECCIONAR SLOT ── */}
-        {step==='select'&&roomData&&(
-          <div className="anim-fade">
-            {/* Info de la sala */}
-            <div style={{
-              background:'linear-gradient(135deg,rgba(0,245,255,.08),rgba(155,93,229,.06))',
-              border:'1px solid rgba(0,245,255,.25)',borderRadius:16,
-              padding:'16px 16px',marginBottom:16,
-            }}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{fontSize:'2rem'}}>
-                  {roomData.gameType==='preset:strike'?'🎳':
-                   roomData.gameType?.includes('cubilete')?'🎲':'🎮'}
-                </div>
-                <div>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,color:'#fff'}}>
-                    {roomData.customTitle||'Sala encontrada'}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
-                    <span style={{
-                      fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,letterSpacing:1,
-                      color:roomData.status==='active'?'var(--green)':'var(--gold)',
-                      background:roomData.status==='active'?'rgba(0,255,157,.1)':'rgba(255,212,71,.1)',
-                      padding:'2px 8px',borderRadius:20,
-                    }}>
-                      {roomData.status==='active'?'● EN JUEGO':'● EN LOBBY'}
-                    </span>
-                    <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>
-                      {roomData.players?.length} jugadores · Sala {code}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Ver marcador */}
-            <div style={{
-              display:'flex',alignItems:'center',gap:12,
-              background:'rgba(155,93,229,.08)',border:'1px solid rgba(155,93,229,.25)',
-              borderRadius:13,padding:'12px 14px',marginBottom:16,cursor:'pointer',
-              transition:'all .2s',
-            }} onClick={()=>{snd('tap');onSpectate(code.toUpperCase());}}>
-              <div style={{width:40,height:40,borderRadius:12,background:'rgba(155,93,229,.2)',
-                display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.3rem',flexShrink:0}}>👁</div>
-              <div style={{flex:1}}>
-                <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',letterSpacing:1,color:'var(--purple)'}}>
-                  Ver marcador en vivo
-                </div>
-                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>
-                  Solo lectura · Sin unirte como jugador
-                </div>
-              </div>
-              <div style={{color:'var(--purple)',fontSize:'1.3rem'}}>›</div>
-            </div>
-
-            {/* Jugadores habituales si hay y no están ya en la sala */}
-            {(() => {
-              const slotNames = (roomData.players||[]).map(p=>p.name.toLowerCase());
-              const relevant = contacts.filter(c=>slotNames.includes(c.name.toLowerCase()));
-              if(!relevant.length) return null;
-              return(
-                <div style={{marginBottom:12}}>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                    color:'rgba(0,255,157,.6)',letterSpacing:2,marginBottom:8}}>
-                    ⭐ ¿ERES UNO DE ESTOS?
-                  </div>
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                    {relevant.map(p=>(
-                      <button key={p.id} onClick={()=>{
-                        snd('tap');
-                        const slot=(roomData.players||[]).find(s=>s.name.toLowerCase()===p.name.toLowerCase());
-                        if(slot){setSelectedSlot(slot.id);setName(p.name);setEmoji(p.emoji||slot.emoji);setColor(p.color||slot.color);}
-                      }}
-                        style={{
-                          display:'flex',alignItems:'center',gap:8,
-                          padding:'8px 12px',borderRadius:12,border:'none',cursor:'pointer',
-                          background:selectedSlot&&(roomData.players||[]).find(s=>s.id===selectedSlot)?.name.toLowerCase()===p.name.toLowerCase()
-                            ?'rgba(0,255,157,.2)':'rgba(255,255,255,.07)',
-                          transition:'all .2s',
-                        }}>
-                        <span style={{fontSize:'1.3rem'}}>{p.emoji}</span>
-                        <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',
-                          color:p.color||'#fff'}}>{p.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Lista de slots */}
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-              color:'rgba(255,255,255,.35)',letterSpacing:2,marginBottom:8}}>
-              ¿ERES ALGUNO DE ESTOS JUGADORES?
-            </div>
-
-            {(roomData.players||[]).map(p=>{
-              const isSelected=selectedSlot===p.id;
-              const isHost=p.id===roomData?.hostId;
-              return(
-                <div key={p.id}
-                  onClick={()=>{snd('tap');setSelectedSlot(p.id);setName(p.name);setEmoji(p.emoji||emoji);setColor(p.color||color);}}
-                  style={{
-                    display:'flex',alignItems:'center',gap:12,
-                    background:isSelected?'rgba(0,245,255,.08)':'rgba(255,255,255,.03)',
-                    border:`2px solid ${isSelected?'rgba(0,245,255,.5)':isHost?'rgba(255,212,71,.2)':'rgba(255,255,255,.07)'}`,
-                    borderRadius:14,padding:'12px 14px',marginBottom:8,cursor:'pointer',
-                    transition:'all .2s',
-                  }}>
-                  <div style={{fontSize:'1.7rem',width:38,textAlign:'center',flexShrink:0}}>{p.emoji}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                      <span style={{fontFamily:'var(--font-body)',fontWeight:700,
-                        fontSize:'var(--fs-base)',color:isSelected?'var(--cyan)':p.color||'#fff'}}>
-                        {p.name}
-                      </span>
-                      {isHost&&(
-                        <span style={{fontSize:'.5rem',background:'rgba(255,212,71,.15)',color:'var(--gold)',
-                          padding:'2px 7px',borderRadius:6,fontFamily:'var(--font-ui)',letterSpacing:1,fontWeight:700}}>
-                          HOST
-                        </span>
-                      )}
-                    </div>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                      color:isHost?'rgba(0,255,157,.5)':'rgba(255,255,255,.3)',letterSpacing:1,marginTop:3}}>
-                      {isHost?'🟢 Conectado':'🔵 Slot libre — tócalo para entrar'}
-                    </div>
-                  </div>
-                  {isSelected&&<div style={{color:'var(--cyan)',fontSize:'1.3rem',flexShrink:0}}>✓</div>}
-                </div>
-              );
-            })}
-
-            {/* Soy nuevo */}
-            <div
-              onClick={()=>{snd('tap');setSelectedSlot('new');}}
-              style={{
-                display:'flex',alignItems:'center',gap:12,
-                background:selectedSlot==='new'?'rgba(155,93,229,.08)':'rgba(255,255,255,.02)',
-                border:`2px dashed ${selectedSlot==='new'?'rgba(155,93,229,.5)':'rgba(255,255,255,.12)'}`,
-                borderRadius:14,padding:'12px 14px',marginBottom:12,cursor:'pointer',
-                transition:'all .2s',
-              }}>
-              <div style={{width:38,height:38,borderRadius:12,
-                background:selectedSlot==='new'?'rgba(155,93,229,.2)':'rgba(255,255,255,.06)',
-                display:'flex',alignItems:'center',justifyContent:'center',
-                fontSize:'1.3rem',flexShrink:0}}>➕</div>
-              <div style={{flex:1}}>
-                <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',
-                  color:selectedSlot==='new'?'var(--purple)':'rgba(255,255,255,.55)'}}>
-                  Soy un jugador nuevo
-                </div>
-                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                  color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:2}}>
-                  Me agrego a la sala
-                </div>
-              </div>
-              {selectedSlot==='new'&&<div style={{color:'var(--purple)',fontSize:'1.3rem'}}>✓</div>}
-            </div>
-
-            {/* Configurar perfil nuevo */}
-            {selectedSlot==='new'&&(
-              <div className="anim-fade" style={{
-                background:'rgba(155,93,229,.06)',border:'1px solid rgba(155,93,229,.2)',
-                borderRadius:14,padding:'14px',marginBottom:12,
-              }}>
-                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                  color:'rgba(155,93,229,.7)',letterSpacing:2,marginBottom:10}}>
-                  TU PERFIL EN ESTA PARTIDA
-                </div>
-
-                {/* Quick pick from contacts */}
-                {contacts.length>0&&(
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                      color:'rgba(255,255,255,.35)',letterSpacing:1,marginBottom:7}}>
-                      ⭐ Jugadores habituales
-                    </div>
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                      {contacts.slice(0,8).map(p=>(
-                        <button key={p.id} onClick={()=>{snd('tap');setName(p.name);setEmoji(p.emoji);setColor(p.color);}}
-                          style={{
-                            display:'flex',alignItems:'center',gap:6,
-                            padding:'6px 10px',borderRadius:10,border:'none',cursor:'pointer',
-                            background:name===p.name?'rgba(155,93,229,.25)':'rgba(255,255,255,.07)',
-                            transition:'all .15s',
-                          }}>
-                          <span style={{fontSize:'1.1rem'}}>{p.emoji}</span>
-                          <span style={{fontFamily:'var(--font-body)',fontWeight:700,
-                            fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Avatar preview + edit */}
-                <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,
-                  background:'rgba(0,0,0,.2)',borderRadius:12,padding:'10px 12px',cursor:'pointer'}}
-                  onClick={()=>setPickMode('emoji')}>
-                  <div style={{fontSize:'2rem'}}>{emoji}</div>
-                  <div style={{width:14,height:14,borderRadius:'50%',background:color,
-                    border:'2px solid rgba(255,255,255,.2)',flexShrink:0}}/>
-                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,
-                    fontSize:'var(--fs-sm)',color:color}}>{name||'Tu nombre'}</div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
-                    color:'rgba(155,93,229,.6)',letterSpacing:2}}>EDITAR ›</div>
-                </div>
-                <input className="os-input" placeholder="Tu nombre..." value={name}
-                  onChange={e=>setName(e.target.value)} maxLength={20}
-                  style={{marginBottom:0}}/>
-              </div>
-            )}
-
-            {error&&<div className="os-alert alert-red">{error}</div>}
-
-            <button className="btn btn-cyan"
-              style={{padding:'16px',fontSize:'1rem',marginBottom:8}}
-              disabled={!selectedSlot||(selectedSlot==='new'&&!name.trim())||loading}
-              onClick={handleJoin}>
-              {loading?'⏳ Entrando...':`🚪 Entrar a la partida`}
-            </button>
-            <button className="btn btn-back" onClick={()=>{setStep('code');setRoomData(null);setSelectedSlot(null);}}>
-              ← Cambiar sala
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-// ── STATS SCREEN ──────────────────────────────────────────────────
-function StatsScreen({onBack,db}){
-  const [tab,setTab]=useState('overview');
-  const [players,setPlayers]=useState([]);
-  const [sessions,setSessions]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [selectedPlayer,setSelectedPlayer]=useState(null);
-
-  useEffect(()=>{
-    async function load(){
-      setLoading(true);
-      try{
-        const [lb,sess]=await Promise.all([loadLeaderboard(false),loadRecentSessions(50,false)]);
-        setPlayers(lb); setSessions(sess);
-      }catch(e){console.error(e);}finally{setLoading(false);}
-    }
-    load();
-  },[]);
-
-  // Computed global stats from sessions
-  const globalStats = React.useMemo(()=>{
-    if(!sessions.length) return null;
-    const totalTime = sessions.reduce((s,x)=>s+(x.durationMs||0),0);
-    const avgTime = sessions.length ? totalTime/sessions.length : 0;
-    // Longest/shortest sessions
-    const sorted = [...sessions].sort((a,b)=>(b.durationMs||0)-(a.durationMs||0));
-    const longest = sorted[0];
-    const shortest = sorted[sorted.length-1];
-    // Most played game
-    const gameCounts = {};
-    sessions.forEach(s=>{ gameCounts[s.customTitle||s.gameTitle]=(gameCounts[s.customTitle||s.gameTitle]||0)+1; });
-    const mostPlayed = Object.entries(gameCounts).sort((a,b)=>b[1]-a[1])[0];
-    // Slowest/fastest players by survival
-    const allPlayers = sessions.flatMap(s=>(s.players||[]).map(p=>({...p,game:s.customTitle||s.gameTitle})));
-    const withSurvival = allPlayers.filter(p=>p.survivalMs>0).sort((a,b)=>b.survivalMs-a.survivalMs);
-    return { totalTime, avgTime, longest, shortest, mostPlayed, slowest:withSurvival[0], fastest:withSurvival[withSurvival.length-1] };
-  },[sessions]);
-
-  if(selectedPlayer){
-    const p=selectedPlayer;
-    const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
-    const pSessions=sessions.filter(s=>(s.players||[]).some(sp=>sp.name===p.name));
-    const totalMs=pSessions.reduce((acc,s)=>acc+(s.durationMs||0),0);
-    const wins1=pSessions.filter(s=>(s.players||[]).find(sp=>sp.name===p.name)?.finalPosition===1).length;
-    return(
-      <div className="os-wrap">
-        <div className="os-header">
-          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setSelectedPlayer(null)}>← Stats</button>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.4)',letterSpacing:3}}>JUGADOR</div>
-          <div style={{width:70}}/>
-        </div>
-        <div className="os-page" style={{paddingTop:20}}>
-          <div style={{textAlign:'center',marginBottom:20}}>
-            <div style={{fontSize:'4rem',marginBottom:6}}>{p.emoji}</div>
-            <div style={{fontFamily:'var(--font-display)',fontSize:'1.7rem',letterSpacing:2,color:p.color||'#fff'}}>{p.name}</div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:2,marginTop:4}}>
-              {p.lastGameTitle||'—'} · {fmtShortDate(p.lastPlayed)||''}
-            </div>
-          </div>
-          {/* Win rate bar */}
-          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'16px',marginBottom:12}}>
-            <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2}}>WIN RATE</div>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>{wr}%</div>
-            </div>
-            <div style={{height:8,background:'rgba(255,255,255,.08)',borderRadius:4,overflow:'hidden'}}>
-              <div style={{height:'100%',width:wr+'%',background:'linear-gradient(90deg,var(--cyan),var(--gold))',borderRadius:4,transition:'width 1s ease'}}/>
-            </div>
-          </div>
-          {/* Stats grid */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
-            {[
-              {label:'PARTIDAS',value:p.games||0,color:'var(--cyan)',icon:'🎮'},
-              {label:'VICTORIAS',value:p.wins||0,color:'var(--gold)',icon:'🏆'},
-              {label:'TIEMPO TOTAL',value:fmtDuration(totalMs),color:'var(--green)',icon:'⏱'},
-              {label:'MEJOR POS.',value:'#'+(p.bestPosition||'—'),color:'var(--orange)',icon:'🥇'},
-            ].map(s=>(
-              <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'14px',textAlign:'center'}}>
-                <div style={{fontSize:'1.4rem',marginBottom:4}}>{s.icon}</div>
-                <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',color:s.color,marginBottom:3}}>{s.value}</div>
-                <div style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-          {/* Recent sessions for this player */}
-          {pSessions.length>0&&(
-            <>
-              <div className="os-section">PARTIDAS RECIENTES</div>
-              {pSessions.slice(0,5).map((s,i)=>{
-                const me=(s.players||[]).find(sp=>sp.name===p.name);
-                const pos=me?.finalPosition;
-                return(
-                  <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',width:28,textAlign:'center'}}>
-                      {pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':'#'+(pos||'?')}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)'}}>{s.customTitle||s.gameTitle}</div>
-                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:2}}>{fmtShortDate(s.startedAt)} · {fmtDuration(s.durationMs)}</div>
-                    </div>
-                    {me?.survivalMs&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>⏱ {fmtDuration(me.survivalMs)}</div>}
-                  </div>
-                );
-              })}
-            </>
-          )}
-          <button className="btn btn-ghost" onClick={()=>setSelectedPlayer(null)}>← Volver</button>
-        </div>
-      </div>
-    );
-  }
-
-  const TABS=[['overview','📊 Overview'],['ranking','🏆 Ranking'],['sessions','🎮 Partidas']];
-
-  return(
-    <div className="os-wrap">
-      <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Home</button>
-        <div className="os-logo" style={{fontSize:'1.1rem'}}>STATS <span>OS</span></div>
-        <div style={{width:70}}/>
-      </div>
-      <div className="os-page" style={{paddingTop:16}}>
-        {/* Tabs */}
-        <div style={{display:'flex',gap:5,marginBottom:16}}>
-          {TABS.map(([id,lbl])=>(
-            <button key={id} onClick={()=>{snd('tap');setTab(id);}}
-              style={{flex:1,border:'none',borderRadius:10,padding:'9px 4px',cursor:'pointer',
-                fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',
-                background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',
-                color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'}}>
-              {lbl}
-            </button>
-          ))}
-        </div>
-
-        {loading&&<div style={{textAlign:'center',paddingTop:40}}><div className="os-spin" style={{marginBottom:14}}/></div>}
-
-        {/* ── OVERVIEW ── */}
-        {!loading&&tab==='overview'&&(
-          <div className="anim-fade">
-            {/* Big numbers */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
-              {[
-                {label:'PARTIDAS',value:sessions.length,color:'var(--cyan)',icon:'🎮'},
-                {label:'JUGADORES',value:players.length,color:'var(--purple)',icon:'👥'},
-                {label:'TIEMPO TOTAL',value:fmtDuration(globalStats?.totalTime||0),color:'var(--green)',icon:'⏱'},
-              ].map(s=>(
-                <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 10px',textAlign:'center'}}>
-                  <div style={{fontSize:'1.3rem',marginBottom:4}}>{s.icon}</div>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:s.color,marginBottom:3}}>{s.value}</div>
-                  <div style={{fontFamily:'var(--font-ui)',fontSize:'.48rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {globalStats&&(<>
-              {/* Records */}
-              <div className="os-section">🏅 RÉCORDS</div>
-              {[
-                {label:'Partida más larga',icon:'🐢',value:globalStats.longest?`${fmtDuration(globalStats.longest.durationMs)} — ${globalStats.longest.customTitle||globalStats.longest.gameTitle}`:'—'},
-                {label:'Partida más corta',icon:'⚡',value:globalStats.shortest?`${fmtDuration(globalStats.shortest.durationMs)} — ${globalStats.shortest.customTitle||globalStats.shortest.gameTitle}`:'—'},
-                {label:'Duración promedio',icon:'📊',value:fmtDuration(globalStats.avgTime)},
-                {label:'Juego más jugado',icon:'🎮',value:globalStats.mostPlayed?`${globalStats.mostPlayed[0]} (${globalStats.mostPlayed[1]}×)`:'—'},
-                {label:'Jugador más lento',icon:'🐌',value:globalStats.slowest?`${globalStats.slowest.emoji} ${globalStats.slowest.name} — ${fmtDuration(globalStats.slowest.survivalMs)} (${globalStats.slowest.game})`:'—'},
-                {label:'Jugador más rápido',icon:'🚀',value:globalStats.fastest?`${globalStats.fastest.emoji} ${globalStats.fastest.name} — ${fmtDuration(globalStats.fastest.survivalMs)} (${globalStats.fastest.game})`:'—'},
-              ].map((r,i)=>(
-                <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'flex-start',gap:12}}>
-                  <div style={{fontSize:'1.4rem',flexShrink:0}}>{r.icon}</div>
-                  <div>
-                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.52rem',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:3}}>{r.label.toUpperCase()}</div>
-                    <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.8)',lineHeight:1.4}}>{r.value}</div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Top 3 players mini */}
-              {players.length>0&&(
-                <>
-                  <div className="os-section">👑 TOP JUGADORES</div>
-                  {players.slice(0,3).map((p,i)=>{
-                    const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
-                    return(
-                      <div key={i} style={{background:'var(--surface)',border:`1px solid ${i===0?'rgba(255,212,71,.3)':'var(--border)'}`,borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}
-                        onClick={()=>{snd('tap');setSelectedPlayer(p);}}>
-                        <div style={{fontSize:'1.5rem'}}>{i===0?'🥇':i===1?'🥈':'🥉'}</div>
-                        <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
-                        <div style={{flex:1}}>
-                          <div style={{fontFamily:'var(--font-body)',fontWeight:700,color:p.color||'#fff'}}>{p.name}</div>
-                          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:2}}>{p.games} partidas · {wr}% WR</div>
-                        </div>
-                        <div style={{textAlign:'right'}}>
-                          <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>{p.wins}</div>
-                          <div style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆 wins</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-            </>)}
-
-            {!globalStats&&!loading&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>📊</div><div>Completa partidas para ver estadísticas</div></div>}
-          </div>
-        )}
-
-        {/* ── RANKING ── */}
-        {!loading&&tab==='ranking'&&(
-          <div className="anim-fade">
-            {players.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🏆</div><div>Sin jugadores registrados aún</div></div>}
-            {players.map((p,i)=>{
-              const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
-              return(
-                <div key={p.pKey||i} className={`stat-card ${i===0?'gold-border':''}`}
-                  onClick={()=>{snd('tap');setSelectedPlayer(p);}}>
-                  <div className="stat-rank">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
-                  <div style={{fontSize:'1.7rem'}}>{p.emoji}</div>
-                  <div style={{flex:1}}>
-                    <div className="stat-name" style={{color:p.color||'#fff'}}>{p.name}</div>
-                    <div className="stat-meta">{p.games||0} partidas · {wr}% WR</div>
-                    {/* Mini win rate bar */}
-                    <div style={{height:3,background:'rgba(255,255,255,.08)',borderRadius:2,marginTop:5,overflow:'hidden'}}>
-                      <div style={{height:'100%',width:wr+'%',background:i===0?'var(--gold)':'var(--cyan)',borderRadius:2}}/>
-                    </div>
-                  </div>
-                  <div style={{textAlign:'right'}}>
-                    <div className="stat-value" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>{p.wins||0}</div>
-                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆</div>
-                  </div>
-                  <div style={{color:'rgba(255,255,255,.2)',fontSize:'.95rem'}}>›</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── PARTIDAS ── */}
-        {!loading&&tab==='sessions'&&(
-          <div className="anim-fade">
-            {sessions.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🎮</div><div>Sin partidas registradas</div></div>}
-            {sessions.map((s,i)=>(
-              <div key={s.sessionId||i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:13,padding:'13px 15px',marginBottom:8}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:'var(--fs-sm)',display:'flex',alignItems:'center',gap:6}}>
-                      <span>{s.gameType==='preset:strike'?'🎳':s.gameType?.includes('template')?'🎮':'⚔️'}</span>
-                      {s.customTitle||s.gameTitle}
-                    </div>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>
-                      {fmtDate(s.startedAt)} · <strong>{fmtDuration(s.durationMs)}</strong>
-                    </div>
-                  </div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,color:'rgba(255,255,255,.3)',background:'rgba(255,255,255,.06)',padding:'3px 9px',borderRadius:20}}>
-                    {s.playerCount||0} jug.
-                  </div>
-                </div>
-                {(s.players||[]).slice(0,4).map((p,pi)=>(
-                  <div key={p.id||pi} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,.04)'}}>
-                    <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',width:22,color:'rgba(255,255,255,.3)'}}>{pi===0?'🥇':pi===1?'🥈':pi===2?'🥉':'#'+(pi+1)}</div>
-                    <div style={{fontSize:'1.05rem'}}>{p.emoji}</div>
-                    <div style={{fontWeight:800,flex:1,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
-                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>
-                      {p.survivalMs?`⏱ ${fmtDuration(p.survivalMs)}`:''}
-                      {p.points?` · ${p.points}pts`:''}
-                      {p.wins?` · ${p.wins}🏆`:''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 // ── GENERIC SETUP FROM TEMPLATE ───────────────────────────────────
 function GenericSetupFromTemplate({template,hostPlayer,onBack,onCreateRoom}){
   const [players,setPlayers]=useState([]);
   const [newName,setNewName]=useState('');
-  const [pickingFor,setPickingFor]=useState(null);
-  const cfg=template.config||{};
 
   useEffect(()=>{
-    if(hostPlayer.name) setPlayers([{...hostPlayer,isHost:true}]);
+    const init=[];
+    if(hostPlayer&&hostPlayer.name&&hostPlayer.name!=='Host'){
+      init.push({...hostPlayer,isHost:true});
+    }
+    setPlayers(init);
   },[]);
 
   function addPlayer(){
@@ -1734,60 +1132,88 @@ function GenericSetupFromTemplate({template,hostPlayer,onBack,onCreateRoom}){
     setPlayers(prev=>[...prev,{id:uid(),name:newName.trim(),emoji:EMOJIS[idx],color:COLORS[cidx]}]);
     setNewName('');
   }
-  function updatePlayer(id,f,v){ setPlayers(prev=>prev.map(p=>p.id===id?{...p,[f]:v}:p)); }
 
-  if(pickingFor!==null){
-    const p=players.find(pl=>pl.id===pickingFor);
-    if(!p){setPickingFor(null);return null;}
-    return <PlayerPicker player={p} onUpdate={(f,v)=>updatePlayer(p.id,f,v)} onClose={()=>setPickingFor(null)}/>;
-  }
+  const cfg=template.config||{};
+  const minP=cfg.minPlayers||2;
 
   return(
     <div className="os-wrap">
       <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Mis juegos</button>
-        <div style={{fontSize:'1.6rem'}}>{template.emoji||'🎮'}</div>
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Atrás</button>
+        <div className="os-logo" style={{fontSize:'1rem'}}>{template.emoji||'🎮'} <span>{template.name}</span></div>
         <div style={{width:70}}/>
       </div>
       <div className="os-page" style={{paddingTop:16}}>
-        <div style={{background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',border:'1px solid rgba(155,93,229,.25)',borderRadius:16,padding:'16px',marginBottom:20}}>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',letterSpacing:1,marginBottom:4}}>{template.name}</div>
-          {template.description&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.45)',marginBottom:10}}>{template.description}</div>}
-          <div className="os-tags">
-            <div className="os-tag gold">{cfg.victoryMode==='points'?'🏅 Puntos':cfg.victoryMode==='wins'?'🏆 Victorias':cfg.victoryMode==='elimination'?'💀 Eliminación':'🎯 Manual'}</div>
-            {cfg.useRounds&&<div className="os-tag">{cfg.rounds==='libre'?'∞ Libre':`${cfg.rounds} rondas`}</div>}
+        <div style={{background:'rgba(155,93,229,.06)',border:'1px solid rgba(155,93,229,.2)',
+          borderRadius:14,padding:'12px 14px',marginBottom:16}}>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.7)',letterSpacing:2,marginBottom:4}}>
+            CONFIGURACIÓN CARGADA
           </div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'#fff'}}>
+            {template.name}
+          </div>
+          {template.description&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:3}}>{template.description}</div>}
         </div>
 
-        <div className="os-section">JUGADORES · {players.length} / {cfg.maxPlayers||8}</div>
-        {players.map(p=>(
+        <div className="os-section">JUGADORES · {players.length}</div>
+        {players.map((p,i)=>(
           <div key={p.id} className="player-row" style={{marginBottom:8}}>
-            <div style={{fontSize:'1.7rem',width:38,textAlign:'center',cursor:'pointer'}} onClick={()=>{snd('tap');setPickingFor(p.id);}}>{p.emoji}</div>
-            <div style={{width:13,height:13,borderRadius:'50%',background:p.color,border:'2px solid rgba(255,255,255,.2)',flexShrink:0,cursor:'pointer'}} onClick={()=>{snd('tap');setPickingFor(p.id);}}/>
-            <div className="player-name" style={{color:p.color}}>
-              {p.name}{p.isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--gold)',letterSpacing:2,marginLeft:6}}>HOST</span>}
-            </div>
-            {!p.isHost&&<button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.2rem',cursor:'pointer',padding:'0 4px'}} onClick={()=>setPlayers(prev=>prev.filter(pl=>pl.id!==p.id))}>×</button>}
+            <div className="player-emoji">{p.emoji}</div>
+            <div className="player-name" style={{color:p.color}}>{p.name}{p.isHost&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--gold)',letterSpacing:2,marginLeft:6}}>HOST</span>}</div>
+            {!p.isHost&&<button style={{background:'none',border:'none',color:'rgba(255,59,92,.5)',fontSize:'1.2rem',cursor:'pointer'}} onClick={()=>setPlayers(prev=>prev.filter(pl=>pl.id!==p.id))}>×</button>}
           </div>
         ))}
-
-        <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <div style={{display:'flex',gap:8,marginBottom:8}}>
           <input className="os-input" style={{marginBottom:0,flex:1}} placeholder="Agregar jugador..."
             value={newName} onChange={e=>setNewName(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&addPlayer()} maxLength={20}/>
-          <button style={{background:'rgba(155,93,229,.15)',border:'1px solid rgba(155,93,229,.4)',color:'var(--purple)',borderRadius:11,padding:'0 18px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.2rem',flexShrink:0}} onClick={addPlayer}>+</button>
+          <button style={{background:'rgba(155,93,229,.15)',border:'1px solid rgba(155,93,229,.4)',
+            color:'var(--purple)',borderRadius:11,padding:'0 18px',cursor:'pointer',
+            fontFamily:'var(--font-display)',fontSize:'1.2rem',flexShrink:0}}
+            onClick={addPlayer}>+</button>
         </div>
 
-        {players.length<(cfg.minPlayers||2)&&<div className="os-alert alert-cyan">Mínimo {cfg.minPlayers||2} jugadores</div>}
-        <div className="g8"/>
-        <button className="btn btn-purple" disabled={players.length<(cfg.minPlayers||2)||players.length>(cfg.maxPlayers||20)}
-          onClick={()=>{snd('round');onCreateRoom({players});}}>
-          🚀 CREAR SALA — {template.name}
+        {/* Jugadores habituales */}
+        {(()=>{
+          const contacts=getSavedPlayers();
+          const used=players.map(p=>p.name.toLowerCase());
+          const avail=contacts.filter(c=>!used.includes(c.name.toLowerCase()));
+          if(!avail.length) return null;
+          return(
+            <div style={{marginBottom:12}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginBottom:7}}>⭐ HABITUALES</div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {avail.slice(0,10).map(p=>(
+                  <button key={p.id||p.name} onClick={()=>{
+                    snd('join');
+                    setPlayers(prev=>[...prev,{id:uid(),name:p.name,emoji:p.emoji||EMOJIS[prev.length%EMOJIS.length],color:p.color||COLORS[prev.length%COLORS.length]}]);
+                  }} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',borderRadius:10,border:'none',cursor:'pointer',background:'rgba(255,255,255,.08)'}}>
+                    <span style={{fontSize:'1rem'}}>{p.emoji}</span>
+                    <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</span>
+                    <span style={{color:'rgba(0,255,157,.6)',fontSize:'.85rem'}}>+</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {players.length>=minP&&(
+          <div className="os-alert alert-green" style={{marginBottom:12}}>
+            ✓ {players.length} jugadores listos
+          </div>
+        )}
+        {players.length<minP&&(
+          <div className="os-alert alert-cyan" style={{marginBottom:12}}>
+            Mínimo {minP} jugadores
+          </div>
+        )}
+        <button className="btn btn-purple" disabled={players.length<minP}
+          onClick={()=>{snd('round');onCreateRoom(template,players);}}>
+          🎮 CREAR SALA — {template.name}
         </button>
         <button className="btn btn-back" onClick={onBack}>← Cancelar</button>
       </div>
     </div>
   );
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));

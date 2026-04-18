@@ -172,9 +172,15 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
   const [showSaveForm,setShowSaveForm]=React.useState(false);
 
   React.useEffect(()=>{
+    const initPlayers=[];
     if(hostPlayer&&hostPlayer.name&&hostPlayer.name!=='Host'){
-      setPlayers([{...hostPlayer,isHost:true}]);
+      initPlayers.push({...hostPlayer,isHost:true});
     }
+    // Auto-title
+    const d=new Date();
+    const ds=d.toLocaleDateString('es-MX',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    setTitle(prev=>prev||`Partida ${ds}`);
+    setPlayers(initPlayers);
   },[]);
 
   function addPlayer(){
@@ -226,6 +232,21 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
               onKeyDown={e=>e.key==='Enter'&&title.trim().length>=2&&setStep('players')}
               autoFocus maxLength={40}/>
             <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',textAlign:'right',marginBottom:16}}>{title.length}/40</div>
+            {/* Saved games titles from recent sessions */}
+            {(()=>{
+              const contacts=getSavedPlayers();
+              if(!contacts.length) return null;
+              return(
+                <div style={{background:'rgba(0,255,157,.04)',border:'1px solid rgba(0,255,157,.15)',borderRadius:12,padding:'10px 12px',marginBottom:12}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,255,157,.6)',letterSpacing:2,marginBottom:8}}>
+                    ⭐ JUGADORES HABITUALES DISPONIBLES ({contacts.length})
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',lineHeight:1.5}}>
+                    En el siguiente paso podrás agregarlos rápidamente.
+                  </div>
+                </div>
+              );
+            })()}
             <div className="os-section">SUGERENCIAS</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:20}}>
               {['Catan','UNO','Dominó','Poker','Lotería','Truco','Parqués','Mahjong'].map(s=>(
