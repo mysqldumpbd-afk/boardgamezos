@@ -257,6 +257,53 @@ function getPresetTemplates(){
       }
     },
     {
+      id:'preset_nothanks', name:'No Thanks!', emoji:'🚫',
+      description:'Cartas con valores negativos · Fichas para rechazar · El menos puntos gana',
+      config:{
+        type:'individual', minPlayers:3, maxPlayers:7, roomAccess:'code',
+        useRounds:false, useTurns:true, turnOrder:'rotating', canSkipTurn:false,
+        useFirstPlayerToken:false, useTimer:false,
+        victoryMode:'points', pointsWinMode:'least',  // least = el que MENOS tiene gana
+        tiebreak:'host',
+        winConditions:['Carta aceptada','Fichas usadas','Carta rechazada'],
+        useDefeat:false,
+        registers:['points','coins'], captureType:'manual', valueNature:'both',
+        accumulation:'global', modifiers:['penalty','bonus'], capturedBy:'host',
+        scoreVisibility:'all', useElimination:false,
+        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
+        coinUse:'free', toolsAffect:[],
+        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
+        endConditions:['manual'], showEndScreen:true, saveHistory:true,
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        // Regla especial: puntos negativos son buenos — mostrar nota
+        gameNote:'🚫 En No Thanks el MENOR puntaje gana. Cada carta que tomas suma su valor. Las fichas en mano RESTAN. Las cartas consecutivas cuentan una sola vez (la menor).',
+        accumulates:'points', scoreSign:'both',
+      }
+    },
+    {
+      id:'preset_flip7', name:'Flip 7', emoji:'🎴',
+      description:'Volteador de cartas · Llegar a 7 cartas sin pasarse',
+      config:{
+        type:'individual', minPlayers:2, maxPlayers:8, roomAccess:'code',
+        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
+        useTurns:true, turnOrder:'fixed', canSkipTurn:false,
+        useFirstPlayerToken:true, useTimer:false,
+        victoryMode:'wins', winsMode:'target', winsTarget:3, tiebreak:'host',
+        winConditions:['Flip 7','Se pasó','Paró en 7','Penalización'],
+        useDefeat:true, defeatType:'points', defeatMoment:'round_end', defeatConsequence:'lose_points',
+        registers:['wins','points'], captureType:'manual', valueNature:'both',
+        accumulation:'global', modifiers:['penalty'], capturedBy:'host', scoreVisibility:'all',
+        useElimination:false,
+        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
+        toolsAffect:[], coinUse:'free',
+        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
+        endConditions:['victory'], showEndScreen:true, saveHistory:true,
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        gameNote:'🎴 Flip 7: voltea cartas tratando de llegar a exactamente 7. Si te pasas pierdes la ronda. El primero en ganar 3 rondas gana la partida.',
+        accumulates:'wins', scoreSign:'both',
+      }
+    },
+    {
       id:'preset_uno', name:'UNO', emoji:'🃏', description:'Puntos por cartas · El primero en llegar a 500 gana',
       config:{
         type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',

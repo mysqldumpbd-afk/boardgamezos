@@ -109,12 +109,13 @@ function LiveScoreboard({ code, onBack, db }){
   const [elapsed,setElapsed]=useState(0);
   const [prevScores,setPrevScores]=useState({});
   const [changedIds,setChangedIds]=useState([]);
-  const [emojiSpam,setEmojiSpam]=useState([]); // {id, emoji, x, y}
-  const [myEmoji,setMyEmoji]=useState('🎉');
+  const [myEmoji,setMyEmoji]=useState(()=>getProfile()?.emoji||'🎉');
   const [showEmojiPicker,setShowEmojiPicker]=useState(false);
-  const [winPlayed,setWinPlayed]=useState(false);
+  const [spamEmojis,setSpamEmojis]=useState([]); // [{id,emoji,x,y}]
+  const [roomEmojis,setRoomEmojis]=useState([]);  // from Firebase
+  const [showFinishAnim,setShowFinishAnim]=useState(false);
   const timerRef=useRef(null);
-  const spamId=useRef(0);
+  const spamRef=useRef(null);
 
   useEffect(()=>{
     const unsub=db.listen(`rooms/${code}`,data=>{
@@ -122,61 +123,67 @@ function LiveScoreboard({ code, onBack, db }){
       if(data.players){
         const changed=[];
         data.players.forEach(p=>{
-          const sc=(p.points||p.total||0);
           const prev=prevScores[p.id];
-          if(prev!==undefined&&sc!==prev) changed.push(p.id);
+          const cur=(p.total||p.points||0);
+          if(prev!==undefined&&cur!==prev) changed.push(p.id);
         });
-        if(changed.length){setChangedIds(changed);setTimeout(()=>setChangedIds([]),700);}
-        const newScores={};
-        data.players.forEach(p=>newScores[p.id]=(p.points||p.total||0));
-        setPrevScores(newScores);
+        if(changed.length){ setChangedIds(changed); setTimeout(()=>setChangedIds([]),800); }
+        const ns={};
+        data.players.forEach(p=>ns[p.id]=(p.total||p.points||0));
+        setPrevScores(ns);
       }
-      setRoom(data);
+      setRoom(prev=>{
+        // Detectar fin de partida para animación
+        if(prev?.status!=='finished'&&data.status==='finished'){
+          setShowFinishAnim(true);
+          snd('victory');
+        }
+        return data;
+      });
     });
     return()=>unsub&&unsub();
   },[code]);
 
+  // Escuchar emojis spam de otros
   useEffect(()=>{
-    if(!room) return;
-    if(room.status==='active'){
-      const start=room.startedAt;
-      timerRef.current=setInterval(()=>setElapsed(Date.now()-start),1000);
-    }
-    if(room.status==='finished'&&!winPlayed){
-      setWinPlayed(true);
-      snd('victory');
-    }
-    return()=>clearInterval(timerRef.current);
-  },[room?.status]);
-
-  // Listen to emoji spam events
-  useEffect(()=>{
-    if(!code) return;
     const unsub=db.listen(`rooms/${code}/emojiSpam`,data=>{
-      if(!data||!data.emoji||!data.ts) return;
-      if(Date.now()-data.ts>3000) return;
-      const id=spamId.current++;
-      const particles=Array.from({length:8},(_,i)=>({
-        id:`${id}_${i}`, emoji:data.emoji,
-        x:10+Math.random()*80, y:20+Math.random()*60,
-        delay:Math.random()*0.5, duration:1.2+Math.random()*0.8
-      }));
-      setEmojiSpam(prev=>[...prev,...particles]);
-      setTimeout(()=>setEmojiSpam(prev=>prev.filter(e=>!e.id.startsWith(id+'_'))),3500);
+      if(!data) return;
+      const entries=Object.values(data).filter(e=>Date.now()-e.ts<4000);
+      setRoomEmojis(entries);
     });
     return()=>unsub&&unsub();
   },[code]);
 
-  function sendEmojiSpam(){
+  useEffect(()=>{
+    if(!room||room.status!=='active') return;
+    const start=room.startedAt;
+    timerRef.current=setInterval(()=>setElapsed(Date.now()-start),1000);
+    return()=>clearInterval(timerRef.current);
+  },[room?.status,room?.startedAt]);
+
+  // Spam emoji — local + broadcast
+  function sendSpam(){
     snd('tap');
-    db.set(`rooms/${code}/emojiSpam`,{emoji:myEmoji,ts:Date.now()});
-    setShowEmojiPicker(false);
+    const id=Date.now()+Math.random();
+    const x=10+Math.random()*80;
+    const y=20+Math.random()*60;
+    setSpamEmojis(prev=>[...prev,{id,emoji:myEmoji,x,y}]);
+    setTimeout(()=>setSpamEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+    // Broadcast a Firebase
+    const spamId=uid4()+Math.random().toString(36).slice(2,5);
+    const prof=getProfile();
+    db.set(`rooms/${code}/emojiSpam/${spamId}`,{
+      emoji:myEmoji, ts:Date.now(), by:prof?.name||'?',
+      x,y
+    }).catch(()=>{});
+    // Limpiar spam viejo
+    setTimeout(()=>db.set(`rooms/${code}/emojiSpam/${spamId}`,null).catch(()=>{}),4000);
   }
 
   if(!room) return(
     <div className="os-wrap">
       <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Atrás</button>
         <div className="room-code-badge">{code}</div>
         <div style={{width:70}}/>
       </div>
@@ -193,6 +200,7 @@ function LiveScoreboard({ code, onBack, db }){
   const rounds=room.rounds||[];
   const isActive=room.status==='active';
   const isFinished=room.status==='finished';
+  const isLives=cfg.victoryMode==='lives'||cfg.accumulates==='lives'||isStrike;
 
   const sorted=isStrike
     ? [...players].sort((a,b)=>{
@@ -201,132 +209,89 @@ function LiveScoreboard({ code, onBack, db }){
         if(a.eliminated&&b.eliminated) return (b.eliminatedOrder||0)-(a.eliminatedOrder||0);
         return 0;
       })
-    : [...players].sort((a,b)=>{
-        if(!a.eliminated&&b.eliminated) return -1;
-        if(a.eliminated&&!b.eliminated) return 1;
-        const sa=cfg.mode==='wins'?(a.wins||0):(a.points||a.total||0);
-        const sb=cfg.mode==='wins'?(b.wins||0):(b.points||b.total||0);
-        return sb-sa;
-      });
+    : [...players].sort((a,b)=>
+        cfg.mode==='wins'?(b.wins||0)-(a.wins||0):((b.total||b.points||0)-(a.total||a.points||0))
+      );
 
-  const maxScore=Math.max(1,...players.map(p=>p.points||p.total||0));
-  const target=cfg.targetScore?parseInt(cfg.targetScore):null;
-  const barMax=target||maxScore;
-  const statusColor=isActive?'var(--green)':isFinished?'var(--gold)':'rgba(255,255,255,.4)';
+  const maxScore=Math.max(1,...players.map(p=>p.total||p.points||0));
+  const target=cfg.useTarget&&cfg.targetScore?parseInt(cfg.targetScore):null;
+  const barMax=target||maxScore||1;
+  const statusColor=isActive?'var(--green)':isFinished?'var(--gold)':'var(--gold)';
+  const winner=room.winner||(isFinished?sorted[0]:null);
 
-  // If finished, show end screen
-  if(isFinished){
-    const winner=sorted[0];
-    const confetti=Array.from({length:25},(_,i)=>({
-      id:i, c:['#FFD447','#FF6B35','#00F5FF','#00FF9D','#9B5DE5'][i%5],
-      l:Math.round(Math.random()*100)+'%',
-      dl:Math.round(Math.random()*20)/10+'s',
-      dr:Math.round((2+Math.random()*2.5)*10)/10+'s',
-      sz:Math.round(6+Math.random()*8)+'px'
-    }));
-    return(
-      <div className="os-wrap" style={{position:'relative',overflow:'hidden'}}>
-        {/* Confetti */}
-        <div className="end-confetti">
-          {confetti.map(d=><div key={d.id} style={{position:'absolute',background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:Math.random()>.5?'50%':'3px',animation:`confettiFall ${d.dr} ${d.dl} linear infinite`}}/>)}
+  if(showEmojiPicker) return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setShowEmojiPicker(false)}>← Listo</button>
+        <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:2,color:'var(--cyan)'}}>MI EMOJI</div>
+        <div style={{fontSize:'2rem'}}>{myEmoji}</div>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',marginBottom:14,textAlign:'center'}}>
+          Este emoji se spamea a todas las pantallas
         </div>
-
-        {/* Emoji spam overlay */}
-        {emojiSpam.map(e=>(
-          <div key={e.id} style={{position:'fixed',left:e.x+'%',top:e.y+'%',zIndex:200,
-            fontSize:'2.5rem',pointerEvents:'none',
-            animation:`emojiFloat ${e.duration}s ${e.delay}s ease-out forwards`}}>
-            {e.emoji}
-          </div>
-        ))}
-
-        <div style={{position:'relative',zIndex:10,display:'flex',flexDirection:'column',alignItems:'center',padding:'40px 20px 20px'}}>
-          <div style={{fontSize:'4rem',marginBottom:8}}>🏆</div>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'.6rem',letterSpacing:4,color:'var(--gold)',marginBottom:4}}>CAMPEÓN</div>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'1.6rem',letterSpacing:2,color:'var(--cyan)',marginBottom:12,textAlign:'center'}}>
-            {(room.customTitle||'PARTIDA').toUpperCase()}
-          </div>
-          {winner&&(
-            <>
-              <div style={{fontSize:'3rem',marginBottom:6}}>{winner.emoji}</div>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'2rem',letterSpacing:2,color:winner.color||'var(--gold)',marginBottom:4}}>{winner.name}</div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.45)',marginBottom:24}}>
-                {isStrike?`⏱ ${winner.survivalLabel||'—'}`
-                  :cfg.mode==='wins'?`${winner.wins||0} victorias`
-                  :`${winner.points||winner.total||0} puntos`}
-                {room.endedAt&&room.startedAt?` · ${fmtDuration(room.endedAt-room.startedAt)}`:''}
-              </div>
-            </>
-          )}
-          {/* Emoji spam button */}
-          <div style={{marginBottom:20,display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={()=>setShowEmojiPicker(p=>!p)}
-              style={{width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.2)',
-                background:'rgba(255,255,255,.06)',fontSize:'1.8rem',cursor:'pointer'}}>
-              {myEmoji}
-            </button>
-            <button onClick={sendEmojiSpam}
-              style={{padding:'14px 22px',borderRadius:14,border:'none',cursor:'pointer',
-                background:'linear-gradient(135deg,var(--purple),var(--cyan))',
-                color:'#fff',fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1}}>
-              📣 ¡Celebrar!
-            </button>
-          </div>
-          {showEmojiPicker&&(
-            <div style={{display:'flex',flexWrap:'wrap',gap:6,justifyContent:'center',marginBottom:14,
-              background:'rgba(0,0,0,.6)',borderRadius:14,padding:12,maxWidth:300}}>
-              {['🎉','🔥','💀','🏆','❤️','🎊','👑','⚡','🥳','😂','😈','🎯'].map(e=>(
-                <button key={e} onClick={()=>{setMyEmoji(e);setShowEmojiPicker(false);}}
-                  style={{width:44,height:44,fontSize:'1.6rem',borderRadius:10,border:'none',
-                    background:myEmoji===e?'rgba(155,93,229,.4)':'rgba(255,255,255,.08)',cursor:'pointer'}}>
-                  {e}
-                </button>
-              ))}
+        <div className="picker-grid">
+          {[...EMOJIS,'🔥','💥','⚡','🎉','🎊','🏆','💀','👑','🚀','🌟','💎','🎯','❤️','🤝','👏','🙌','😈','🤡','👻','💩'].map((e,i)=>(
+            <div key={i} className={`picker-item ${myEmoji===e?'sel':''}`}
+              onClick={()=>{snd('tap');setMyEmoji(e);}}>
+              {e}
             </div>
-          )}
-          {/* Podio */}
-          <div style={{width:'100%',maxWidth:380,marginBottom:16}}>
-            {sorted.map((p,i)=>{
-              const score=isStrike?null:cfg.mode==='wins'?(p.wins||0):(p.points||p.total||0);
-              return(
-                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,
-                  background:i===0?'rgba(255,212,71,.1)':'rgba(255,255,255,.04)',
-                  border:`1px solid ${i===0?'rgba(255,212,71,.35)':'rgba(255,255,255,.08)'}`,
-                  borderRadius:12,padding:'10px 14px',marginBottom:6}}>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',width:28,textAlign:'center'}}>
-                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
-                  </div>
-                  <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
-                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,color:p.color||'#fff'}}>{p.name}</div>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>
-                    {isStrike?(p.eliminated?`💀 #${p.finalPosition}`:'🏆 Ganó')
-                      :(score+((cfg.mode==='wins')?'🏆':' pts'))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button className="btn btn-ghost" onClick={onBack}>← Volver</button>
+          ))}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
   return(
-    <div className="os-wrap">
-      {/* Emoji spam overlay */}
-      {emojiSpam.map(e=>(
-        <div key={e.id} style={{position:'fixed',left:e.x+'%',top:e.y+'%',zIndex:200,
-          fontSize:'2.5rem',pointerEvents:'none',
-          animation:`emojiFloat ${e.duration}s ${e.delay}s ease-out forwards`}}>
+    <div className="os-wrap" style={{overflow:'hidden',position:'relative'}}>
+
+      {/* Emoji spam overlay — local */}
+      {[...spamEmojis,...roomEmojis].map(e=>(
+        <div key={e.id||e.ts} style={{
+          position:'fixed',left:`${e.x}%`,top:`${e.y}%`,
+          zIndex:9998,pointerEvents:'none',
+          fontSize:'2.8rem',
+          animation:'emojiFloat 2s ease-out forwards',
+          textShadow:'0 2px 8px rgba(0,0,0,.5)',
+        }}>
           {e.emoji}
         </div>
       ))}
 
+      {/* Fin animado */}
+      {showFinishAnim&&(
+        <div style={{
+          position:'fixed',inset:0,zIndex:9990,
+          background:'rgba(0,0,0,.85)',backdropFilter:'blur(8px)',
+          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+          animation:'popIn .4s ease',
+        }} onClick={()=>setShowFinishAnim(false)}>
+          <div style={{fontSize:'5rem',animation:'bounce 1s ease infinite',marginBottom:16}}>🏆</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'2rem',letterSpacing:4,
+            background:'linear-gradient(135deg,var(--gold),var(--orange))',
+            WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:8}}>
+            PARTIDA TERMINADA
+          </div>
+          {winner&&(
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'3rem',marginBottom:6}}>{winner.emoji}</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',color:winner.color||'var(--gold)',letterSpacing:2}}>{winner.name}</div>
+            </div>
+          )}
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',
+            letterSpacing:2,marginTop:24}}>
+            TOCA PARA VER RESULTADOS
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{position:'sticky',top:0,zIndex:100,
+      <div style={{
+        position:'sticky',top:0,zIndex:100,
         background:'linear-gradient(180deg,rgba(8,8,16,.98) 85%,transparent)',
-        borderBottom:'1px solid rgba(0,245,255,.15)',padding:'8px 14px'}}>
+        borderBottom:'1px solid rgba(0,245,255,.15)',
+        padding:'8px 14px'
+      }}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
           <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
           <div style={{textAlign:'center'}}>
@@ -338,116 +303,159 @@ function LiveScoreboard({ code, onBack, db }){
           </div>
           <div className="room-code-badge">{code}</div>
         </div>
-        {/* Status + timer */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <div style={{width:8,height:8,borderRadius:'50%',background:statusColor,
-              boxShadow:`0 0 8px ${statusColor}`,animation:isActive?'osBlink 1.2s ease-in-out infinite':'none'}}/>
+              boxShadow:`0 0 8px ${statusColor}`,
+              animation:isActive?'osBlink 1.2s ease-in-out infinite':'none'}}/>
             <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:statusColor,letterSpacing:2,fontWeight:700}}>
               {isActive?'EN VIVO':isFinished?'TERMINADA':'LOBBY'}
               {isActive&&` · ${players.filter(p=>!p.eliminated).length} activos`}
             </span>
           </div>
-          {isActive&&<div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>{fmtDuration(elapsed)}</div>}
+          {isActive&&(
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)',textShadow:'var(--glow-g)'}}>
+              {fmtDuration(elapsed)}
+            </div>
+          )}
         </div>
-        {/* Rounds strip horizontal */}
-        {rounds.length>0&&(
-          <div style={{display:'flex',gap:4,overflowX:'auto',paddingTop:6,paddingBottom:2,WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
-            {rounds.map((r,ri)=>{
-              const rw=(room.players||[]).find(p=>p.id===r.winner);
-              return(
-                <div key={ri} style={{flexShrink:0,
-                  background:ri===rounds.length-1?'rgba(0,245,255,.12)':'rgba(255,255,255,.05)',
-                  border:`1px solid ${ri===rounds.length-1?'rgba(0,245,255,.3)':'rgba(255,255,255,.1)'}`,
-                  borderRadius:8,padding:'4px 8px',display:'flex',alignItems:'center',gap:4}}>
-                  <span style={{fontFamily:'var(--font-display)',fontSize:'.6rem',
-                    color:ri===rounds.length-1?'var(--cyan)':'rgba(255,255,255,.3)'}}>R{r.number||ri+1}</span>
-                  {rw&&<><span style={{fontSize:'.8rem'}}>{rw.emoji}</span>
-                  <span style={{fontFamily:'var(--font-display)',fontSize:'.6rem',color:rw.color||'var(--gold)'}}>🏆</span></>}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
-      <div className="os-page" style={{paddingTop:12}}>
-        {/* Emoji spam button */}
-        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:14}}>
-          <button onClick={()=>setShowEmojiPicker(p=>!p)}
-            style={{width:44,height:44,borderRadius:12,border:'1px solid rgba(255,255,255,.15)',
-              background:'rgba(255,255,255,.06)',fontSize:'1.5rem',cursor:'pointer',flexShrink:0}}>
-            {myEmoji}
-          </button>
-          <button onClick={sendEmojiSpam}
-            style={{flex:1,padding:'12px',borderRadius:12,border:'1px solid rgba(155,93,229,.3)',
-              background:'rgba(155,93,229,.12)',color:'var(--purple)',cursor:'pointer',
-              fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',letterSpacing:1}}>
-            📣 Spamear pantalla
-          </button>
-        </div>
-        {showEmojiPicker&&(
-          <div className="anim-fade" style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,
-            background:'rgba(0,0,0,.4)',borderRadius:12,padding:10}}>
-            {['🎉','🔥','💀','🏆','❤️','🎊','👑','⚡','🥳','😂','😈','🎯','💣','🌶️','🚀','🎸'].map(e=>(
-              <button key={e} onClick={()=>{setMyEmoji(e);setShowEmojiPicker(false);}}
-                style={{width:40,height:40,fontSize:'1.4rem',borderRadius:8,border:'none',
-                  background:myEmoji===e?'rgba(155,93,229,.4)':'rgba(255,255,255,.06)',cursor:'pointer'}}>
-                {e}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="os-page" style={{paddingTop:12,paddingBottom:120}}>
 
-        {/* Marcador */}
+        {/* Marcador principal */}
         {sorted.map((p,i)=>{
           const isFirst=i===0&&!p.eliminated;
           const isElim=p.eliminated;
-          const score=isStrike?null:cfg.mode==='wins'?(p.wins||0):(p.points||p.total||0);
-          const barW=score&&barMax?Math.round((score/barMax)*100):0;
+          const score=cfg.mode==='wins'?(p.wins||0):(p.total||p.points||0);
+          const barW=isLives?0:Math.round((score/barMax)*100);
           const isChanged=changedIds.includes(p.id);
 
           return(
-            <div key={p.id} className={`live-score-card ${isElim?'elim':''} ${isChanged?'score-changed':''} anim-fade`}
-              style={{animationDelay:i*.05+'s'}}>
+            <div key={p.id}
+              className={`live-score-card ${isFirst&&!isElim?'pos-1':''} ${isElim?'elim':''} ${isChanged?'score-changed':''} anim-fade`}
+              style={{animationDelay:i*.05+'s',transition:'all .5s cubic-bezier(.34,1.56,.64,1)'}}>
+
               <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',width:32,textAlign:'center',flexShrink:0,
                 color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.25)'}}>
                 {isElim?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
               </div>
               <div style={{fontSize:'1.9rem',flexShrink:0}}>{p.emoji}</div>
+
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:4}}>
                   <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',
                     color:isElim?'rgba(255,255,255,.3)':p.color||'#fff',
-                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {p.name}
+                  </div>
                   <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',flexShrink:0,marginLeft:8,
                     color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.6)',
-                    animation:isChanged?'scoreUp .4s cubic-bezier(.34,1.56,.64,1)':'none',transition:'color .3s'}}>
+                    animation:isChanged?'scoreUp .4s cubic-bezier(.34,1.56,.64,1)':'none'}}>
                     {isStrike
-                      ?(isElim?`#${p.finalPosition}`:fmtDuration(elapsed))
-                      :(cfg.mode==='wins'?(score+'🏆'):(score+' pts'))}
+                      ? (isElim?`#${p.finalPosition}`:('❤️'.repeat(Math.max(0,p.lives||0))))
+                      : isLives
+                        ? ('❤️'.repeat(Math.max(0,p.lives||0))+'🖤'.repeat(Math.max(0,(cfg.initLives||5)-(p.lives||0))))
+                        : (cfg.mode==='wins'?(score+'🏆'):(score+' pts'))
+                    }
                   </div>
                 </div>
-                {!isStrike&&!isElim&&(
+
+                {/* Barra progreso */}
+                {!isLives&&!isElim&&(
                   <div style={{height:5,borderRadius:3,background:'rgba(255,255,255,.08)',overflow:'hidden',marginBottom:3}}>
                     <div style={{height:'100%',borderRadius:3,
                       background:isFirst?`linear-gradient(90deg,${p.color||'var(--gold)'},var(--gold))`:(p.color||'rgba(0,245,255,.5)'),
-                      width:`${Math.min(100,barW)}%`,transition:'width .6s cubic-bezier(.34,1.56,.64,1)',
+                      width:`${Math.min(100,barW)}%`,
+                      transition:'width .7s cubic-bezier(.34,1.56,.64,1)',
                       boxShadow:isFirst?`0 0 8px ${p.color||'var(--gold)'}88`:'none'}}/>
                   </div>
                 )}
-                {isStrike&&isElim&&(
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.5)',letterSpacing:1}}>
-                    💀 duró {p.survivalLabel||'—'}
-                  </div>
-                )}
+
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1}}>
+                  {isStrike
+                    ? (isElim?`💀 duró ${p.survivalLabel||'—'}`:'⏱ En pie')
+                    : (isLives
+                        ? `${p.lives||0} vidas`
+                        : (target?`${score}/${target} · ${Math.min(100,Math.round(score/target*100))}%`
+                          :`${p.wins||0} rondas ganadas`))
+                  }
+                </div>
               </div>
             </div>
           );
         })}
 
-        <div className="g16"/>
-        <button className="btn btn-ghost" onClick={onBack}>← Salir</button>
+        {/* Rondas en horizontal — siempre al fondo */}
+        {rounds.length>0&&(
+          <div style={{marginTop:16}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',
+              letterSpacing:2,marginBottom:8}}>
+              RONDAS JUGADAS
+            </div>
+            <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch',paddingBottom:6}}>
+              <div style={{display:'flex',gap:6,minWidth:'max-content'}}>
+                {rounds.map((r,ri)=>{
+                  const rw=players.find(p=>p.id===r.winner);
+                  const isLast=ri===rounds.length-1;
+                  return(
+                    <div key={ri} style={{
+                      minWidth:80,borderRadius:10,padding:'8px 10px',flexShrink:0,
+                      background:isLast?'rgba(0,245,255,.1)':'rgba(255,255,255,.04)',
+                      border:`1px solid ${isLast?'rgba(0,245,255,.3)':'rgba(255,255,255,.08)'}`,
+                    }}>
+                      <div style={{fontFamily:'var(--font-display)',fontSize:'.7rem',letterSpacing:2,
+                        color:isLast?'var(--cyan)':'rgba(255,255,255,.3)',marginBottom:4}}>
+                        R{r.number||ri+1}
+                      </div>
+                      {rw&&<div style={{fontSize:'1.3rem'}}>{rw.emoji}</div>}
+                      {r.condition&&(
+                        <div style={{fontFamily:'var(--font-label)',fontSize:'.55rem',color:'var(--gold)',letterSpacing:1,marginTop:3}}>{r.condition}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Barra de acciones flotante — emoji spam */}
+      <div style={{
+        position:'fixed',bottom:0,left:0,right:0,zIndex:200,
+        background:'linear-gradient(0deg,rgba(8,8,16,.99) 70%,transparent)',
+        padding:'12px 16px 20px',
+        display:'flex',alignItems:'center',gap:10,
+      }}>
+        {/* Botón elegir emoji */}
+        <button onClick={()=>{snd('tap');setShowEmojiPicker(true);}}
+          style={{
+            width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.15)',
+            background:'rgba(255,255,255,.06)',cursor:'pointer',fontSize:'1.6rem',
+            display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+          }}>
+          {myEmoji}
+        </button>
+        {/* Botón spam */}
+        <button onClick={sendSpam}
+          style={{
+            flex:1,height:52,borderRadius:14,border:'2px solid rgba(0,245,255,.3)',
+            background:'rgba(0,245,255,.1)',cursor:'pointer',
+            fontFamily:'var(--font-display)',fontSize:'.9rem',letterSpacing:2,color:'var(--cyan)',
+            display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+          }}>
+          <span style={{fontSize:'1.4rem'}}>{myEmoji}</span> ENVIAR A TODOS
+        </button>
+        <button onClick={onBack}
+          style={{
+            width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.1)',
+            background:'rgba(255,255,255,.04)',cursor:'pointer',
+            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+          }}>
+          ✕
+        </button>
       </div>
     </div>
   );
