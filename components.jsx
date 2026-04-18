@@ -7,102 +7,263 @@ if(window._splashStep) window._splashStep(6);
 const{useState,useEffect,useRef,useCallback}=React;
 
 // ── PROFILE SETUP — se pide al crear la primera sala ────────────
+// ── PROFILE SETUP — rediseñado con anime.js ──────────────────────
 function ProfileSetup({ onDone, onSkip, context }){
-  const [name,setName]=useState('');
-  const [emoji,setEmoji]=useState('🐉');
-  const [color,setColor]=useState('#00F5FF');
-  const [pickMode,setPickMode]=useState(null);
+  const existingProfile = getProfile();
+  const [step, setStep]     = useState(existingProfile ? 'confirm' : 'create');
+  const [name, setName]     = useState(existingProfile?.name||'');
+  const [emoji, setEmoji]   = useState(existingProfile?.emoji||'🐉');
+  const [color, setColor]   = useState(existingProfile?.color||'#00F5FF');
+  const [pickMode, setPickMode] = useState(null);
+  const [animDone, setAnimDone] = useState(false);
+  const containerRef = useRef(null);
 
-  const contextLabel = context==='strike' ? 'para jugar Strike 🎳'
-    : context==='generic' ? 'para crear una partida'
-    : '';
+  const contextLabel = context==='strike' ? 'Strike 🎳'
+    : context==='generic' ? 'tu partida'
+    : 'BoardGamez OS';
+
+  // Anime.js intro animation on mount
+  useEffect(()=>{
+    if(!window.anime) return;
+    const els = containerRef.current?.querySelectorAll('.ps-anim');
+    if(!els?.length) return;
+    window.anime({
+      targets: els,
+      opacity: [0, 1],
+      translateY: [32, 0],
+      delay: window.anime.stagger(70),
+      duration: 550,
+      easing: 'easeOutExpo',
+      complete: ()=>setAnimDone(true),
+    });
+  }, [step]);
 
   function handleDone(){
     if(!name.trim()) return;
     snd('save');
-    const profile={id:uid(),name:name.trim(),emoji,color,createdAt:Date.now()};
+    // Anime confirm burst
+    if(window.anime && containerRef.current){
+      window.anime({
+        targets: containerRef.current.querySelector('.ps-avatar'),
+        scale: [1, 1.25, 1],
+        duration: 400,
+        easing: 'easeOutBack',
+      });
+    }
+    const profile={id:existingProfile?.id||uid(),name:name.trim(),emoji,color,createdAt:Date.now()};
     saveProfile(profile);
-    onDone(profile);
+    setTimeout(()=>onDone(profile), 150);
   }
 
-  if(pickMode){
-    return(
-      <div className="os-wrap">
-        <div className="os-header">
-          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setPickMode(null)}>← Listo</button>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:3}}>TU AVATAR</div>
-          <div style={{width:70}}/>
+  function useExisting(){
+    snd('tap');
+    if(window.anime && containerRef.current){
+      window.anime({
+        targets: containerRef.current.querySelector('.ps-avatar-big'),
+        scale: [1, 1.2, 1],
+        rotate: [0, -5, 5, 0],
+        duration: 500,
+        easing: 'easeOutElastic(1,.6)',
+        complete: ()=>onDone(existingProfile),
+      });
+    } else {
+      onDone(existingProfile);
+    }
+  }
+
+  if(pickMode) return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setPickMode(null)}>← Listo</button>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:3}}>TU AVATAR</div>
+        <div style={{width:70}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{display:'flex',gap:6,marginBottom:16}}>
+          {['emoji','color'].map(m=>(
+            <button key={m} className="btn btn-ghost btn-sm"
+              style={{flex:1,background:pickMode===m?'var(--cyan)':undefined,color:pickMode===m?'var(--bg)':undefined,border:pickMode===m?'none':undefined}}
+              onClick={()=>setPickMode(m)}>
+              {m==='emoji'?'🎭 Emoji':'🎨 Color'}
+            </button>
+          ))}
         </div>
-        <div className="os-page" style={{paddingTop:16}}>
-          <div style={{display:'flex',gap:6,marginBottom:16}}>
-            {['emoji','color'].map(m=>(
-              <button key={m} className="btn btn-ghost btn-sm" style={{flex:1,background:pickMode===m?'var(--cyan)':undefined,color:pickMode===m?'var(--bg)':undefined,border:pickMode===m?'none':undefined}}
-                onClick={()=>setPickMode(m)}>
-                {m==='emoji'?'🐉 Emoji':'🎨 Color'}
-              </button>
-            ))}
+        {pickMode==='emoji'&&<div className="picker-grid">{EMOJIS.map((e,i)=><div key={i} className={`picker-item ${emoji===e?'sel':''}`} onClick={()=>{snd('tap');setEmoji(e);}}>{e}</div>)}</div>}
+        {pickMode==='color'&&<div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'8px 0'}}>{COLORS.map((col,i)=><div key={i} className={`color-dot ${color===col?'sel':''}`} style={{background:col}} onClick={()=>{snd('tap');setColor(col);}}/>)}</div>}
+      </div>
+    </div>
+  );
+
+  // ── STEP: CONFIRM EXISTING PROFILE ──────────────────────────────
+  if(step==='confirm') return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div className="os-logo">BOARD<span>GAMEZ</span></div>
+        </div>
+        {onSkip&&<button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onSkip}>Ahora no</button>}
+      </div>
+      <div className="os-page" style={{paddingTop:0}} ref={containerRef}>
+
+        {/* Hero */}
+        <div className="ps-anim" style={{
+          textAlign:'center',padding:'32px 0 24px',
+          background:'radial-gradient(ellipse at 50% 0%,rgba(0,245,255,.08),transparent 60%)',
+          opacity:0,
+        }}>
+          <div style={{
+            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+            letterSpacing:4,color:'rgba(0,245,255,.5)',marginBottom:16,
+          }}>BIENVENIDO DE VUELTA</div>
+
+          {/* Avatar grande con glow */}
+          <div className="ps-avatar-big" style={{
+            width:100,height:100,borderRadius:26,margin:'0 auto 12px',
+            background:`${existingProfile.color||'rgba(0,245,255,.1)'}22`,
+            border:`2px solid ${existingProfile.color||'rgba(0,245,255,.3)'}66`,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:'3.8rem',cursor:'pointer',
+            boxShadow:`0 0 32px ${existingProfile.color||'rgba(0,245,255,.4)'}44`,
+            transition:'all .3s',
+          }} onClick={useExisting}>
+            {existingProfile.emoji}
           </div>
-          {pickMode==='emoji'&&<div className="picker-grid">{EMOJIS.map((e,i)=><div key={i} className={`picker-item ${emoji===e?'sel':''}`} onClick={()=>{snd('tap');setEmoji(e);}}>{e}</div>)}</div>}
-          {pickMode==='color'&&<div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'8px 0'}}>{COLORS.map((c,i)=><div key={i} className={`color-dot ${color===c?'sel':''}`} style={{background:c}} onClick={()=>{snd('tap');setColor(c);}}/>)}</div>}
+
+          <div style={{
+            fontFamily:'var(--font-display)',fontSize:'1.9rem',letterSpacing:2,
+            color:existingProfile.color||'#fff',marginBottom:4,
+          }}>{existingProfile.name}</div>
+          <div style={{
+            fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
+            color:'rgba(255,255,255,.3)',letterSpacing:1,
+          }}>Jugando en {contextLabel}</div>
+        </div>
+
+        {/* CTA principal */}
+        <div className="ps-anim" style={{padding:'0 4px',opacity:0}}>
+          <button className="btn btn-cyan" style={{
+            padding:'18px',fontSize:'1.1rem',
+            boxShadow:'0 8px 32px rgba(0,245,255,.35)',
+          }} onClick={useExisting}>
+            ✓ Jugar como {existingProfile.name}
+          </button>
+
+          <div style={{
+            display:'flex',alignItems:'center',gap:10,margin:'14px 0',
+          }}>
+            <div style={{flex:1,height:1,background:'rgba(255,255,255,.08)'}}/>
+            <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.25)',letterSpacing:2}}>O</span>
+            <div style={{flex:1,height:1,background:'rgba(255,255,255,.08)'}}/>
+          </div>
+
+          <button className="btn btn-ghost" onClick={()=>{snd('tap');setStep('create');}}>
+            ✏️ Cambiar perfil
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
+  // ── STEP: CREATE / EDIT PROFILE ──────────────────────────────────
   return(
     <div className="os-wrap">
       <div className="os-header">
         <div><div className="os-logo">BOARD<span>GAMEZ</span></div><div className="os-logo-sub">OS · PERFIL</div></div>
-        {onSkip&&(
-          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onSkip}>
-            Ahora no
-          </button>
-        )}
+        {onSkip&&<button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onSkip}>Ahora no</button>}
       </div>
-      <div className="os-page" style={{paddingTop:20}}>
-        {/* Context banner */}
-        {contextLabel&&(
-          <div className="os-alert alert-cyan" style={{marginBottom:20,justifyContent:'center',textAlign:'center'}}>
-            Configura tu perfil {contextLabel}
-          </div>
-        )}
+      <div className="os-page" style={{paddingTop:20}} ref={containerRef}>
 
-        <div style={{textAlign:'center',marginBottom:24}}>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'1.8rem',letterSpacing:2,
-            background:'linear-gradient(135deg,var(--cyan),var(--orange))',
-            WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:6}}>
-            ¿CÓMO TE LLAMAS?
+        {/* Avatar hero — toca para personalizar */}
+        <div className="ps-anim" style={{textAlign:'center',marginBottom:20,opacity:0}}>
+          <div style={{
+            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+            color:'rgba(255,255,255,.3)',letterSpacing:3,marginBottom:16,
+          }}>
+            {existingProfile ? 'EDITAR PERFIL' : 'NUEVO JUGADOR'}
           </div>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:600,color:'rgba(255,255,255,.4)'}}>
-            Tu nombre y avatar aparecerán en la partida
+
+          {/* Avatar con anillo de color */}
+          <div style={{position:'relative',display:'inline-block',marginBottom:8}}>
+            <div className="ps-avatar profile-avatar" onClick={()=>setPickMode('emoji')}
+              style={{
+                width:90,height:90,borderRadius:22,fontSize:'3.2rem',
+                border:`3px solid ${color}88`,
+                boxShadow:`0 0 28px ${color}55, 0 0 0 6px ${color}18`,
+                transition:'all .3s',
+              }}>
+              {emoji}
+            </div>
+            {/* Color dot */}
+            <div onClick={()=>setPickMode('color')} style={{
+              position:'absolute',bottom:-4,right:-4,
+              width:28,height:28,borderRadius:'50%',
+              background:color,border:'3px solid #07070F',
+              cursor:'pointer',boxShadow:`0 0 12px ${color}88`,
+              transition:'all .2s',
+            }}/>
+          </div>
+
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:`${color}99`,letterSpacing:2,marginTop:4}}>
+            TOCA PARA PERSONALIZAR
           </div>
         </div>
 
-        {/* Avatar */}
-        <div style={{textAlign:'center',marginBottom:20}}>
-          <div className="profile-avatar" onClick={()=>setPickMode('emoji')}>{emoji}</div>
-          <div style={{width:16,height:16,borderRadius:'50%',background:color,border:'3px solid rgba(255,255,255,.3)',margin:'0 auto 8px',cursor:'pointer'}}
-            onClick={()=>setPickMode('color')}/>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.5)',letterSpacing:2}}>TOCA PARA PERSONALIZAR</div>
+        {/* Preview del nombre */}
+        <div className="ps-anim" style={{
+          textAlign:'center',marginBottom:16,opacity:0,
+          fontFamily:'var(--font-display)',fontSize:'1.5rem',
+          letterSpacing:2,color:name?color:'rgba(255,255,255,.15)',
+          minHeight:'2rem',transition:'color .3s',
+        }}>
+          {name||'Tu nombre aquí'}
         </div>
 
-        <div className="os-section">TU NOMBRE</div>
-        <input className="os-input" placeholder="Tu nombre de jugador..."
-          value={name} onChange={e=>setName(e.target.value)}
-          onKeyDown={e=>e.key==='Enter'&&name.trim()&&handleDone()}
-          autoFocus maxLength={20}/>
+        {/* Input */}
+        <div className="ps-anim" style={{opacity:0}}>
+          <input className="os-input" placeholder="Tu nombre de jugador..."
+            value={name} onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&name.trim()&&handleDone()}
+            autoFocus maxLength={20}
+            style={{
+              textAlign:'center',fontSize:'1.2rem',
+              borderColor:`${color}44`,
+              boxShadow:name?`0 0 0 2px ${color}22`:'none',
+              transition:'all .3s',
+            }}/>
 
-        <div className="g8"/>
-        <button className="btn btn-cyan" disabled={!name.trim()} onClick={handleDone}>
-          ✓ {contextLabel ? `Listo, crear sala` : 'Guardar perfil'}
-        </button>
-        <div style={{marginTop:12,fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.25)',textAlign:'center',letterSpacing:1}}>
-          Puedes editarlo después desde el menú principal
+          <div style={{
+            display:'flex',alignItems:'center',gap:8,
+            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+            color:'rgba(255,255,255,.25)',letterSpacing:1,
+            marginBottom:8,paddingLeft:2,
+          }}>
+            <span style={{color:name.length>15?'var(--orange)':'rgba(255,255,255,.2)'}}>{name.length}/20</span>
+          </div>
+
+          <button className="btn btn-cyan"
+            disabled={!name.trim()}
+            style={{padding:'16px',fontSize:'1rem',
+              boxShadow:name.trim()?`0 6px 28px ${color}44`:'none',
+              transition:'all .3s'}}
+            onClick={handleDone}>
+            ✓ {existingProfile ? 'Guardar cambios' : contextLabel ? `Listo, jugar` : 'Crear perfil'}
+          </button>
+
+          {existingProfile&&(
+            <button className="btn btn-ghost" style={{marginTop:4}} onClick={()=>setStep('confirm')}>
+              ← Usar perfil anterior
+            </button>
+          )}
+
+          <div style={{marginTop:10,fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.2)',textAlign:'center',letterSpacing:1}}>
+            Puedes editarlo después desde el menú
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 // ── LIVE SCOREBOARD — marcador + historial de rondas ─────────────
 function LiveScoreboard({ code, onBack, db }){
@@ -765,9 +926,10 @@ function App(){
           template={playTemplate}
           hostPlayer={hostPlayer}
           onBack={()=>setScreen('my-games')}
-          onCreateRoom={async({players})=>{
+          onCreateRoom={async(templateOrObj, playersArg)=>{
+            // Support both call signatures: (template, players) and ({players})
+            const players = playersArg || (templateOrObj && templateOrObj.players) || [];
             await createRoom('generic:template',playTemplate.name,players,playTemplate.config||{});
-            // Use universal runtime for template-based games
             setScreen('universal-lobby');
           }}
         />

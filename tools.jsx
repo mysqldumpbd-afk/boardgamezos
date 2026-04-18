@@ -43,6 +43,33 @@ function CoinTool({onBack}){
     snd('round');
     setFlipping(true);
     setResult(null);
+
+    const duration = 900;
+    // anime.js with engine.precision=2 for smooth coin rotation
+    if(window.anime){
+      const coinEl = document.querySelector('.coin-anim-target');
+      if(coinEl){
+        if(window.anime.engine) window.anime.engine.precision = 2;
+        window.anime({
+          targets: coinEl,
+          rotateY: [0, 1260 + Math.floor(Math.random()*360)],
+          duration,
+          easing: 'cubicBezier(0.15,0.85,0.25,1)',
+          complete: ()=>{
+            const r=Math.random()>.5?'CARA':'CRUZ';
+            setResult(r);
+            setFlipClass(r==='CARA'?'coin-heads':'coin-tails');
+            setFlipping(false);
+            setHistory(h=>[{r,ts:Date.now()},...h].slice(0,12));
+            snd(r==='CARA'?'up':'down');
+            // Landing bounce
+            window.anime({ targets: coinEl, scale:[1.15,1], duration:220, easing:'easeOutBack' });
+          }
+        });
+        return;
+      }
+    }
+    // CSS fallback
     setFlipClass('coin-flipping');
     setTimeout(()=>{
       const r=Math.random()>.5?'CARA':'CRUZ';
@@ -51,7 +78,7 @@ function CoinTool({onBack}){
       setFlipping(false);
       setHistory(h=>[{r,ts:Date.now()},...h].slice(0,12));
       snd(r==='CARA'?'up':'down');
-    },1000);
+    }, duration);
   }
 
   const headsCount=history.filter(h=>h.r==='CARA').length;
@@ -86,7 +113,7 @@ function CoinTool({onBack}){
 
         <div className={`coin-scene ${flipClass}`} onClick={()=>!flipping&&flip()}>
           <div className="coin-body">
-            <div className="coin-face">👑</div>
+            <div className="coin-face coin-anim-target">👑</div>
             <div className="coin-back">⚡</div>
           </div>
         </div>
@@ -121,7 +148,7 @@ function CoinTool({onBack}){
             </div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'center'}}>
               {history.map((h,i)=>(
-                <div key={i} style={{
+                <div key={i} className="die-result-item" style={{
                   width:36,height:36,borderRadius:'50%',
                   background:h.r==='CARA'?'radial-gradient(#FFE066,#FFC200)':'radial-gradient(#ddd,#999)',
                   display:'flex',alignItems:'center',justifyContent:'center',
@@ -188,6 +215,18 @@ function DiceTool({onBack}){
       setRolling(false);
       setHistory(h=>[{rolls,total,type:diceType},...h].slice(0,8));
       snd('score');
+      // anime.js stagger delay: each die appears with 90ms delay between them
+      if(window.anime){
+        requestAnimationFrame(()=>{
+          const els=document.querySelectorAll('.die-result-item');
+          if(els.length) window.anime({
+            targets: els,
+            scale:[0.3,1.2,1], opacity:[0,1],
+            delay: window.anime.stagger(90),
+            duration:360, easing:'easeOutBack',
+          });
+        });
+      }
     },700);
   }
 

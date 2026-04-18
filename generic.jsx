@@ -488,6 +488,23 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   // Presencia — MUST be before early return (Rules of Hooks)
   const [presence,setPresence]=React.useState({});
   const [elimToast,setElimToast]=React.useState(null);
+  const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
+  const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
+
+  function sendEmoji(){
+    if(!session?.code) return;
+    snd('tap');
+    const id=Date.now()+Math.random();
+    const x=10+Math.random()*80; const y=20+Math.random()*60;
+    setShowSpamEmojis(prev=>[...prev,{id,emoji:myEmoji,x,y}]);
+    setTimeout(()=>setShowSpamEmojis(prev=>prev.filter(e=>e.id!==id)),2200);
+    const spamId=uid4();
+    db.set(`rooms/${session.code}/emojiSpam/${spamId}`,{
+      emoji:myEmoji,ts:Date.now(),by:getProfile()?.name||'?',x,y
+    }).catch(()=>{});
+    setTimeout(()=>db.set(`rooms/${session.code}/emojiSpam/${spamId}`,null).catch(()=>{}),4000);
+  }
+
   React.useEffect(()=>{
     if(!session?.code||!myId) return;
     setupPresence(session.code,myId);
@@ -682,6 +699,13 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 
   return(
     <div className="os-wrap">
+      {showSpamEmojis.map(e=>(
+        <div key={e.id} style={{position:'fixed',left:`${e.x}%`,top:`${e.y}%`,zIndex:9998,
+          pointerEvents:'none',fontSize:'2.8rem',animation:'emojiFloat 2s ease-out forwards',
+          textShadow:'0 2px 8px rgba(0,0,0,.5)'}}>
+          {e.emoji}
+        </div>
+      ))}
       {elimToast && (
         <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
           <div style={{background:'linear-gradient(135deg,rgba(255,59,92,.95),rgba(180,0,40,.9))',border:'2px solid rgba(255,59,92,.6)',borderRadius:20,padding:'24px 32px',textAlign:'center',animation:'popIn .3s ease',boxShadow:'0 20px 60px rgba(255,59,92,.6)'}}>
@@ -981,8 +1005,30 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
         )}
 
         {!effectiveIsHost&&(
-          <div className="os-alert alert-cyan" style={{marginTop:16,justifyContent:'center',textAlign:'center'}}>
-            ⏳ Esperando al host...
+          <div style={{marginTop:16}}>
+            <div className="os-alert alert-cyan" style={{justifyContent:'center',textAlign:'center',marginBottom:10}}>
+              ⏳ Esperando al host...
+            </div>
+            {/* Emoji spam para jugadores no-host */}
+            <div style={{display:'flex',gap:8}}>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',flex:1}}>
+                {['🔥','💥','⚡','🎉','❤️','💀','👑','😈','🤡','🚀'].map(e=>(
+                  <button key={e} onClick={()=>{snd('tap');setMyEmoji(e);}}
+                    style={{width:34,height:34,borderRadius:8,border:`2px solid ${myEmoji===e?'var(--cyan)':'rgba(255,255,255,.1)'}`,
+                      background:myEmoji===e?'rgba(0,245,255,.15)':'rgba(255,255,255,.05)',
+                      cursor:'pointer',fontSize:'1.1rem',flexShrink:0}}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+              <button onClick={sendEmoji}
+                style={{height:34,padding:'0 14px',borderRadius:10,border:'2px solid rgba(0,245,255,.2)',
+                  background:'rgba(0,245,255,.08)',cursor:'pointer',flexShrink:0,
+                  fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:1,color:'var(--cyan)',
+                  display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}>
+                {myEmoji} ENVIAR
+              </button>
+            </div>
           </div>
         )}
 

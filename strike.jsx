@@ -246,7 +246,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     snd('victory');
   }
 
-  if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack}/>;
+  if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack} session={session} db={db}/>;
 
   return(
     <div className="os-wrap">
@@ -500,7 +500,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   );
 }
 
-function StrikeEndScreen({room,myId,onBack}){
+function StrikeEndScreen({room,myId,onBack,session,db}){
   const players=[...(room.players||[])].sort((a,b)=>(a.finalPosition||99)-(b.finalPosition||99));
   const winner=players.find(p=>p.finalPosition===1);
   const confetti=Array.from({length:30},(_,i)=>({
