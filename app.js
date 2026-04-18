@@ -131,6 +131,8 @@ function snd(t){
 async function saveSession(sessionData,demo=false){
   const db=makeDB(demo);
   const{sessionId,players}=sessionData;
+  // Auto-save all players as contacts
+  if(players&&!demo){ players.forEach(p=>{ if(p&&p.name) saveContact(p); }); }
   const existing=await db.get(`sessions/${sessionId}/saved`);
   if(existing===true) return;
   await db.set(`sessions/${sessionId}`,{...sessionData,saved:true});
@@ -458,4 +460,27 @@ function getLastRevertibleEvent(events,playerId){
   return events
     .filter(e=>!e.reverted&&e.playerId===playerId&&types.includes(e.type))
     .sort((a,b)=>b.ts-a.ts)[0]||null;
+}
+
+// ── JUGADORES HABITUALES (saved contacts) ────────────────────────
+const CONTACTS_KEY = 'bgos_contacts';
+
+function getSavedPlayers(){
+  try{ return JSON.parse(localStorage.getItem(CONTACTS_KEY)||'[]'); }catch{ return []; }
+}
+function saveContact(player){
+  // player: {id, name, emoji, color}
+  if(!player.name) return;
+  const existing = getSavedPlayers();
+  const idx = existing.findIndex(p=>p.name===player.name);
+  const contact = {id:player.id||uid_fn(), name:player.name, emoji:player.emoji||'🎮', color:player.color||'#00F5FF', lastSeen:Date.now()};
+  if(idx>=0){ existing[idx]={...existing[idx],...contact}; }
+  else { existing.push(contact); }
+  // Keep max 20 contacts, sorted by lastSeen
+  const sorted = existing.sort((a,b)=>(b.lastSeen||0)-(a.lastSeen||0)).slice(0,20);
+  localStorage.setItem(CONTACTS_KEY, JSON.stringify(sorted));
+}
+function removeContact(name){
+  const existing = getSavedPlayers().filter(p=>p.name!==name);
+  localStorage.setItem(CONTACTS_KEY, JSON.stringify(existing));
 }

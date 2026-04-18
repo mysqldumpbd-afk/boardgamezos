@@ -261,6 +261,29 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
                 onKeyDown={e=>e.key==='Enter'&&addPlayer()} maxLength={20}/>
               <button style={{background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.3)',color:'var(--cyan)',borderRadius:11,padding:'0 18px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.1rem',flexShrink:0}} onClick={addPlayer}>+</button>
             </div>
+            {(()=>{
+              const contacts=getSavedPlayers();
+              const usedNames=players.map(p=>p.name.toLowerCase());
+              const available=contacts.filter(c=>!usedNames.includes(c.name.toLowerCase()));
+              if(!available.length) return null;
+              return(
+                <div style={{marginBottom:12}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginBottom:7}}>⭐ HABITUALES</div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {available.slice(0,10).map(p=>(
+                      <button key={p.id||p.name} onClick={()=>{
+                        snd('join');
+                        setPlayers(prev=>[...prev,{id:uid(),name:p.name,emoji:p.emoji||EMOJIS[prev.length%EMOJIS.length],color:p.color||COLORS[prev.length%COLORS.length]}]);
+                      }} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 10px',borderRadius:10,border:'none',cursor:'pointer',background:'rgba(255,255,255,.08)',transition:'all .15s'}}>
+                        <span style={{fontSize:'1rem'}}>{p.emoji}</span>
+                        <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</span>
+                        <span style={{color:'rgba(0,255,157,.6)',fontSize:'.85rem'}}>+</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {players.length<2&&<div className="os-alert alert-cyan" style={{marginBottom:12}}>Agrega al menos 2 jugadores</div>}
             <div style={{display:'flex',gap:8}}>
               <button className="btn btn-back" style={{flex:.5}} onClick={()=>setStep('name')}>← Atrás</button>
