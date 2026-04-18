@@ -1217,3 +1217,381 @@ function GenericSetupFromTemplate({template,hostPlayer,onBack,onCreateRoom}){
     </div>
   );
 }
+
+// ── JOIN ROOM ─────────────────────────────────────────────────────
+function JoinRoom({onBack,onJoin,myId,profile,db,onSpectate}){
+  const [code,setCode]=useState('');
+  const [step,setStep]=useState('code');
+  const [roomData,setRoomData]=useState(null);
+  const [loadingRoom,setLoadingRoom]=useState(false);
+  const [roomError,setRoomError]=useState('');
+  const [selectedSlot,setSelectedSlot]=useState(null);
+  const [name,setName]=useState(profile?.name||'');
+  const [emoji,setEmoji]=useState(profile?.emoji||'🎮');
+  const [color,setColor]=useState(profile?.color||'#00F5FF');
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [pickMode,setPickMode]=useState(null);
+  const contacts=getSavedPlayers();
+
+  async function lookupRoom(){
+    if(code.length<4) return;
+    setLoadingRoom(true);setRoomError('');
+    const data=await db.get(`rooms/${code.toUpperCase()}`);
+    setLoadingRoom(false);
+    if(!data){setRoomError('Sala no encontrada');return;}
+    if(data.status==='finished'){setRoomError('Esta partida ya terminó');return;}
+    setRoomData(data);setStep('select');
+  }
+
+  async function handleJoin(){
+    setLoading(true);setError('');
+    let joinName=name,joinEmoji=emoji,joinColor=color,joinId=myId;
+    if(selectedSlot&&selectedSlot!=='new'){
+      const p=roomData.players.find(pl=>pl.id===selectedSlot);
+      if(p){joinName=p.name;joinEmoji=p.emoji||emoji;joinColor=p.color||color;}
+      joinId=selectedSlot;
+    }
+    const result=await onJoin(code.toUpperCase(),joinId,joinName,joinEmoji,joinColor);
+    if(result?.error){setError(result.error);setLoading(false);}
+  }
+
+  if(pickMode) return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setPickMode(null)}>← Listo</button>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.5)',letterSpacing:3}}>PERSONALIZAR</div>
+        <div style={{width:70}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{display:'flex',gap:6,marginBottom:16}}>
+          {['emoji','color'].map(m=>(
+            <button key={m} className="btn btn-ghost btn-sm" style={{flex:1,background:pickMode===m?'var(--cyan)':undefined,color:pickMode===m?'var(--bg)':undefined,border:pickMode===m?'none':undefined}} onClick={()=>setPickMode(m)}>
+              {m==='emoji'?'🐉 Emoji':'🎨 Color'}
+            </button>
+          ))}
+        </div>
+        {pickMode==='emoji'&&<div className="picker-grid">{EMOJIS.map((e,i)=><div key={i} className={`picker-item ${emoji===e?'sel':''}`} onClick={()=>{snd('tap');setEmoji(e);}}>{e}</div>)}</div>}
+        {pickMode==='color'&&<div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'8px 0'}}>{COLORS.map((col,i)=><div key={i} className={`color-dot ${color===col?'sel':''}`} style={{background:col}} onClick={()=>{snd('tap');setColor(col);}}/>)}</div>}
+      </div>
+    </div>
+  );
+
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>step==='select'?setStep('code'):onBack()}>← Atrás</button>
+        <div className="os-logo" style={{fontSize:'1.1rem'}}>UNIRSE <span>A SALA</span></div>
+        <div style={{width:70}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        {step==='code'&&(
+          <div className="anim-fade">
+            <div style={{textAlign:'center',marginBottom:28}}>
+              <div style={{fontSize:'3.5rem',marginBottom:10}}>🚪</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',letterSpacing:3,color:'var(--cyan)',marginBottom:6}}>INGRESA A LA PARTIDA</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>Pide el código de 4 letras al host</div>
+            </div>
+            <input className="os-input os-code-input" placeholder="XXXX"
+              value={code} onChange={e=>setCode(e.target.value.toUpperCase().slice(0,4))}
+              maxLength={4} autoFocus onKeyDown={e=>e.key==='Enter'&&code.length===4&&lookupRoom()}/>
+            {roomError&&<div className="os-alert alert-red" style={{marginTop:16}}>{roomError}</div>}
+            <button className="btn btn-cyan" disabled={code.length<4||loadingRoom} onClick={lookupRoom} style={{marginTop:16,fontSize:'1rem',padding:'16px'}}>
+              {loadingRoom?'⏳ Buscando...':'🔍 Buscar sala'}
+            </button>
+          </div>
+        )}
+        {step==='select'&&roomData&&(
+          <div className="anim-fade">
+            <div style={{background:'linear-gradient(135deg,rgba(0,245,255,.08),rgba(155,93,229,.06))',border:'1px solid rgba(0,245,255,.25)',borderRadius:16,padding:'16px',marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{fontSize:'2rem'}}>{roomData.gameType==='preset:strike'?'🎳':'🎮'}</div>
+                <div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'#fff'}}>{roomData.customTitle||'Sala encontrada'}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
+                    <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,letterSpacing:1,color:roomData.status==='active'?'var(--green)':'var(--gold)',background:roomData.status==='active'?'rgba(0,255,157,.1)':'rgba(255,212,71,.1)',padding:'2px 8px',borderRadius:20}}>
+                      {roomData.status==='active'?'● EN JUEGO':'● EN LOBBY'}
+                    </span>
+                    <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>{roomData.players?.length} jugadores</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:12,background:'rgba(155,93,229,.08)',border:'1px solid rgba(155,93,229,.25)',borderRadius:13,padding:'12px 14px',marginBottom:16,cursor:'pointer'}} onClick={()=>{snd('tap');onSpectate(code.toUpperCase());}}>
+              <div style={{width:40,height:40,borderRadius:12,background:'rgba(155,93,229,.2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.3rem',flexShrink:0}}>👁</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',letterSpacing:1,color:'var(--purple)'}}>Ver marcador en vivo</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>Solo lectura · Sin unirte</div>
+              </div>
+              <div style={{color:'var(--purple)',fontSize:'1.3rem'}}>›</div>
+            </div>
+            {/* Slots habituales */}
+            {(()=>{
+              const slotNames=(roomData.players||[]).map(p=>p.name.toLowerCase());
+              const relevant=contacts.filter(c=>slotNames.includes(c.name.toLowerCase()));
+              if(!relevant.length) return null;
+              return(
+                <div style={{marginBottom:12}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,255,157,.6)',letterSpacing:2,marginBottom:8}}>⭐ ¿ERES UNO DE ESTOS?</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {relevant.map(p=>(
+                      <button key={p.id} onClick={()=>{snd('tap');const slot=(roomData.players||[]).find(s=>s.name.toLowerCase()===p.name.toLowerCase());if(slot){setSelectedSlot(slot.id);setName(p.name);setEmoji(p.emoji||slot.emoji);setColor(p.color||slot.color);}}}
+                        style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderRadius:12,border:'none',cursor:'pointer',background:'rgba(255,255,255,.07)'}}>
+                        <span style={{fontSize:'1.3rem'}}>{p.emoji}</span>
+                        <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginBottom:8}}>¿ERES ALGUNO DE ESTOS?</div>
+            {(roomData.players||[]).map(p=>{
+              const isSelected=selectedSlot===p.id;
+              const isHost=p.id===roomData?.hostId;
+              return(
+                <div key={p.id} onClick={()=>{snd('tap');setSelectedSlot(p.id);setName(p.name);setEmoji(p.emoji||emoji);setColor(p.color||color);}}
+                  style={{display:'flex',alignItems:'center',gap:12,background:isSelected?'rgba(0,245,255,.08)':'rgba(255,255,255,.03)',border:`2px solid ${isSelected?'rgba(0,245,255,.5)':isHost?'rgba(255,212,71,.2)':'rgba(255,255,255,.07)'}`,borderRadius:14,padding:'12px 14px',marginBottom:8,cursor:'pointer',transition:'all .2s'}}>
+                  <div style={{fontSize:'1.7rem',width:38,textAlign:'center',flexShrink:0}}>{p.emoji}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',color:isSelected?'var(--cyan)':p.color||'#fff'}}>{p.name}</span>
+                      {isHost&&<span style={{fontSize:'.5rem',background:'rgba(255,212,71,.15)',color:'var(--gold)',padding:'2px 7px',borderRadius:6,fontFamily:'var(--font-ui)',letterSpacing:1,fontWeight:700}}>HOST</span>}
+                    </div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:isHost?'rgba(0,255,157,.5)':'rgba(255,255,255,.3)',letterSpacing:1,marginTop:3}}>
+                      {isHost?'🟢 Conectado':'🔵 Slot libre — tócalo para entrar'}
+                    </div>
+                  </div>
+                  {isSelected&&<div style={{color:'var(--cyan)',fontSize:'1.3rem',flexShrink:0}}>✓</div>}
+                </div>
+              );
+            })}
+            <div onClick={()=>{snd('tap');setSelectedSlot('new');}}
+              style={{display:'flex',alignItems:'center',gap:12,background:selectedSlot==='new'?'rgba(155,93,229,.08)':'rgba(255,255,255,.02)',border:`2px dashed ${selectedSlot==='new'?'rgba(155,93,229,.5)':'rgba(255,255,255,.12)'}`,borderRadius:14,padding:'12px 14px',marginBottom:12,cursor:'pointer',transition:'all .2s'}}>
+              <div style={{width:38,height:38,borderRadius:12,background:selectedSlot==='new'?'rgba(155,93,229,.2)':'rgba(255,255,255,.06)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.3rem',flexShrink:0}}>➕</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',color:selectedSlot==='new'?'var(--purple)':'rgba(255,255,255,.55)'}}>Soy un jugador nuevo</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:2}}>Me agrego a la sala</div>
+              </div>
+              {selectedSlot==='new'&&<div style={{color:'var(--purple)',fontSize:'1.3rem'}}>✓</div>}
+            </div>
+            {selectedSlot==='new'&&(
+              <div className="anim-fade" style={{background:'rgba(155,93,229,.06)',border:'1px solid rgba(155,93,229,.2)',borderRadius:14,padding:'14px',marginBottom:12}}>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.7)',letterSpacing:2,marginBottom:10}}>TU PERFIL EN ESTA PARTIDA</div>
+                {contacts.length>0&&(
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginBottom:7}}>⭐ Jugadores habituales</div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      {contacts.slice(0,8).map(p=>(
+                        <button key={p.id} onClick={()=>{snd('tap');setName(p.name);setEmoji(p.emoji);setColor(p.color);}}
+                          style={{display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:10,border:'none',cursor:'pointer',background:name===p.name?'rgba(155,93,229,.25)':'rgba(255,255,255,.07)'}}>
+                          <span style={{fontSize:'1.1rem'}}>{p.emoji}</span>
+                          <span style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,background:'rgba(0,0,0,.2)',borderRadius:12,padding:'10px 12px',cursor:'pointer'}} onClick={()=>setPickMode('emoji')}>
+                  <div style={{fontSize:'2rem'}}>{emoji}</div>
+                  <div style={{width:14,height:14,borderRadius:'50%',background:color,border:'2px solid rgba(255,255,255,.2)',flexShrink:0}}/>
+                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color}}>{name||'Tu nombre'}</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(155,93,229,.6)',letterSpacing:2}}>EDITAR ›</div>
+                </div>
+                <input className="os-input" placeholder="Tu nombre..." value={name} onChange={e=>setName(e.target.value)} maxLength={20} style={{marginBottom:0}}/>
+              </div>
+            )}
+            {error&&<div className="os-alert alert-red">{error}</div>}
+            <button className="btn btn-cyan" style={{padding:'16px',fontSize:'1rem',marginBottom:8}}
+              disabled={!selectedSlot||(selectedSlot==='new'&&!name.trim())||loading}
+              onClick={handleJoin}>
+              {loading?'⏳ Entrando...':'🚪 Entrar a la partida'}
+            </button>
+            <button className="btn btn-back" onClick={()=>{setStep('code');setRoomData(null);setSelectedSlot(null);}}>← Cambiar sala</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── STATS SCREEN ─────────────────────────────────────────────────
+function StatsScreen({onBack,db}){
+  const [tab,setTab]=useState('overview');
+  const [players,setPlayers]=useState([]);
+  const [sessions,setSessions]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [selectedPlayer,setSelectedPlayer]=useState(null);
+
+  useEffect(()=>{
+    async function load(){
+      setLoading(true);
+      try{
+        const [lb,sess]=await Promise.all([loadLeaderboard(false),loadRecentSessions(50,false)]);
+        setPlayers(lb);setSessions(sess);
+      }catch(e){console.error(e);}finally{setLoading(false);}
+    }
+    load();
+  },[]);
+
+  const globalStats=React.useMemo(()=>{
+    if(!sessions.length) return null;
+    const totalTime=sessions.reduce((s,x)=>s+(x.durationMs||0),0);
+    const avgTime=sessions.length?totalTime/sessions.length:0;
+    const sorted=[...sessions].sort((a,b)=>(b.durationMs||0)-(a.durationMs||0));
+    const longest=sorted[0];
+    const shortest=sorted[sorted.length-1];
+    const gameCounts={};
+    sessions.forEach(s=>{gameCounts[s.customTitle||s.gameTitle]=(gameCounts[s.customTitle||s.gameTitle]||0)+1;});
+    const mostPlayed=Object.entries(gameCounts).sort((a,b)=>b[1]-a[1])[0];
+    const allPlayers=sessions.flatMap(s=>(s.players||[]).map(p=>({...p,game:s.customTitle||s.gameTitle})));
+    const withSurvival=allPlayers.filter(p=>p.survivalMs>0).sort((a,b)=>b.survivalMs-a.survivalMs);
+    return{totalTime,avgTime,longest,shortest,mostPlayed,slowest:withSurvival[0],fastest:withSurvival[withSurvival.length-1]};
+  },[sessions]);
+
+  if(selectedPlayer){
+    const p=selectedPlayer;
+    const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
+    const pSessions=sessions.filter(s=>(s.players||[]).some(sp=>sp.name===p.name));
+    const totalMs=pSessions.reduce((acc,s)=>acc+(s.durationMs||0),0);
+    return(
+      <div className="os-wrap">
+        <div className="os-header">
+          <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>setSelectedPlayer(null)}>← Stats</button>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'.75rem',fontWeight:700,color:'rgba(255,255,255,.4)',letterSpacing:3}}>JUGADOR</div>
+          <div style={{width:70}}/>
+        </div>
+        <div className="os-page" style={{paddingTop:20}}>
+          <div style={{textAlign:'center',marginBottom:20}}>
+            <div style={{fontSize:'4rem',marginBottom:6}}>{p.emoji}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.7rem',letterSpacing:2,color:p.color||'#fff'}}>{p.name}</div>
+          </div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'16px',marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:2}}>WIN RATE</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>{wr}%</div>
+            </div>
+            <div style={{height:8,background:'rgba(255,255,255,.08)',borderRadius:4,overflow:'hidden'}}>
+              <div style={{height:'100%',width:wr+'%',background:'linear-gradient(90deg,var(--cyan),var(--gold))',borderRadius:4}}/>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+            {[{label:'PARTIDAS',value:p.games||0,color:'var(--cyan)',icon:'🎮'},{label:'VICTORIAS',value:p.wins||0,color:'var(--gold)',icon:'🏆'},{label:'TIEMPO TOTAL',value:fmtDuration(totalMs),color:'var(--green)',icon:'⏱'},{label:'MEJOR POS.',value:'#'+(p.bestPosition||'—'),color:'var(--orange)',icon:'🥇'}].map(s=>(
+              <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'14px',textAlign:'center'}}>
+                <div style={{fontSize:'1.4rem',marginBottom:4}}>{s.icon}</div>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',color:s.color,marginBottom:3}}>{s.value}</div>
+                <div style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <button className="btn btn-ghost" onClick={()=>setSelectedPlayer(null)}>← Volver</button>
+        </div>
+      </div>
+    );
+  }
+
+  const TABS=[['overview','📊 Overview'],['ranking','🏆 Ranking'],['sessions','🎮 Partidas']];
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Home</button>
+        <div className="os-logo" style={{fontSize:'1.1rem'}}>STATS <span>OS</span></div>
+        <div style={{width:70}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{display:'flex',gap:5,marginBottom:16}}>
+          {TABS.map(([id,lbl])=>(
+            <button key={id} onClick={()=>{snd('tap');setTab(id);}}
+              style={{flex:1,border:'none',borderRadius:10,padding:'9px 4px',cursor:'pointer',fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        {loading&&<div style={{textAlign:'center',paddingTop:40}}><div className="os-spin" style={{marginBottom:14}}/></div>}
+        {!loading&&tab==='overview'&&(
+          <div className="anim-fade">
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+              {[{label:'PARTIDAS',value:sessions.length,color:'var(--cyan)',icon:'🎮'},{label:'JUGADORES',value:players.length,color:'var(--purple)',icon:'👥'},{label:'TIEMPO',value:fmtDuration(globalStats?.totalTime||0),color:'var(--green)',icon:'⏱'}].map(s=>(
+                <div key={s.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 10px',textAlign:'center'}}>
+                  <div style={{fontSize:'1.3rem',marginBottom:4}}>{s.icon}</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',color:s.color,marginBottom:3}}>{s.value}</div>
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'.48rem',fontWeight:700,color:'rgba(255,255,255,.3)',letterSpacing:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            {globalStats&&(
+              <>{[{label:'Partida más larga',icon:'🐢',value:globalStats.longest?`${fmtDuration(globalStats.longest.durationMs)} — ${globalStats.longest.customTitle||globalStats.longest.gameTitle}`:'—'},{label:'Partida más corta',icon:'⚡',value:globalStats.shortest?`${fmtDuration(globalStats.shortest.durationMs)} — ${globalStats.shortest.customTitle||globalStats.shortest.gameTitle}`:'—'},{label:'Juego más jugado',icon:'🎮',value:globalStats.mostPlayed?`${globalStats.mostPlayed[0]} (${globalStats.mostPlayed[1]}×)`:'—'},{label:'Jugador más lento',icon:'🐌',value:globalStats.slowest?`${globalStats.slowest.emoji} ${globalStats.slowest.name} — ${fmtDuration(globalStats.slowest.survivalMs)}`:'—'},{label:'Jugador más rápido',icon:'🚀',value:globalStats.fastest?`${globalStats.fastest.emoji} ${globalStats.fastest.name} — ${fmtDuration(globalStats.fastest.survivalMs)}`:'—'}].map((r,i)=>(
+                <div key={i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',marginBottom:7,display:'flex',alignItems:'flex-start',gap:12}}>
+                  <div style={{fontSize:'1.4rem',flexShrink:0}}>{r.icon}</div>
+                  <div>
+                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.52rem',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:3}}>{r.label.toUpperCase()}</div>
+                    <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.8)',lineHeight:1.4}}>{r.value}</div>
+                  </div>
+                </div>
+              ))}</>
+            )}
+            {!globalStats&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>📊</div><div>Completa partidas para ver estadísticas</div></div>}
+          </div>
+        )}
+        {!loading&&tab==='ranking'&&(
+          <div className="anim-fade">
+            {players.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🏆</div><div>Sin jugadores aún</div></div>}
+            {players.map((p,i)=>{
+              const wr=p.games>0?Math.round((p.wins/p.games)*100):0;
+              return(
+                <div key={p.pKey||i} className={`stat-card ${i===0?'gold-border':''}`} onClick={()=>{snd('tap');setSelectedPlayer(p);}}>
+                  <div className="stat-rank">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
+                  <div style={{fontSize:'1.7rem'}}>{p.emoji}</div>
+                  <div style={{flex:1}}>
+                    <div className="stat-name" style={{color:p.color||'#fff'}}>{p.name}</div>
+                    <div className="stat-meta">{p.games||0} partidas · {wr}% WR</div>
+                    <div style={{height:3,background:'rgba(255,255,255,.08)',borderRadius:2,marginTop:5,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:wr+'%',background:i===0?'var(--gold)':'var(--cyan)',borderRadius:2}}/>
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div className="stat-value" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>{p.wins||0}</div>
+                    <div style={{fontFamily:'var(--font-ui)',fontSize:'.45rem',color:'rgba(255,255,255,.25)',letterSpacing:1}}>🏆</div>
+                  </div>
+                  <div style={{color:'rgba(255,255,255,.2)',fontSize:'.95rem'}}>›</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {!loading&&tab==='sessions'&&(
+          <div className="anim-fade">
+            {sessions.length===0&&<div className="os-empty"><div style={{fontSize:'2.5rem',marginBottom:10}}>🎮</div><div>Sin partidas registradas</div></div>}
+            {sessions.map((s,i)=>(
+              <div key={s.sessionId||i} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:13,padding:'13px 15px',marginBottom:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:'var(--fs-sm)',display:'flex',alignItems:'center',gap:6}}>
+                      <span>{s.gameType==='preset:strike'?'🎳':'⚔️'}</span>{s.customTitle||s.gameTitle}
+                    </div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:2}}>{fmtDate(s.startedAt)} · {fmtDuration(s.durationMs)}</div>
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:700,color:'rgba(255,255,255,.3)',background:'rgba(255,255,255,.06)',padding:'3px 9px',borderRadius:20}}>{s.playerCount||0} jug.</div>
+                </div>
+                {(s.players||[]).slice(0,3).map((p,pi)=>(
+                  <div key={p.id||pi} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(255,255,255,.04)'}}>
+                    <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',width:22,color:'rgba(255,255,255,.25)'}}>{pi===0?'🥇':pi===1?'🥈':'🥉'}</div>
+                    <div style={{fontSize:'1.05rem'}}>{p.emoji}</div>
+                    <div style={{fontWeight:800,flex:1,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)'}}>
+                      {p.survivalMs?`⏱ ${fmtDuration(p.survivalMs)}`:''}{p.points?` · ${p.points}pts`:''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── MOUNT APP ────────────────────────────────────────────────────
+const _root = ReactDOM.createRoot(document.getElementById('root'));
+_root.render(React.createElement(App));
