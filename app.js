@@ -234,6 +234,29 @@ function getPresetTemplates(){
       }
     },
     {
+      id:'preset_nothanks', name:'No Thanks', emoji:'🚫',
+      description:'Rechaza cartas · Fichas como escudo · Menos puntos gana',
+      config:{
+        type:'individual', minPlayers:3, maxPlayers:7, roomAccess:'code',
+        useRounds:false, useTurns:true, turnOrder:'rotating', canSkipTurn:false,
+        useFirstPlayerToken:false, useTimer:false,
+        victoryMode:'manual', manualWinMode:'host_winner', tiebreak:'host',
+        winConditions:['Acepta carta','Rechaza (ficha)','Cadena formada','Sin fichas'],
+        useDefeat:false,
+        registers:['points','coins'], captureType:'manual',
+        valueNature:'both',
+        accumulation:'global', modifiers:['penalty','bonus'],
+        capturedBy:'host', scoreVisibility:'all',
+        useElimination:false,
+        useTools:true, tools:['counter'], toolsMode:'informal',
+        toolsRegistered:'no', toolsAffect:[],
+        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
+        endConditions:['manual'], showEndScreen:true, saveHistory:true,
+        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
+        accumulates:'points', scoreSign:'both',
+      }
+    },
+    {
       id:'preset_uno', name:'UNO', emoji:'🃏', description:'Puntos por cartas · El primero en llegar a 500 gana',
       config:{
         type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',
@@ -259,14 +282,19 @@ function getPresetTemplates(){
 }
 
 async function seedPresetTemplates(uid){
-  // Solo siembra si el usuario no tiene templates aún
-  const existing = await _db.ref(`gameTemplates/${uid}`).once('value');
-  if(existing.val()) return; // ya tiene templates
   const presets = getPresetTemplates();
+  // Sembrar cada preset que no exista — permite agregar nuevos sin borrar templates del usuario
   for(const p of presets){
-    await _db.ref(`gameTemplates/${uid}/${p.id}`).set({
-      ...p, uid, updatedAt:Date.now(), createdAt:Date.now()
-    });
+    try{
+      const snap = await _db.ref(`gameTemplates/${uid}/${p.id}`).once('value');
+      if(!snap.val()){
+        await _db.ref(`gameTemplates/${uid}/${p.id}`).set({
+          id:p.id, uid, name:p.name, emoji:p.emoji,
+          description:p.description, config:p.config,
+          updatedAt:Date.now(), createdAt:Date.now()
+        });
+      }
+    }catch(e){}
   }
 }
 

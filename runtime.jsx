@@ -644,7 +644,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   );
 
   const players = room.players || [];
-  const effectiveIsHost = isHost || (room.hostId && room.hostId === myId);
+  const effectiveIsHost = isHost || (myId && room.hostId && room.hostId === myId);
   const sorted = sortPlayers(players, spec);
   const currentRound = room.currentRound || 1;
   const totalRounds = spec.totalRounds;
@@ -763,7 +763,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
           />
         )}
 
-        {!effectiveIsHost && !players.find(p=>p.id===myId) && (
+        {!effectiveIsHost && myId && !players.find(p=>p.id===myId) && (
           <div className="os-alert alert-cyan" style={{ justifyContent: 'center', textAlign: 'center', marginTop: 16 }}>
             👁 Modo espectador · Solo lectura
           </div>

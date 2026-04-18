@@ -107,27 +107,28 @@ function ProfileSetup({ onDone, onSkip, context }){
 function LiveScoreboard({ code, onBack, db }){
   const [room,setRoom]=useState(null);
   const [elapsed,setElapsed]=useState(0);
-  const [tab,setTab]=useState('score');
   const [prevScores,setPrevScores]=useState({});
   const [changedIds,setChangedIds]=useState([]);
+  const [emojiSpam,setEmojiSpam]=useState([]); // {id, emoji, x, y}
+  const [myEmoji,setMyEmoji]=useState('🎉');
+  const [showEmojiPicker,setShowEmojiPicker]=useState(false);
+  const [winPlayed,setWinPlayed]=useState(false);
   const timerRef=useRef(null);
+  const spamId=useRef(0);
 
   useEffect(()=>{
     const unsub=db.listen(`rooms/${code}`,data=>{
       if(!data) return;
-      // Detectar cambios de puntaje para animación
       if(data.players){
         const changed=[];
         data.players.forEach(p=>{
+          const sc=(p.points||p.total||0);
           const prev=prevScores[p.id];
-          if(prev!==undefined&&(p.total||0)!==prev) changed.push(p.id);
+          if(prev!==undefined&&sc!==prev) changed.push(p.id);
         });
-        if(changed.length){
-          setChangedIds(changed);
-          setTimeout(()=>setChangedIds([]),600);
-        }
+        if(changed.length){setChangedIds(changed);setTimeout(()=>setChangedIds([]),700);}
         const newScores={};
-        data.players.forEach(p=>newScores[p.id]=(p.total||0));
+        data.players.forEach(p=>newScores[p.id]=(p.points||p.total||0));
         setPrevScores(newScores);
       }
       setRoom(data);
@@ -136,16 +137,46 @@ function LiveScoreboard({ code, onBack, db }){
   },[code]);
 
   useEffect(()=>{
-    if(!room||room.status!=='active') return;
-    const start=room.startedAt;
-    timerRef.current=setInterval(()=>setElapsed(Date.now()-start),1000);
+    if(!room) return;
+    if(room.status==='active'){
+      const start=room.startedAt;
+      timerRef.current=setInterval(()=>setElapsed(Date.now()-start),1000);
+    }
+    if(room.status==='finished'&&!winPlayed){
+      setWinPlayed(true);
+      snd('victory');
+    }
     return()=>clearInterval(timerRef.current);
-  },[room?.status,room?.startedAt]);
+  },[room?.status]);
+
+  // Listen to emoji spam events
+  useEffect(()=>{
+    if(!code) return;
+    const unsub=db.listen(`rooms/${code}/emojiSpam`,data=>{
+      if(!data||!data.emoji||!data.ts) return;
+      if(Date.now()-data.ts>3000) return;
+      const id=spamId.current++;
+      const particles=Array.from({length:8},(_,i)=>({
+        id:`${id}_${i}`, emoji:data.emoji,
+        x:10+Math.random()*80, y:20+Math.random()*60,
+        delay:Math.random()*0.5, duration:1.2+Math.random()*0.8
+      }));
+      setEmojiSpam(prev=>[...prev,...particles]);
+      setTimeout(()=>setEmojiSpam(prev=>prev.filter(e=>!e.id.startsWith(id+'_'))),3500);
+    });
+    return()=>unsub&&unsub();
+  },[code]);
+
+  function sendEmojiSpam(){
+    snd('tap');
+    db.set(`rooms/${code}/emojiSpam`,{emoji:myEmoji,ts:Date.now()});
+    setShowEmojiPicker(false);
+  }
 
   if(!room) return(
     <div className="os-wrap">
       <div className="os-header">
-        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Atrás</button>
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
         <div className="room-code-badge">{code}</div>
         <div style={{width:70}}/>
       </div>
@@ -170,277 +201,258 @@ function LiveScoreboard({ code, onBack, db }){
         if(a.eliminated&&b.eliminated) return (b.eliminatedOrder||0)-(a.eliminatedOrder||0);
         return 0;
       })
-    : [...players].sort((a,b)=>
-        cfg.mode==='wins'?(b.wins||0)-(a.wins||0):(b.total||0)-(a.total||0)
-      );
+    : [...players].sort((a,b)=>{
+        if(!a.eliminated&&b.eliminated) return -1;
+        if(a.eliminated&&!b.eliminated) return 1;
+        const sa=cfg.mode==='wins'?(a.wins||0):(a.points||a.total||0);
+        const sb=cfg.mode==='wins'?(b.wins||0):(b.points||b.total||0);
+        return sb-sa;
+      });
 
-  const playerMap=Object.fromEntries(players.map(p=>[p.id,p]));
-
-  // Máximo para barras de progreso
-  const maxScore=Math.max(1,...players.map(p=>p.total||0));
-  const maxWins=Math.max(1,...players.map(p=>p.wins||0));
-  const target=cfg.useTarget&&cfg.targetScore?parseInt(cfg.targetScore):null;
+  const maxScore=Math.max(1,...players.map(p=>p.points||p.total||0));
+  const target=cfg.targetScore?parseInt(cfg.targetScore):null;
   const barMax=target||maxScore;
+  const statusColor=isActive?'var(--green)':isFinished?'var(--gold)':'rgba(255,255,255,.4)';
 
-  // % victoria estimado (simple: posición relativa)
-  function winPct(p,i){
-    if(isStrike) return p.eliminated?0:Math.round(100/(players.filter(pl=>!pl.eliminated).length||1));
-    if(players.length===0) return 0;
-    const score=cfg.mode==='wins'?(p.wins||0):(p.total||0);
-    const total=players.reduce((s,pl)=>s+(cfg.mode==='wins'?(pl.wins||0):(pl.total||0)),0);
-    if(total===0) return Math.round(100/players.length);
-    return Math.round((score/total)*100);
+  // If finished, show end screen
+  if(isFinished){
+    const winner=sorted[0];
+    const confetti=Array.from({length:25},(_,i)=>({
+      id:i, c:['#FFD447','#FF6B35','#00F5FF','#00FF9D','#9B5DE5'][i%5],
+      l:Math.round(Math.random()*100)+'%',
+      dl:Math.round(Math.random()*20)/10+'s',
+      dr:Math.round((2+Math.random()*2.5)*10)/10+'s',
+      sz:Math.round(6+Math.random()*8)+'px'
+    }));
+    return(
+      <div className="os-wrap" style={{position:'relative',overflow:'hidden'}}>
+        {/* Confetti */}
+        <div className="end-confetti">
+          {confetti.map(d=><div key={d.id} style={{position:'absolute',background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:Math.random()>.5?'50%':'3px',animation:`confettiFall ${d.dr} ${d.dl} linear infinite`}}/>)}
+        </div>
+
+        {/* Emoji spam overlay */}
+        {emojiSpam.map(e=>(
+          <div key={e.id} style={{position:'fixed',left:e.x+'%',top:e.y+'%',zIndex:200,
+            fontSize:'2.5rem',pointerEvents:'none',
+            animation:`emojiFloat ${e.duration}s ${e.delay}s ease-out forwards`}}>
+            {e.emoji}
+          </div>
+        ))}
+
+        <div style={{position:'relative',zIndex:10,display:'flex',flexDirection:'column',alignItems:'center',padding:'40px 20px 20px'}}>
+          <div style={{fontSize:'4rem',marginBottom:8}}>🏆</div>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'.6rem',letterSpacing:4,color:'var(--gold)',marginBottom:4}}>CAMPEÓN</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.6rem',letterSpacing:2,color:'var(--cyan)',marginBottom:12,textAlign:'center'}}>
+            {(room.customTitle||'PARTIDA').toUpperCase()}
+          </div>
+          {winner&&(
+            <>
+              <div style={{fontSize:'3rem',marginBottom:6}}>{winner.emoji}</div>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'2rem',letterSpacing:2,color:winner.color||'var(--gold)',marginBottom:4}}>{winner.name}</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.45)',marginBottom:24}}>
+                {isStrike?`⏱ ${winner.survivalLabel||'—'}`
+                  :cfg.mode==='wins'?`${winner.wins||0} victorias`
+                  :`${winner.points||winner.total||0} puntos`}
+                {room.endedAt&&room.startedAt?` · ${fmtDuration(room.endedAt-room.startedAt)}`:''}
+              </div>
+            </>
+          )}
+          {/* Emoji spam button */}
+          <div style={{marginBottom:20,display:'flex',gap:8,alignItems:'center'}}>
+            <button onClick={()=>setShowEmojiPicker(p=>!p)}
+              style={{width:52,height:52,borderRadius:14,border:'1px solid rgba(255,255,255,.2)',
+                background:'rgba(255,255,255,.06)',fontSize:'1.8rem',cursor:'pointer'}}>
+              {myEmoji}
+            </button>
+            <button onClick={sendEmojiSpam}
+              style={{padding:'14px 22px',borderRadius:14,border:'none',cursor:'pointer',
+                background:'linear-gradient(135deg,var(--purple),var(--cyan))',
+                color:'#fff',fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1}}>
+              📣 ¡Celebrar!
+            </button>
+          </div>
+          {showEmojiPicker&&(
+            <div style={{display:'flex',flexWrap:'wrap',gap:6,justifyContent:'center',marginBottom:14,
+              background:'rgba(0,0,0,.6)',borderRadius:14,padding:12,maxWidth:300}}>
+              {['🎉','🔥','💀','🏆','❤️','🎊','👑','⚡','🥳','😂','😈','🎯'].map(e=>(
+                <button key={e} onClick={()=>{setMyEmoji(e);setShowEmojiPicker(false);}}
+                  style={{width:44,height:44,fontSize:'1.6rem',borderRadius:10,border:'none',
+                    background:myEmoji===e?'rgba(155,93,229,.4)':'rgba(255,255,255,.08)',cursor:'pointer'}}>
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Podio */}
+          <div style={{width:'100%',maxWidth:380,marginBottom:16}}>
+            {sorted.map((p,i)=>{
+              const score=isStrike?null:cfg.mode==='wins'?(p.wins||0):(p.points||p.total||0);
+              return(
+                <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,
+                  background:i===0?'rgba(255,212,71,.1)':'rgba(255,255,255,.04)',
+                  border:`1px solid ${i===0?'rgba(255,212,71,.35)':'rgba(255,255,255,.08)'}`,
+                  borderRadius:12,padding:'10px 14px',marginBottom:6}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.3rem',width:28,textAlign:'center'}}>
+                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
+                  </div>
+                  <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
+                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,color:p.color||'#fff'}}>{p.name}</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',color:i===0?'var(--gold)':'rgba(255,255,255,.5)'}}>
+                    {isStrike?(p.eliminated?`💀 #${p.finalPosition}`:'🏆 Ganó')
+                      :(score+((cfg.mode==='wins')?'🏆':' pts'))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button className="btn btn-ghost" onClick={onBack}>← Volver</button>
+        </div>
+      </div>
+    );
   }
-
-  const statusColor=isActive?'var(--green)':isFinished?'var(--red)':'var(--gold)';
 
   return(
     <div className="os-wrap">
-      {/* Header impactante */}
-      <div style={{
-        position:'sticky',top:0,zIndex:100,
+      {/* Emoji spam overlay */}
+      {emojiSpam.map(e=>(
+        <div key={e.id} style={{position:'fixed',left:e.x+'%',top:e.y+'%',zIndex:200,
+          fontSize:'2.5rem',pointerEvents:'none',
+          animation:`emojiFloat ${e.duration}s ${e.delay}s ease-out forwards`}}>
+          {e.emoji}
+        </div>
+      ))}
+
+      {/* Header */}
+      <div style={{position:'sticky',top:0,zIndex:100,
         background:'linear-gradient(180deg,rgba(8,8,16,.98) 85%,transparent)',
-        borderBottom:'1px solid rgba(0,245,255,.15)',
-        padding:'8px 14px'
-      }}>
+        borderBottom:'1px solid rgba(0,245,255,.15)',padding:'8px 14px'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
           <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Salir</button>
           <div style={{textAlign:'center'}}>
-            <div style={{
-              fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:2,
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:2,
               background:'linear-gradient(135deg,var(--cyan),var(--orange))',
-              WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'
-            }}>
+              WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>
               {room.customTitle||'MARCADOR EN VIVO'}
             </div>
           </div>
           <div className="room-code-badge">{code}</div>
         </div>
-        {/* Status bar animada */}
+        {/* Status + timer */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div style={{
-              width:8,height:8,borderRadius:'50%',background:statusColor,
-              boxShadow:`0 0 8px ${statusColor}`,
-              animation:isActive?'osBlink 1.2s ease-in-out infinite':'none'
-            }}/>
+            <div style={{width:8,height:8,borderRadius:'50%',background:statusColor,
+              boxShadow:`0 0 8px ${statusColor}`,animation:isActive?'osBlink 1.2s ease-in-out infinite':'none'}}/>
             <span style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:statusColor,letterSpacing:2,fontWeight:700}}>
               {isActive?'EN VIVO':isFinished?'TERMINADA':'LOBBY'}
               {isActive&&` · ${players.filter(p=>!p.eliminated).length} activos`}
             </span>
           </div>
-          {isActive&&(
-            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)',textShadow:'var(--glow-g)'}}>
-              {fmtDuration(elapsed)}
-            </div>
-          )}
-          {rounds.length>0&&(
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>
-              R{rounds.length}{cfg.rounds&&cfg.rounds!=='libre'?`/${cfg.rounds}`:''}
-            </div>
-          )}
+          {isActive&&<div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--gold)'}}>{fmtDuration(elapsed)}</div>}
         </div>
+        {/* Rounds strip horizontal */}
+        {rounds.length>0&&(
+          <div style={{display:'flex',gap:4,overflowX:'auto',paddingTop:6,paddingBottom:2,WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
+            {rounds.map((r,ri)=>{
+              const rw=(room.players||[]).find(p=>p.id===r.winner);
+              return(
+                <div key={ri} style={{flexShrink:0,
+                  background:ri===rounds.length-1?'rgba(0,245,255,.12)':'rgba(255,255,255,.05)',
+                  border:`1px solid ${ri===rounds.length-1?'rgba(0,245,255,.3)':'rgba(255,255,255,.1)'}`,
+                  borderRadius:8,padding:'4px 8px',display:'flex',alignItems:'center',gap:4}}>
+                  <span style={{fontFamily:'var(--font-display)',fontSize:'.6rem',
+                    color:ri===rounds.length-1?'var(--cyan)':'rgba(255,255,255,.3)'}}>R{r.number||ri+1}</span>
+                  {rw&&<><span style={{fontSize:'.8rem'}}>{rw.emoji}</span>
+                  <span style={{fontFamily:'var(--font-display)',fontSize:'.6rem',color:rw.color||'var(--gold)'}}>🏆</span></>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="os-page" style={{paddingTop:12}}>
-        {/* Tabs */}
-        <div style={{display:'flex',gap:5,marginBottom:14}}>
-          {[
-            ['score','📊 Marcador'],
-            ['rounds',`📋 Rondas${rounds.length>0?' ('+rounds.length+')':''}`]
-          ].map(([id,lbl])=>(
-            <button key={id} style={{
-              flex:1,border:'none',borderRadius:10,padding:'9px 4px',cursor:'pointer',
-              fontFamily:'var(--font-ui)',fontSize:'var(--fs-micro)',letterSpacing:1,transition:'all .18s',
-              background:tab===id?'linear-gradient(135deg,var(--cyan),#00B8CC)':'rgba(255,255,255,.06)',
-              color:tab===id?'var(--bg)':'rgba(255,255,255,.4)'
-            }} onClick={()=>{snd('tap');setTab(id);}}>
-              {lbl}
-            </button>
-          ))}
+        {/* Emoji spam button */}
+        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:14}}>
+          <button onClick={()=>setShowEmojiPicker(p=>!p)}
+            style={{width:44,height:44,borderRadius:12,border:'1px solid rgba(255,255,255,.15)',
+              background:'rgba(255,255,255,.06)',fontSize:'1.5rem',cursor:'pointer',flexShrink:0}}>
+            {myEmoji}
+          </button>
+          <button onClick={sendEmojiSpam}
+            style={{flex:1,padding:'12px',borderRadius:12,border:'1px solid rgba(155,93,229,.3)',
+              background:'rgba(155,93,229,.12)',color:'var(--purple)',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',letterSpacing:1}}>
+            📣 Spamear pantalla
+          </button>
         </div>
+        {showEmojiPicker&&(
+          <div className="anim-fade" style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12,
+            background:'rgba(0,0,0,.4)',borderRadius:12,padding:10}}>
+            {['🎉','🔥','💀','🏆','❤️','🎊','👑','⚡','🥳','😂','😈','🎯','💣','🌶️','🚀','🎸'].map(e=>(
+              <button key={e} onClick={()=>{setMyEmoji(e);setShowEmojiPicker(false);}}
+                style={{width:40,height:40,fontSize:'1.4rem',borderRadius:8,border:'none',
+                  background:myEmoji===e?'rgba(155,93,229,.4)':'rgba(255,255,255,.06)',cursor:'pointer'}}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* ── TAB: MARCADOR VISTOSO ── */}
-        {tab==='score'&&sorted.map((p,i)=>{
+        {/* Marcador */}
+        {sorted.map((p,i)=>{
           const isFirst=i===0&&!p.eliminated;
           const isElim=p.eliminated;
-          const score=cfg.mode==='wins'?(p.wins||0):(p.total||0);
-          const pct=winPct(p,i);
-          const barW=isStrike?0:Math.round((score/barMax)*100);
+          const score=isStrike?null:cfg.mode==='wins'?(p.wins||0):(p.points||p.total||0);
+          const barW=score&&barMax?Math.round((score/barMax)*100):0;
           const isChanged=changedIds.includes(p.id);
-          const posClass=['pos-1','pos-2','pos-3','other'][Math.min(i,3)];
 
           return(
-            <div key={p.id}
-              className={`live-score-card ${posClass} ${isElim?'elim':''} ${isChanged?'score-changed':''} anim-fade`}
+            <div key={p.id} className={`live-score-card ${isElim?'elim':''} ${isChanged?'score-changed':''} anim-fade`}
               style={{animationDelay:i*.05+'s'}}>
-
-              {/* Posición + Avatar */}
-              <div style={{
-                fontFamily:'var(--font-display)',fontSize:'1.4rem',
-                width:32,textAlign:'center',flexShrink:0,
-                color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.25)'
-              }}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',width:32,textAlign:'center',flexShrink:0,
+                color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.25)'}}>
                 {isElim?'💀':i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
               </div>
               <div style={{fontSize:'1.9rem',flexShrink:0}}>{p.emoji}</div>
-
-              {/* Nombre + barra */}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:4}}>
-                  <div style={{
-                    fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',
+                  <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-base)',
                     color:isElim?'rgba(255,255,255,.3)':p.color||'#fff',
-                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'
-                  }}>{p.name}</div>
-                  <div style={{
-                    fontFamily:'var(--font-display)',fontSize:'1.2rem',
+                    overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',flexShrink:0,marginLeft:8,
                     color:isFirst?'var(--gold)':isElim?'rgba(255,59,92,.5)':'rgba(255,255,255,.6)',
-                    flexShrink:0,marginLeft:8,
-                    transition:'color .3s',
-                    animation:isChanged?'scoreUp .4s cubic-bezier(.34,1.56,.64,1)':'none'
-                  }}>
+                    animation:isChanged?'scoreUp .4s cubic-bezier(.34,1.56,.64,1)':'none',transition:'color .3s'}}>
                     {isStrike
-                      ? (isElim?`#${p.finalPosition}`:fmtDuration(elapsed))
-                      : (cfg.mode==='wins'?(score+'🏆'):(score+' pts'))
-                    }
+                      ?(isElim?`#${p.finalPosition}`:fmtDuration(elapsed))
+                      :(cfg.mode==='wins'?(score+'🏆'):(score+' pts'))}
                   </div>
                 </div>
-
-                {/* Barra de progreso */}
                 {!isStrike&&!isElim&&(
-                  <div style={{
-                    height:5,borderRadius:3,background:'rgba(255,255,255,.08)',
-                    overflow:'hidden',marginBottom:3
-                  }}>
-                    <div style={{
-                      height:'100%',borderRadius:3,
-                      background:isFirst
-                        ? `linear-gradient(90deg,${p.color||'var(--gold)'},var(--gold))`
-                        : (p.color||'rgba(0,245,255,.5)'),
-                      width:`${Math.min(100,barW)}%`,
-                      transition:'width .6s cubic-bezier(.34,1.56,.64,1)',
-                      boxShadow:isFirst?`0 0 8px ${p.color||'var(--gold)'}88`:'none'
-                    }}/>
+                  <div style={{height:5,borderRadius:3,background:'rgba(255,255,255,.08)',overflow:'hidden',marginBottom:3}}>
+                    <div style={{height:'100%',borderRadius:3,
+                      background:isFirst?`linear-gradient(90deg,${p.color||'var(--gold)'},var(--gold))`:(p.color||'rgba(0,245,255,.5)'),
+                      width:`${Math.min(100,barW)}%`,transition:'width .6s cubic-bezier(.34,1.56,.64,1)',
+                      boxShadow:isFirst?`0 0 8px ${p.color||'var(--gold)'}88`:'none'}}/>
                   </div>
                 )}
-
-                {/* Sub-info */}
-                <div style={{
-                  fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,
-                  color:'rgba(255,255,255,.3)',letterSpacing:1
-                }}>
-                  {isStrike
-                    ? (isElim?`💀 duró ${p.survivalLabel||'—'}`:'⏱ Contando...')
-                    : (target
-                        ? `${score}/${target} pts · ${Math.min(100,Math.round(score/target*100))}%`
-                        : (rounds.length>0
-                            ? `${p.wins||0} 🏆 · ${pct}% chances`
-                            : `${pct}% chances`))
-                  }
-                </div>
+                {isStrike&&isElim&&(
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,59,92,.5)',letterSpacing:1}}>
+                    💀 duró {p.survivalLabel||'—'}
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
 
-        {/* ── TAB: HISTORIAL HORIZONTAL (estilo Flip7) ── */}
-        {tab==='rounds'&&(
-          <>
-            {rounds.length===0&&(
-              <div className="os-empty">
-                <div style={{fontSize:'2rem',marginBottom:8}}>📋</div>
-                <div>Aún no se han cerrado rondas</div>
-              </div>
-            )}
-
-            {/* Rondas en horizontal scrollable */}
-            {rounds.length>0&&(
-              <>
-                <div style={{
-                  overflowX:'auto',paddingBottom:8,marginBottom:16,
-                  WebkitOverflowScrolling:'touch'
-                }}>
-                  <div style={{display:'flex',gap:8,minWidth:'max-content',padding:'0 2px'}}>
-                    {rounds.map((r,ri)=>{
-                      const rw=playerMap[r.winner];
-                      return(
-                        <div key={r.number||ri} style={{
-                          minWidth:110,borderRadius:12,padding:'10px 12px',
-                          background:ri===rounds.length-1?'rgba(0,245,255,.08)':'rgba(255,255,255,.04)',
-                          border:`1px solid ${ri===rounds.length-1?'rgba(0,245,255,.3)':'rgba(255,255,255,.08)'}`,
-                          flexShrink:0
-                        }}>
-                          <div style={{
-                            fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:2,
-                            color:ri===rounds.length-1?'var(--cyan)':'rgba(255,255,255,.35)',marginBottom:6
-                          }}>R{r.number}</div>
-                          {rw&&(
-                            <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6}}>
-                              <span style={{fontSize:'1.2rem'}}>{rw.emoji}</span>
-                              <span style={{fontFamily:'var(--font-display)',fontSize:'.7rem',color:rw.color||'var(--gold)',letterSpacing:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:60}}>{rw.name}</span>
-                              <span style={{color:'var(--gold)'}}>🏆</span>
-                            </div>
-                          )}
-                          {r.condition&&(
-                            <div style={{fontFamily:'var(--font-label)',fontSize:'.6rem',color:'var(--gold)',letterSpacing:1,marginBottom:4}}>{r.condition}</div>
-                          )}
-                          {/* Mini scores */}
-                          {Object.entries(r.scores||{}).slice(0,3).map(([pid,score])=>{
-                            const pl=playerMap[pid];
-                            if(!pl) return null;
-                            return(
-                              <div key={pid} style={{
-                                display:'flex',alignItems:'center',gap:4,
-                                fontFamily:'var(--font-label)',fontSize:'.6rem',
-                                color:pl.id===r.winner?pl.color||'var(--gold)':'rgba(255,255,255,.35)',
-                                marginBottom:2
-                              }}>
-                                <span>{pl.emoji}</span>
-                                <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{pl.name}</span>
-                                <span style={{fontWeight:700}}>{score>0?'+':''}{score}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Tabla acumulada */}
-                <div className="os-section">ACUMULADO</div>
-                {sorted.map((p,i)=>(
-                  <div key={p.id} style={{
-                    display:'flex',alignItems:'center',gap:10,
-                    background:i===0?'rgba(255,212,71,.06)':'var(--surface)',
-                    border:`1px solid ${i===0?'rgba(255,212,71,.3)':'var(--border)'}`,
-                    borderRadius:12,padding:'10px 14px',marginBottom:6
-                  }}>
-                    <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',width:28,textAlign:'center',color:i===0?'var(--gold)':'rgba(255,255,255,.25)'}}>
-                      {i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}
-                    </div>
-                    <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      {cfg.mode!=='wins'&&<div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:i===0?'var(--gold)':'rgba(255,255,255,.6)'}}>{p.total||0} pts</div>}
-                      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1}}>{p.wins||0} 🏆</div>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </>
-        )}
-
         <div className="g16"/>
-        <button className="btn btn-ghost" onClick={onBack}>← Volver</button>
+        <button className="btn btn-ghost" onClick={onBack}>← Salir</button>
       </div>
     </div>
   );
 }
+
 
 // ── APP SHELL ────────────────────────────────────────────────────
 function App(){
@@ -490,11 +502,15 @@ function App(){
       if(rematchCode){
         localStorage.removeItem('bgos_rematch_code');
         if(rematchCode.startsWith('strike:')){
-          // Revancha de Strike — ir directamente al lobby
           const code=rematchCode.replace('strike:','');
           setSession({code,demo:false,date:Date.now()});
           setIsHost(true);
           setScreen('strike-lobby');
+        } else if(rematchCode.startsWith('generic:')){
+          const code=rematchCode.replace('generic:','');
+          setSession({code,demo:false,date:Date.now()});
+          setIsHost(true);
+          setScreen('generic-lobby');
         } else {
           setSpectateCode(rematchCode);
           setScreen('live-scoreboard');
@@ -574,21 +590,24 @@ function App(){
     if(existing.status==='finished') return{error:'Esta partida ya terminó'};
     const players=[...(existing.players||[])];
 
-    // Check if already in room with myId
-    const alreadyIn=players.find(p=>p.id===myId);
+    // Guard: myId must exist
+    const resolvedMyId = myId || getProfile()?.id;
+    if(!resolvedMyId) return {error:'Necesitas un perfil para unirte'};
+    // Check if already in room
+    const alreadyIn=players.find(p=>p.id===resolvedMyId);
     if(!alreadyIn){
       // Try to match by name (slot taken)
       const byName=players.find(p=>p.name.toLowerCase()===playerName.toLowerCase());
       if(byName){
         // Take over this slot — update ID to myId
         const updated=players.map(p=>p.id===byName.id
-          ?{...p,id:myId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
+          ?{...p,id:resolvedMyId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
           :p);
         await db.set(`rooms/${code}/players`,updated);
       } else if(playerId && playerId!=='new' && players.find(p=>p.id===playerId)){
         // Take over specific slot by ID
         const updated=players.map(p=>p.id===playerId
-          ?{...p,id:myId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
+          ?{...p,id:resolvedMyId,emoji:playerEmoji||p.emoji,color:playerColor||p.color}
           :p);
         await db.set(`rooms/${code}/players`,updated);
       } else {
@@ -596,7 +615,7 @@ function App(){
         const cfg=existing.config||{};
         const initLives=cfg.registers?.includes('lives')||cfg.accumulates==='lives'||cfg.victoryMode==='lives'?5:null;
         const newPlayer={
-          id:myId,name:playerName,emoji:playerEmoji,color:playerColor,
+          id:resolvedMyId,name:playerName,emoji:playerEmoji,color:playerColor,
           total:0,wins:0,rounds:[],
           ...(initLives!==null?{lives:initLives}:{}),
           eliminated:false,finalPosition:null,survivalMs:null,
@@ -607,7 +626,7 @@ function App(){
       }
     }
 
-    setSession({code,demo:false,date:existing.createdAt,myId});
+    setSession({code,demo:false,date:existing.createdAt,myId:resolvedMyId});
     setIsHost(false);
 
     const gt=existing.gameType||'';
@@ -1156,7 +1175,22 @@ function JoinRoom({onBack,onJoin,myId,profile,db,onSpectate}){
                 style={{cursor:'pointer',marginBottom:8,borderColor:selectedSlot===p.id?'rgba(0,245,255,.5)':undefined}}
                 onClick={()=>{snd('tap');setSelectedSlot(p.id);setName(p.name);}}>
                 <div className="player-emoji">{p.emoji}</div>
-                <div className="player-name" style={{color:p.color||'#fff'}}>{p.name}</div>
+                <div style={{flex:1}}>
+                  <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
+                    {p.name}
+                    {p.id===roomData?.hostId&&(
+                      <span style={{fontSize:'.52rem',background:'rgba(255,212,71,.15)',color:'var(--gold)',
+                        padding:'2px 6px',borderRadius:6,fontFamily:'var(--font-ui)',letterSpacing:1,fontWeight:700}}>
+                        HOST
+                      </span>
+                    )}
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:2,letterSpacing:1}}>
+                    {p.id===roomData?.hostId
+                      ? '🟢 Conectado como host'
+                      : '🔵 Slot disponible — tócalo para tomarlo'}
+                  </div>
+                </div>
                 {selectedSlot===p.id&&<div style={{color:'var(--cyan)',fontSize:'1.2rem'}}>✓</div>}
               </div>
             ))}

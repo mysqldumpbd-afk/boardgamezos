@@ -73,7 +73,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     .sort((a,b)=>(b.eliminatedOrder||0)-(a.eliminatedOrder||0));
 
   // Derivar isHost del room para sobrevivir recargas
-  const effectiveIsHost = isHost || (room.hostId && room.hostId===myId);
+  const effectiveIsHost = isHost || (myId && room.hostId && room.hostId===myId);
   // Encontrar al jugador actual — buscar por myId directamente
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
@@ -484,7 +484,7 @@ function StrikeLobby({session,onBack,onStart,isHost,myId,db}){
   React.useEffect(()=>{if(room?.status==='active')onStart();},[room?.status]);
 
   const players=room?.players||[];
-  const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
+  const effectiveIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
   const [presence,setPresence]=React.useState({});
   React.useEffect(()=>{
     if(!session?.code||!myId) return;

@@ -331,7 +331,7 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
 
   const players=room?.players||[];
   const config=room?.config||{};
-  const effectiveIsHost=isHost||(room?.hostId&&room?.hostId===myId);
+  const effectiveIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
   const [presence,setPresence]=React.useState({});
   React.useEffect(()=>{
     if(!session?.code||!myId) return;
@@ -449,7 +449,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const currentRound=room.currentRound||1;
   const isSurvival=config.mode==='survival';
   // Derivar isHost del room (sobrevive recargas)
-  const effectiveIsHost=isHost||(room.hostId&&room.hostId===myId);
+  const effectiveIsHost=isHost||(myId&&room.hostId&&room.hostId===myId);
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
 
@@ -546,8 +546,10 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     const updatedPlayers=players.map(p=>{
       const score=scores[p.id]||0;
       const isWinner=p.id===winnerId;
+      const newTotal=(p.total||0)+(config.mode!=='wins'?score:0);
       return{...p,
-        total:(p.total||0)+(config.mode!=='wins'?score:0),
+        total:newTotal,
+        points:newTotal,  // alias for LiveScoreboard + UniversalRuntime
         wins:(p.wins||0)+(isWinner?1:0),
         rounds:[...(p.rounds||[]),{
           round:currentRound,
@@ -790,7 +792,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
           </div>
         )}
 
-        {/* PANEL HOST */}
+        {/* ACCIONES HOST — siempre visibles, no colapsadas */}
         {effectiveIsHost&&!isSurvival&&(
           <>
             <div className="os-section" style={{marginTop:20}}>
@@ -972,7 +974,7 @@ function GenericEndScreen({room,myId,onBack,db,session}){
     });
     // Redirigir al lobby de la revancha — navegar al home y luego el host abre el nuevo lobby
     // Como workaround, guardamos el código en localStorage para que App lo detecte
-    localStorage.setItem('bgos_rematch_code',newCode);
+    localStorage.setItem('bgos_rematch_code','generic:'+newCode);
     window.location.reload();
   }
 
@@ -1008,10 +1010,17 @@ function GenericEndScreen({room,myId,onBack,db,session}){
         ))}
       </div>
       <div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:8}}>
-        <button className="btn btn-cyan" style={{marginBottom:0}} disabled={rematchLoading}
-          onClick={handleRematch}>
-          {rematchLoading?'⏳ Creando revancha...':'🔁 REVANCHA — Mismos jugadores'}
-        </button>
+        {myId===room.hostId ? (
+          <button className="btn btn-cyan" style={{marginBottom:0}} disabled={rematchLoading}
+            onClick={handleRematch}>
+            {rematchLoading?'⏳ Creando revancha...':'🔁 REVANCHA — Mismos jugadores'}
+          </button>
+        ) : (
+          <div style={{textAlign:'center',fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
+            color:'rgba(255,255,255,.35)',letterSpacing:1,padding:'10px 0'}}>
+            ⏳ Esperando decisión del host para revancha
+          </div>
+        )}
         <button className="btn btn-ghost" style={{marginBottom:0}} onClick={onBack}>🏠 Volver al menú</button>
       </div>
     </div>

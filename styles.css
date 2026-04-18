@@ -355,3 +355,10 @@ body{background:var(--bg);font-family:var(--font-body);color:#fff;font-size:var(
 .presence-dot.offline {background:rgba(255,255,255,.2);}
 .presence-dot.pending {background:#4A90FF;box-shadow:0 0 6px #4A90FF;}
 .presence-dot.elim    {background:#FF3B5C;box-shadow:0 0 6px #FF3B5C;}
+
+/* ── EMOJI SPAM ANIMATION ── */
+@keyframes emojiFloat{
+  0%{opacity:1;transform:translateY(0) scale(1)}
+  60%{opacity:.9;transform:translateY(-60px) scale(1.3)}
+  100%{opacity:0;transform:translateY(-120px) scale(.8)}
+}
