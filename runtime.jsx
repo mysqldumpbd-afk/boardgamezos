@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── NUMERIC MODAL — redesigned ────────────────────────────────────
+if(window._splashStep) window._splashStep(5);
 function NumericModal({ action, player, onConfirm, onCancel }) {
   const [value, setValue] = React.useState(0);
   const [condition, setCondition] = React.useState('');

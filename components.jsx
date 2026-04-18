@@ -3,6 +3,7 @@
 // Fixes: ProfileSetup, GameBuilder visible, LiveScoreboard,
 //        botón eliminación grande, código sala siempre visible
 // ═══════════════════════════════════════════════════════════════
+if(window._splashStep) window._splashStep(6);
 const{useState,useEffect,useRef,useCallback}=React;
 
 // ── PROFILE SETUP — se pide al crear la primera sala ────────────

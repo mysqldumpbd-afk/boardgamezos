@@ -2,7 +2,7 @@
 // Cache JSX files after first load for faster subsequent loads.
 // Cache-busting: increment VERSION to force refresh on deploy.
 
-const VERSION = 'bgos-v1';
+const VERSION = 'bgos-v2';
 const STATIC = [
   '/',
   '/index.html',

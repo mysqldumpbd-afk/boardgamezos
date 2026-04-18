@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── AUTH SCREEN ──────────────────────────────────────────────────
+if(window._splashStep) window._splashStep(7);
 function AuthScreen({ onAuth, onSkip }){
   const [mode, setMode] = React.useState('choose'); // choose | email-in | email-up
   const [email, setEmail] = React.useState('');

@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── INLINE CONFIRM MODAL ─────────────────────────────────────────
+if(window._splashStep) window._splashStep(4);
 function ConfirmModal({title,message,onConfirm,onCancel,confirmLabel='Confirmar',confirmColor='var(--red)'}){
   return(
     <div style={{

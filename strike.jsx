@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // Motivos de eliminación predeterminados (usados en Strike y modo survival)
+if(window._splashStep) window._splashStep(3);
 const ELIM_REASONS_DEFAULT=[
   {id:'nodice',   label:'Sin dados',    emoji:'🎲'},
   {id:'nocards',  label:'Sin cartas',   emoji:'🃏'},

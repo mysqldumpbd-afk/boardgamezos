@@ -6,6 +6,7 @@
 
 // ── SHARED COMPONENTS (disponibles para todos los archivos) ──────
 
+if(window._splashStep) window._splashStep(2);
 /**
  * StatusDot — punto de color que indica el status de presencia
  * del jugador. Usa getPresenceColor() del app.js.
