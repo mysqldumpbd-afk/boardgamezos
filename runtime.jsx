@@ -541,7 +541,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
       if (!newCode) return;
       const myIsHost = myId && room?.hostId && room?.hostId === myId;
       if (!myIsHost) {
-        localStorage.setItem('bgos_rematch_code', 'generic:' + newCode);
+        localStorage.setItem('bgos_rematch_code', 'template:' + newCode);
         window.location.reload();
       }
     });
@@ -829,7 +829,7 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
     });
     // Broadcast to ALL players via Firebase (localStorage is device-local!)
     await db.set(`rooms/${session.code}/rematchCode`, newCode);
-    localStorage.setItem('bgos_rematch_code', 'generic:' + newCode);
+    localStorage.setItem('bgos_rematch_code', 'template:' + newCode);
     window.location.reload();
   }
 

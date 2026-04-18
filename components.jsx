@@ -637,8 +637,23 @@ function App(){
         if(room && room.status!=='finished'){
           setSession({code:saved.code,demo:false,date:room.createdAt});
           setIsHost(saved.isHost||false);
-          if(saved.templateConfig) setPlayTemplate({config:saved.templateConfig,name:room.customTitle||''});
-          setScreen(saved.screen||'home');
+          // Always load template config from room (most up-to-date)
+          if(room.config && (room.gameType==='generic:template'||saved.templateConfig)){
+            setPlayTemplate({config:room.config,name:room.customTitle||''});
+          }
+          // Derive correct screen from actual room gameType (avoids stale saved.screen)
+          const gt=room.gameType||'';
+          let targetScreen=saved.screen||'home';
+          if(room.status==='active'){
+            if(gt==='preset:strike') targetScreen='strike-game';
+            else if(gt==='generic:template') targetScreen='universal-game';
+            else if(gt==='generic') targetScreen='generic-game';
+          } else if(room.status==='lobby'){
+            if(gt==='preset:strike') targetScreen='strike-lobby';
+            else if(gt==='generic:template') targetScreen='universal-lobby';
+            else if(gt==='generic') targetScreen='generic-lobby';
+          }
+          setScreen(targetScreen);
           // Reactivar presencia
           const profile2=getProfile();
           if(profile2?.id) setupPresence(saved.code,profile2.id);
@@ -660,11 +675,32 @@ function App(){
           setSession({code,demo:false,date:Date.now()});
           setIsHost(true);
           setScreen('strike-lobby');
+        } else if(rematchCode.startsWith('template:')){
+          // Builder template game rematch → UniversalRuntime
+          const code=rematchCode.replace('template:','');
+          const db2=makeDB(false);
+          db2.get(`rooms/${code}`).then(room=>{
+            if(room?.config) setPlayTemplate({config:room.config,name:room.customTitle||''});
+            setSession({code,demo:false,date:room?.createdAt||Date.now()});
+            setIsHost(true);
+            setScreen(room?.status==='active'?'universal-game':'universal-lobby');
+          }).catch(()=>{ setSession({code,demo:false,date:Date.now()}); setIsHost(true); setScreen('universal-lobby'); });
         } else if(rematchCode.startsWith('generic:')){
           const code=rematchCode.replace('generic:','');
-          setSession({code,demo:false,date:Date.now()});
-          setIsHost(true);
-          setScreen('generic-lobby');
+          // Fetch room to determine correct runtime
+          const db2=makeDB(false);
+          db2.get(`rooms/${code}`).then(room=>{
+            const gt=room?.gameType||'';
+            const targetScreen = gt==='generic:template' ? 'universal-lobby' : 'generic-lobby';
+            setSession({code,demo:false,date:room?.createdAt||Date.now()});
+            setIsHost(true);
+            if(gt==='generic:template' && room?.config) setPlayTemplate({config:room.config,name:room.customTitle||''});
+            setScreen(targetScreen);
+          }).catch(()=>{
+            setSession({code,demo:false,date:Date.now()});
+            setIsHost(true);
+            setScreen('generic-lobby');
+          });
         } else {
           setSpectateCode(rematchCode);
           setScreen('live-scoreboard');
@@ -734,7 +770,11 @@ function App(){
     players.forEach(p=>{ if(p&&p.name) saveContact(p); });
     // Persistir sesión para sobrevivir recargas
     const prof=getProfile();
-    saveActiveSession({code,isHost:true,gameType,screen:gameType==='preset:strike'?'strike-lobby':'generic-lobby',myId:prof?.id});
+    // Choose correct lobby screen based on gameType
+    const lobbyScreen = gameType==='preset:strike' ? 'strike-lobby'
+      : gameType==='generic:template' ? 'universal-lobby'
+      : 'generic-lobby';
+    saveActiveSession({code,isHost:true,gameType,screen:lobbyScreen,myId:prof?.id});
     // Activar presencia
     if(prof?.id) setupPresence(code,prof.id);
     return code;
