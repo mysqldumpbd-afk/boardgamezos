@@ -512,18 +512,6 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     return ()=>{ teardownPresence(); unsub&&unsub(); };
   },[session?.code,myId]);
 
-  if(!room) return(<div className="os-wrap"><div className="os-page" style={{paddingTop:80,textAlign:'center'}}><div className="os-spin" style={{marginBottom:16}}/></div></div>);
-
-  const players=room.players||[];
-  const config=room.config||{};
-  const isFreeSessions=!config.useRounds||config.rounds==='libre';
-  const totalRounds=isFreeSessions?null:parseInt(config.rounds)||null;
-  const currentRound=room.currentRound||1;
-  const isSurvival=config.mode==='survival';
-  // Derivar isHost del room (sobrevive recargas)
-  const effectiveIsHost=isHost||(myId&&room.hostId&&room.hostId===myId);
-  const me=players.find(p=>p.id===myId);
-  const alreadyElim=me?.eliminated;
 
   // Escuchar rematchCode — todos los jugadores se redirigen cuando host hace revancha
   React.useEffect(()=>{
@@ -551,6 +539,21 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     });
     return ()=>unsub2&&unsub2();
   },[session?.code]);
+
+  if(!room) return(<div className="os-wrap"><div className="os-page" style={{paddingTop:80,textAlign:'center'}}><div className="os-spin" style={{marginBottom:16}}/></div></div>);
+
+  const players=room.players||[];
+  const config=room.config||{};
+  const isFreeSessions=!config.useRounds||config.rounds==='libre';
+  const totalRounds=isFreeSessions?null:parseInt(config.rounds)||null;
+  const currentRound=room.currentRound||1;
+  const isSurvival=config.mode==='survival';
+  // Derivar isHost del room (sobrevive recargas)
+  const effectiveIsHost=isHost||(myId&&room.hostId&&room.hostId===myId);
+  const me=players.find(p=>p.id===myId);
+  const alreadyElim=me?.eliminated;
+
+
 
   const winConditions=config.winConditions||[];
 
