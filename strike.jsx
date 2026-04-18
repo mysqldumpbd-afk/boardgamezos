@@ -56,11 +56,9 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     if(!session?.code) return;
     const unsub=db.listen(`rooms/${session.code}/rematchCode`,newCode=>{
       if(!newCode) return;
-      const myIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
-      if(!myIsHost){
-        localStorage.setItem('bgos_rematch_code','strike:'+newCode);
-        window.location.reload();
-      }
+      // All players redirect — _restoreNormal determines isHost from room.hostId
+      localStorage.setItem('bgos_rematch_code','rematch:'+newCode);
+      window.location.reload();
     });
     return()=>unsub&&unsub();
   },[session?.code,room?.hostId,myId,isHost]);
@@ -571,7 +569,7 @@ function StrikeEndScreen({room,myId,onBack,session,db}){
           saveActiveSession({code,isHost:true,gameType:'preset:strike',screen:'strike-lobby',myId});
           // Broadcast to all players via Firebase
           await db2.set(`rooms/${session.code}/rematchCode`, code);
-          localStorage.setItem('bgos_rematch_code','strike:'+code);
+          localStorage.setItem('bgos_rematch_code','rematch:'+code);
           window.location.reload();
         }}>🔁 Revancha — mismos jugadores</button>
       )}

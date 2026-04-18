@@ -1,4 +1,4 @@
-import { useState } from "react";
+const { useState } = React;
 
 const FONT = "'Courier New', monospace";
 const MONO = "'Courier New', monospace";
@@ -324,7 +324,7 @@ function CubileteRow({ item }) {
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────
-export default function App() {
+function MotorDiagrama() {
   const [tab, setTab] = useState("motor");
   const [activeStep, setActiveStep] = useState(null);
   const [activeCubilete, setActiveCubilete] = useState(null);

@@ -520,12 +520,9 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
       if(!newCode) return;
       // Non-host players: redirect automatically
       const myIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
-      if(!myIsHost){
-        // Preserve gameType so _restoreNormal routes to correct runtime
-        const prefix = (room?.gameType==='generic:template') ? 'template:' : 'generic:';
-        localStorage.setItem('bgos_rematch_code', prefix+newCode);
-        window.location.reload();
-      }
+      // All players redirect — _restoreNormal determines isHost from room.hostId
+      localStorage.setItem('bgos_rematch_code','rematch:'+newCode);
+      window.location.reload();
     });
     return()=>unsub&&unsub();
   },[session?.code,room?.hostId,myId,isHost]);
@@ -1090,7 +1087,7 @@ function GenericEndScreen({room,myId,onBack,db,session}){
     // Host redirects via localStorage
     // Use correct prefix based on gameType so routing works on reload
     const prefix = room.gameType==='generic:template' ? 'template:' : 'generic:';
-    localStorage.setItem('bgos_rematch_code', prefix+newCode);
+    localStorage.setItem('bgos_rematch_code', 'rematch:'+newCode);
     window.location.reload();
   }
 

@@ -670,46 +670,57 @@ function App(){
       const rematchCode=localStorage.getItem('bgos_rematch_code');
       if(rematchCode){
         localStorage.removeItem('bgos_rematch_code');
-        if(rematchCode.startsWith('strike:')){
-          const code=rematchCode.replace('strike:','');
-          setSession({code,demo:false,date:Date.now()});
-          setIsHost(true);
-          setScreen('strike-lobby');
-        } else if(rematchCode.startsWith('template:')){
-          // Builder template game rematch → UniversalRuntime
-          const code=rematchCode.replace('template:','');
-          const db2=makeDB(false);
+        const db2=makeDB(false);
+
+        // Helper: determine correct screen and isHost from room data
+        function applyRematch(code, room){
+          if(!room){ setScreen('home'); return; }
+          const currentId = prof?.id || getProfile()?.id;
+          const iAmHost   = !!(currentId && room.hostId && room.hostId === currentId);
+          const gt        = room.gameType || '';
+          let targetScreen;
+          if(room.status==='active'){
+            if(gt==='preset:strike')           targetScreen='strike-game';
+            else if(gt==='generic:template')   targetScreen='universal-game';
+            else                               targetScreen='generic-game';
+          } else {
+            if(gt==='preset:strike')           targetScreen='strike-lobby';
+            else if(gt==='generic:template')   targetScreen='universal-lobby';
+            else                               targetScreen='generic-lobby';
+          }
+          setSession({code,demo:false,date:room.createdAt||Date.now()});
+          setIsHost(iAmHost);
+          if(room.config && gt==='generic:template'){
+            setPlayTemplate({config:room.config,name:room.customTitle||''});
+          }
+          setScreen(targetScreen);
+        }
+
+        // Extract code from any prefix format
+        let code = rematchCode;
+        for(const prefix of ['rematch:','strike:','template:','generic:']){
+          if(rematchCode.startsWith(prefix)){ code=rematchCode.replace(prefix,''); break; }
+        }
+
+        if(rematchCode.startsWith('rematch:') || rematchCode.startsWith('strike:') || rematchCode.startsWith('template:') || rematchCode.startsWith('generic:')){
+          // Fetch room to determine runtime and isHost correctly
           db2.get(`rooms/${code}`).then(room=>{
-            if(room?.config) setPlayTemplate({config:room.config,name:room.customTitle||''});
-            setSession({code,demo:false,date:room?.createdAt||Date.now()});
-            setIsHost(true);
-            setScreen(room?.status==='active'?'universal-game':'universal-lobby');
-          }).catch(()=>{ setSession({code,demo:false,date:Date.now()}); setIsHost(true); setScreen('universal-lobby'); });
-        } else if(rematchCode.startsWith('generic:')){
-          const code=rematchCode.replace('generic:','');
-          // Fetch room to determine correct runtime
-          const db2=makeDB(false);
-          db2.get(`rooms/${code}`).then(room=>{
-            const gt=room?.gameType||'';
-            const targetScreen = gt==='generic:template' ? 'universal-lobby' : 'generic-lobby';
-            setSession({code,demo:false,date:room?.createdAt||Date.now()});
-            setIsHost(true);
-            if(gt==='generic:template' && room?.config) setPlayTemplate({config:room.config,name:room.customTitle||''});
-            setScreen(targetScreen);
+            applyRematch(code, room);
           }).catch(()=>{
+            // Fallback: assume player (not host), go to home
             setSession({code,demo:false,date:Date.now()});
-            setIsHost(true);
-            setScreen('generic-lobby');
+            setIsHost(false);
+            setScreen('home');
           });
         } else {
+          // Plain code = live scoreboard spectator
           setSpectateCode(rematchCode);
           setScreen('live-scoreboard');
         }
       } else {
         setScreen('home');
       }
-    }
-  },[]);
+    }  },[]);
 
   // Pendiente de crear sala tras configurar perfil
   const [pendingAction,setPendingAction]=useState(null); // 'strike' | 'generic'
@@ -909,6 +920,7 @@ function App(){
           onGoMyGames={()=>setScreen('my-games')}
           onGoProfile={()=>setScreen('profile-edit')}
           onGoTools={()=>setScreen('tools')}
+          onGoDiagram={()=>setScreen('diagram')}
           myId={myId} db={db} authUser={authUser}
         />
       )}
@@ -1046,6 +1058,15 @@ function App(){
 
       {/* HERRAMIENTAS */}
       {screen==='tools' && <ToolsHub onBack={goHome}/>}
+      {screen==='diagram' && (
+        <div style={{position:'relative'}}>
+          <div style={{position:'fixed',top:10,left:10,zIndex:9999}}>
+            <button className="btn btn-ghost btn-sm" style={{width:'auto',background:'rgba(0,0,0,.7)',backdropFilter:'blur(6px)'}}
+              onClick={goHome}>← Volver</button>
+          </div>
+          <MotorDiagrama/>
+        </div>
+      )}
     </div>
   );
 }
@@ -1136,7 +1157,7 @@ function PlayerPicker({player,onUpdate,onClose}){
 }
 
 // ── MAIN MENU v1.3 ────────────────────────────────────────────────
-function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,onGoTools,myId,db,authUser}){
+function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,onGoTools,onGoDiagram,myId,db,authUser}){
   const [recentSessions,setRecentSessions]=useState([]);
   useEffect(()=>{loadRecentSessions(3).then(setRecentSessions).catch(()=>{});},[]);
 
@@ -1260,6 +1281,7 @@ function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames
           {[
             {color:'#00FF9D',icon:'📊',title:'Stats',sub:'RANKING',onClick:onGoStats},
             {color:'#00FF9D',icon:'🧰',title:'Herramientas',sub:'MONEDA · DADOS',onClick:onGoTools},
+            {color:'#FF6B35',icon:'🗺️',title:'Motor',sub:'DIAGRAMA TÉCNICO',onClick:onGoDiagram},
           ].map(card=>(
             <div key={card.title} onClick={()=>{snd('tap');card.onClick();}} style={{
               borderRadius:16,border:`1.5px solid ${card.color}33`,
