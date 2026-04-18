@@ -744,20 +744,267 @@ function CounterTool({onBack}){
 }
 
 // ── TOOLS HUB ────────────────────────────────────────────────────
+
+// ── STOPWATCH / TIMER TOOL ───────────────────────────────────────
+function StopwatchTool({onBack}){
+  const [ms,setMs]=React.useState(0);
+  const [running,setRunning]=React.useState(false);
+  const [laps,setLaps]=React.useState([]);
+  const [mode,setMode]=React.useState('stopwatch'); // 'stopwatch' | 'timer'
+  const [timerTarget,setTimerTarget]=React.useState(60); // seconds
+  const [timerMs,setTimerMs]=React.useState(60000);
+  const [timerDone,setTimerDone]=React.useState(false);
+  const rafRef=React.useRef(null);
+  const startRef=React.useRef(0);
+  const accRef=React.useRef(0);
+
+  function tick(){
+    const now=Date.now();
+    const elapsed=accRef.current+(now-startRef.current);
+    if(mode==='stopwatch'){
+      setMs(elapsed);
+      rafRef.current=requestAnimationFrame(tick);
+    } else {
+      const remaining=timerTarget*1000-elapsed;
+      if(remaining<=0){
+        setTimerMs(0);
+        setRunning(false);
+        setTimerDone(true);
+        snd('elim');
+        return;
+      }
+      setTimerMs(remaining);
+      rafRef.current=requestAnimationFrame(tick);
+    }
+  }
+
+  function start(){
+    snd('round');
+    startRef.current=Date.now();
+    setRunning(true);
+    setTimerDone(false);
+    rafRef.current=requestAnimationFrame(tick);
+    if(window.anime) anime({ targets:'.sw-display', scale:[.95,1], duration:200, easing:'easeOutBack' });
+  }
+
+  function pause(){
+    snd('tap');
+    cancelAnimationFrame(rafRef.current);
+    accRef.current=mode==='stopwatch'?ms:timerTarget*1000-timerMs;
+    setRunning(false);
+    if(window.anime) anime({ targets:'.sw-display', opacity:[.6,1], duration:300, easing:'easeOutQuart' });
+  }
+
+  function reset(){
+    snd('tap');
+    cancelAnimationFrame(rafRef.current);
+    accRef.current=0;
+    setMs(0);
+    setTimerMs(timerTarget*1000);
+    setRunning(false);
+    setLaps([]);
+    setTimerDone(false);
+  }
+
+  function addLap(){
+    snd('score');
+    setLaps(prev=>[{t:ms,n:prev.length+1},...prev]);
+    // Anime.js bounce on the time display
+    if(window.anime){
+      anime({ targets:'.sw-display', scale:[1,1.08,1], duration:350, easing:'easeOutExpo' });
+    }
+  }
+
+  function fmt(millis){
+    const total=Math.max(0,millis);
+    const h=Math.floor(total/3600000);
+    const m=Math.floor((total%3600000)/60000);
+    const s=Math.floor((total%60000)/1000);
+    const cs=Math.floor((total%1000)/10);
+    if(h>0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+  }
+
+  // Cleanup
+  React.useEffect(()=>()=>cancelAnimationFrame(rafRef.current),[]);
+
+  // Sync timer on target change
+  React.useEffect(()=>{
+    if(!running) setTimerMs(timerTarget*1000);
+  },[timerTarget]);
+
+  const displayMs = mode==='stopwatch'?ms:timerMs;
+  const pct = mode==='timer'? Math.max(0,(timerMs/(timerTarget*1000))*100) : (ms/Math.max(ms,60000))*100;
+  const timerColor = mode==='timer'
+    ? (pct>50?'var(--green)':pct>20?'var(--gold)':'var(--red)')
+    : 'var(--cyan)';
+
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={()=>{reset();onBack();}}>← Herramientas</button>
+        <div className="os-logo" style={{fontSize:'1.1rem'}}>⏱ <span>CRONÓMETRO</span></div>
+        <div style={{width:80}}/>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+
+        {/* Mode toggle */}
+        <div style={{display:'flex',gap:6,marginBottom:20,background:'rgba(255,255,255,.05)',borderRadius:12,padding:4}}>
+          {[['stopwatch','⏱ Cronómetro'],['timer','⏲ Temporizador']].map(([id,lbl])=>(
+            <button key={id} onClick={()=>{reset();setMode(id);}}
+              style={{flex:1,padding:'9px',border:'none',borderRadius:9,cursor:'pointer',
+                fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:700,letterSpacing:1,
+                transition:'all .2s',
+                background:mode===id?timerColor:'transparent',
+                color:mode===id?'var(--bg)':'rgba(255,255,255,.5)'}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+
+        {/* Timer presets (only in timer mode) */}
+        {mode==='timer'&&!running&&(
+          <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+            {[15,30,60,90,120,300].map(sec=>(
+              <button key={sec} onClick={()=>setTimerTarget(sec)}
+                style={{flex:'1 1 60px',padding:'8px 6px',borderRadius:10,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
+                  background:timerTarget===sec?timerColor:'rgba(255,255,255,.08)',
+                  color:timerTarget===sec?'var(--bg)':'rgba(255,255,255,.6)',transition:'all .15s'}}>
+                {sec<60?`${sec}s`:`${sec/60}m`}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Main display */}
+        <div style={{
+          background:'rgba(0,0,0,.4)',border:`2px solid ${timerColor}44`,borderRadius:24,
+          padding:'32px 20px',marginBottom:20,textAlign:'center',
+          position:'relative',overflow:'hidden',
+        }}>
+          {/* Progress arc bg */}
+          <div style={{position:'absolute',inset:0,overflow:'hidden',borderRadius:22}}>
+            <div style={{
+              position:'absolute',bottom:0,left:0,right:0,
+              height:`${Math.min(100,pct)}%`,
+              background:`linear-gradient(0deg,${timerColor}10,transparent)`,
+              transition:'height .1s linear',
+            }}/>
+          </div>
+
+          {/* Time display */}
+          <div style={{
+            fontFamily:'var(--font-display)',
+            fontSize:displayMs>3599999?'3.2rem':'4.5rem',
+            letterSpacing:4,
+            color:timerDone?'var(--red)':timerColor,
+            textShadow:`0 0 40px ${timerColor}66`,
+            transition:'color .3s',
+            animation:timerDone?'elimPulse 1s ease-in-out infinite':'none',
+            position:'relative',zIndex:1,
+          }} className="sw-display">
+            {fmt(displayMs)}
+          </div>
+
+          {mode==='timer'&&!timerDone&&(
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:`${timerColor}88`,
+              letterSpacing:3,marginTop:6,position:'relative',zIndex:1}}>
+              DE {fmt(timerTarget*1000)}
+            </div>
+          )}
+          {timerDone&&(
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',color:'var(--red)',
+              letterSpacing:3,marginTop:6,animation:'osBlink 1s ease-in-out infinite',position:'relative',zIndex:1}}>
+              ¡TIEMPO!
+            </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div style={{display:'flex',gap:10,marginBottom:16}}>
+          {!running ? (
+            <button onClick={start} style={{
+              flex:1,height:62,borderRadius:16,border:'none',cursor:'pointer',
+              background:`linear-gradient(135deg,${timerColor}CC,${timerColor})`,
+              color:'var(--bg)',fontFamily:'var(--font-display)',fontSize:'1.4rem',
+              letterSpacing:2,boxShadow:`0 6px 24px ${timerColor}44`,
+            }}>
+              {ms===0&&timerMs===timerTarget*1000?'▶ INICIAR':'▶ CONTINUAR'}
+            </button>
+          ) : (
+            <button onClick={pause} style={{
+              flex:1,height:62,borderRadius:16,border:'none',cursor:'pointer',
+              background:'rgba(255,255,255,.1)',border:'1.5px solid rgba(255,255,255,.2)',
+              color:'#fff',fontFamily:'var(--font-display)',fontSize:'1.4rem',letterSpacing:2,
+            }}>
+              ⏸ PAUSAR
+            </button>
+          )}
+          {mode==='stopwatch'&&running&&(
+            <button onClick={addLap} style={{
+              width:62,height:62,borderRadius:16,border:'1.5px solid rgba(0,245,255,.3)',
+              background:'rgba(0,245,255,.1)',color:'var(--cyan)',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'.7rem',letterSpacing:1,flexShrink:0,
+            }}>LAP</button>
+          )}
+          {(ms>0||timerMs<timerTarget*1000||timerDone)&&(
+            <button onClick={reset} style={{
+              width:62,height:62,borderRadius:16,border:'1.5px solid rgba(255,255,255,.12)',
+              background:'rgba(255,255,255,.05)',color:'rgba(255,255,255,.5)',
+              cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.2rem',flexShrink:0,
+            }}>↺</button>
+          )}
+        </div>
+
+        {/* Laps */}
+        {laps.length>0&&(
+          <div>
+            <div className="os-section">VUELTAS</div>
+            {laps.map((lap,i)=>{
+              const prev=laps[i+1];
+              const delta=prev?lap.t-prev.t:lap.t;
+              return(
+                <div key={lap.n} style={{display:'flex',alignItems:'center',gap:12,
+                  background:'rgba(255,255,255,.04)',borderRadius:10,padding:'10px 14px',marginBottom:6}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
+                    color:'rgba(255,255,255,.3)',width:28,textAlign:'center'}}>
+                    #{lap.n}
+                  </div>
+                  <div style={{flex:1,fontFamily:'var(--font-display)',fontSize:'1rem',
+                    color:i===0?'var(--cyan)':'rgba(255,255,255,.7)',letterSpacing:2}}>
+                    {fmt(lap.t)}
+                  </div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+                    color:'rgba(255,255,255,.35)',letterSpacing:1}}>
+                    +{fmt(delta)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ToolsHub({onBack,players}){
   const [activeTool,setActiveTool]=React.useState(null);
   if(activeTool==='coin')    return <CoinTool onBack={()=>setActiveTool(null)}/>;
   if(activeTool==='dice')    return <DiceTool onBack={()=>setActiveTool(null)}/>;
   if(activeTool==='wheel')   return <SpinWheelTool onBack={()=>setActiveTool(null)} players={players}/>;
   if(activeTool==='rps')     return <RPSTool onBack={()=>setActiveTool(null)}/>;
-  if(activeTool==='counter') return <CounterTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='counter')   return <CounterTool onBack={()=>setActiveTool(null)}/>;
+  if(activeTool==='stopwatch') return <StopwatchTool onBack={()=>setActiveTool(null)}/>;
 
   const tools=[
-    {id:'coin',    emoji:'🪙',title:'Moneda',             desc:'Cara o cruz animado',                color:'var(--gold)'},
-    {id:'dice',    emoji:'🎲',title:'Dados',               desc:'d4 · d6 · d8 · d10 · d12 · d20',   color:'var(--cyan)'},
-    {id:'wheel',   emoji:'🎡',title:'Ruleta',              desc:'Spin wheel con segmentos custom',    color:'var(--orange)'},
-    {id:'rps',     emoji:'✊',title:'Piedra Papel Tijera', desc:'Batalla simultánea · 3-2-1',         color:'var(--purple)'},
-    {id:'counter', emoji:'🔢',title:'Contador',            desc:'Vidas · Maná · Recursos · Fichas',  color:'var(--green)'},
+    {id:'coin',      emoji:'🪙',title:'Moneda',             desc:'Cara o cruz animado',                color:'var(--gold)'},
+    {id:'dice',      emoji:'🎲',title:'Dados',               desc:'d4 · d6 · d8 · d10 · d12 · d20',   color:'var(--cyan)'},
+    {id:'wheel',     emoji:'🎡',title:'Ruleta',              desc:'Spin wheel con segmentos custom',    color:'var(--orange)'},
+    {id:'rps',       emoji:'✊',title:'Piedra Papel Tijera', desc:'Batalla simultánea · 3-2-1',         color:'var(--purple)'},
+    {id:'counter',   emoji:'🔢',title:'Contador',            desc:'Vidas · Maná · Recursos · Fichas',  color:'var(--green)'},
+    {id:'stopwatch', emoji:'⏱',title:'Cronómetro',          desc:'Stopwatch · Timer · Vueltas',       color:'#FF6B35'},
   ];
 
   return(

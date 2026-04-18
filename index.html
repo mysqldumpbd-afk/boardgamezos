@@ -6,36 +6,228 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="theme-color" content="#080810"/>
+  <meta name="theme-color" content="#07070F"/>
   <title>BOARDGAMEZ OS</title>
 
   <!-- FUENTES -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Exo+2:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet"/>
 
-  <!-- FIREBASE — Compat SDK (app + database + auth) -->
+  <!-- Anime.js v3 — para animaciones de loading y UI -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+
+  <!-- Estilos críticos inline — splash visible instantáneo -->
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;overflow:hidden;background:#07070F}
+    #root{height:100dvh}
+
+    /* ── SPLASH ─────────────────────────────── */
+    #splash{
+      position:fixed;inset:0;z-index:99999;
+      background:#07070F;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:0;
+    }
+    .sp-letters{display:flex;gap:2px;margin-bottom:2px}
+    .sp-letter{
+      font-family:'Black Ops One',cursive;
+      font-size:clamp(2rem,9vw,3.2rem);
+      letter-spacing:2px;
+      opacity:0;
+      transform:translateY(20px);
+    }
+    .sp-letter.board{
+      background:linear-gradient(135deg,#00F5FF,#7DF9FF);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      filter:drop-shadow(0 0 12px rgba(0,245,255,.5));
+    }
+    .sp-letter.gamez{
+      background:linear-gradient(135deg,#FF6B35,#FFAA00);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      filter:drop-shadow(0 0 12px rgba(255,107,53,.5));
+    }
+    .sp-sub{
+      font-family:'Orbitron',monospace;
+      font-size:.6rem;letter-spacing:6px;
+      color:rgba(0,245,255,.35);
+      margin-bottom:32px;
+      opacity:0;
+    }
+    .sp-track{
+      width:220px;height:2px;
+      background:rgba(255,255,255,.07);
+      border-radius:2px;overflow:hidden;
+      opacity:0;
+    }
+    .sp-fill{
+      height:100%;width:0%;
+      background:linear-gradient(90deg,#00F5FF,#9B5DE5,#FF6B35);
+      border-radius:2px;
+    }
+    .sp-msg{
+      font-family:'Orbitron',monospace;
+      font-size:.52rem;letter-spacing:3px;
+      color:rgba(255,255,255,.18);
+      margin-top:14px;min-height:1em;
+      opacity:0;
+    }
+    .sp-dots{
+      display:flex;gap:8px;margin-top:20px;opacity:0;
+    }
+    .sp-dot{
+      width:6px;height:6px;border-radius:50%;
+      background:rgba(0,245,255,.3);
+    }
+  </style>
+
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-  <!-- REACT -->
+  <!-- React 18 -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- ESTILOS -->
+  <!-- App CSS -->
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
+
+  <!-- Splash -->
+  <div id="splash">
+    <div class="sp-letters">
+      <span class="sp-letter board">B</span>
+      <span class="sp-letter board">O</span>
+      <span class="sp-letter board">A</span>
+      <span class="sp-letter board">R</span>
+      <span class="sp-letter board">D</span>
+      <span class="sp-letter gamez" style="margin-left:8px">G</span>
+      <span class="sp-letter gamez">A</span>
+      <span class="sp-letter gamez">M</span>
+      <span class="sp-letter gamez">E</span>
+      <span class="sp-letter gamez">Z</span>
+    </div>
+    <div class="sp-sub">OS · v2.0</div>
+    <div class="sp-track"><div class="sp-fill" id="spFill"></div></div>
+    <div class="sp-msg" id="spMsg">INICIANDO...</div>
+    <div class="sp-dots">
+      <div class="sp-dot"></div>
+      <div class="sp-dot"></div>
+      <div class="sp-dot"></div>
+    </div>
+  </div>
+
   <div id="root"></div>
 
-  <!-- Orden de carga: globals → builder → juegos → shell -->
-  <script src="app.js"></script>
-  <script src="config-interpreter.js"></script>
-  <script type="text/babel" src="builder.jsx"></script>
-  <script type="text/babel" src="tools.jsx"></script>
-  <script type="text/babel" src="strike.jsx"></script>
-  <script type="text/babel" src="generic.jsx"></script>
-  <script type="text/babel" src="runtime.jsx"></script>
-  <script type="text/babel" src="components.jsx"></script>
+  <!-- Splash animation controller -->
+  <script>
+  (function(){
+    // Wait for anime.js to be ready
+    function initSplash() {
+      if (!window.anime) { setTimeout(initSplash, 50); return; }
+      var a = anime;
+
+      // 1. Animate letters staggered
+      a({ targets:'.sp-letter', opacity:[0,1], translateY:[24,0],
+          delay: a.stagger(55), duration:500, easing:'easeOutExpo' });
+
+      // 2. Subtitle fade in
+      a({ targets:'.sp-sub', opacity:[0,1], translateY:[8,0],
+          delay:400, duration:600, easing:'easeOutExpo' });
+
+      // 3. Progress bar container + dots fade in
+      a({ targets:'.sp-track,.sp-msg,.sp-dots', opacity:[0,1],
+          delay:600, duration:500, easing:'easeOutExpo' });
+
+      // 4. Dots pulse loop
+      a({ targets:'.sp-dot', scale:[.7,1.2],
+          loop:true, direction:'alternate', duration:600, easing:'easeInOutSine',
+          delay: a.stagger(150) });
+    }
+    initSplash();
+
+    // Progress control
+    var pct = 8;
+    var fill = null;
+    var msg = null;
+
+    function ready() { fill = document.getElementById('spFill'); msg = document.getElementById('spMsg'); }
+    document.addEventListener('DOMContentLoaded', ready);
+
+    var steps = [
+      [18, 'FIREBASE...'],
+      [32, 'MOTOR DE JUEGO...'],
+      [52, 'HERRAMIENTAS...'],
+      [65, 'STRIKE...'],
+      [78, 'PARTIDAS...'],
+      [88, 'RUNTIME...'],
+      [94, 'INTERFAZ...'],
+      [100,'LISTO']
+    ];
+    var si = 0;
+
+    window._splashStep = function(idx) {
+      if (!fill) ready();
+      if (idx < steps.length) {
+        pct = steps[idx][0];
+        if (msg) msg.textContent = steps[idx][1];
+        if (fill && window.anime) {
+          anime({ targets: fill, width: pct + '%', duration:400, easing:'easeOutQuart' });
+        } else if (fill) {
+          fill.style.width = pct + '%';
+        }
+      }
+    };
+
+    window._splashDone = function() {
+      if (!fill) ready();
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+      if (window.anime) {
+        anime({ targets: fill, width:'100%', duration:300, easing:'easeOutQuart',
+          complete: function() {
+            anime({ targets: splash, opacity:0, duration:500, delay:150, easing:'easeInQuart',
+              complete: function() { if (splash.parentNode) splash.parentNode.removeChild(splash); }
+            });
+          }
+        });
+      } else {
+        setTimeout(function(){ if (splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+      }
+    };
+  })();
+  </script>
+
+  <!-- Globals (no JSX) -->
+  <script src="app.js" onload="window._splashStep&&_splashStep(0)"></script>
+  <script src="config-interpreter.js" onload="window._splashStep&&_splashStep(1)"></script>
+
+  <!-- JSX — Babel compila en orden, builder carga al final -->
+  <script type="text/babel" src="tools.jsx"      onload="window._splashStep&&_splashStep(2)"></script>
+  <script type="text/babel" src="strike.jsx"     onload="window._splashStep&&_splashStep(3)"></script>
+  <script type="text/babel" src="generic.jsx"    onload="window._splashStep&&_splashStep(4)"></script>
+  <script type="text/babel" src="runtime.jsx"    onload="window._splashStep&&_splashStep(5)"></script>
+  <script type="text/babel" src="components.jsx" onload="window._splashStep&&_splashStep(6)"></script>
+
+  <!-- builder.jsx — el más pesado (161KB), carga al final -->
+  <script type="text/babel" src="builder.jsx"
+    onload="window._builderReady=true; window._splashDone&&_splashDone()">
+  </script>
+
+  <!-- Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/boardgamezos/sw.js')
+          .catch(function(e){ console.log('[SW]', e.message); });
+      });
+    }
+  </script>
 </body>
 </html>

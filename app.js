@@ -484,3 +484,20 @@ function removeContact(name){
   const existing = getSavedPlayers().filter(p=>p.name!==name);
   localStorage.setItem(CONTACTS_KEY, JSON.stringify(existing));
 }
+
+// ── ANIME.JS HELPERS ────────────────────────────────────────────
+// Use anime() from the global scope (loaded via CDN in index.html)
+function animePop(el) {
+  if(!window.anime||!el) return;
+  anime({ targets:el, scale:[.85,1], opacity:[0,1], duration:320, easing:'cubicBezier(.34,1.56,.64,1)' });
+}
+function animeSlideUp(el, delay=0) {
+  if(!window.anime||!el) return;
+  anime({ targets:el, translateY:[28,0], opacity:[0,1], duration:380, delay, easing:'easeOutExpo' });
+}
+function animeScore(el, positive=true) {
+  if(!window.anime||!el) return;
+  anime({ targets:el, scale:[1,positive?1.35:1.1], color:positive?'#FFD447':'#FF3B5C',
+    direction:'alternate', duration:300, easing:'easeOutExpo' });
+}
+

@@ -24,6 +24,8 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const [presence,setPresence]=React.useState({});
   const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
   const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
+  const [showEndConfirm,setShowEndConfirm]=React.useState(false);
+  const [elimToast,setElimToast]=React.useState(null);
 
   function sendEmoji(){
     if(!session?.code) return;
@@ -39,9 +41,6 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     }).catch(()=>{});
     setTimeout(()=>db.set(`rooms/${session.code}/emojiSpam/${spamId}`,null).catch(()=>{}),4000);
   }
-  const [showEndConfirm,setShowEndConfirm]=React.useState(false);
-
-  const [elimToast,setElimToast]=React.useState(null);
 
   // Presencia — setup + listen
   React.useEffect(()=>{
@@ -50,6 +49,20 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     const unsub=listenPresence(session.code,setPresence);
     return ()=>{ teardownPresence(); unsub&&unsub(); };
   },[session?.code,myId]);
+
+  // Escuchar rematchCode — jugadores no-host se redirigen automáticamente
+  React.useEffect(()=>{
+    if(!session?.code) return;
+    const unsub=db.listen(`rooms/${session.code}/rematchCode`,newCode=>{
+      if(!newCode) return;
+      const myIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
+      if(!myIsHost){
+        localStorage.setItem('bgos_rematch_code','strike:'+newCode);
+        window.location.reload();
+      }
+    });
+    return()=>unsub&&unsub();
+  },[session?.code,room?.hostId,myId,isHost]);
 
   // Escuchar broadcast de eliminación
   React.useEffect(()=>{
@@ -555,6 +568,8 @@ function StrikeEndScreen({room,myId,onBack}){
             config:room.config||null,players:newPlayers,events:[]
           });
           saveActiveSession({code,isHost:true,gameType:'preset:strike',screen:'strike-lobby',myId});
+          // Broadcast to all players via Firebase
+          await db2.set(`rooms/${session.code}/rematchCode`, code);
           localStorage.setItem('bgos_rematch_code','strike:'+code);
           window.location.reload();
         }}>🔁 Revancha — mismos jugadores</button>

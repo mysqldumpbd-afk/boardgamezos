@@ -533,6 +533,20 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     return () => unsub && unsub();
   }, [session.code]);
 
+  // Escuchar rematchCode — jugadores no-host se redirigen automáticamente
+  React.useEffect(() => {
+    if (!session?.code) return;
+    const unsub = db.listen(`rooms/${session.code}/rematchCode`, newCode => {
+      if (!newCode) return;
+      const myIsHost = myId && room?.hostId && room?.hostId === myId;
+      if (!myIsHost) {
+        localStorage.setItem('bgos_rematch_code', 'generic:' + newCode);
+        window.location.reload();
+      }
+    });
+    return () => unsub && unsub();
+  }, [session?.code, room?.hostId, myId]);
+
   React.useEffect(() => {
     if (!room || room.status !== 'active') return;
     const start = room.startedAt;
@@ -795,6 +809,8 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
 
   const winEmoji = spec.victoryMode === 'points' ? '🏅' : spec.victoryMode === 'wins' ? '🏆' : spec.victoryMode === 'lives' ? '❤️' : spec.victoryMode === 'elimination' ? '💀' : '🏆';
 
+  const effectiveIsHostES = myId && room.hostId && room.hostId === myId;
+
   async function handleRematch() {
     snd('round');
     setRematchLoading(true);
@@ -810,7 +826,9 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
       createdAt: Date.now(), config: room.config,
       players: freshPlayers, events: [], currentRound: 1, rounds: [],
     });
-    localStorage.setItem('bgos_rematch_code', newCode);
+    // Broadcast to ALL players via Firebase (localStorage is device-local!)
+    await db.set(`rooms/${session.code}/rematchCode`, newCode);
+    localStorage.setItem('bgos_rematch_code', 'generic:' + newCode);
     window.location.reload();
   }
 
@@ -858,10 +876,23 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
         })}
       </div>
       <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {spec.rematch.keepPlayers && (
-          <button className="btn btn-cyan" style={{ marginBottom: 0 }} disabled={rematchLoading} onClick={handleRematch}>
-            {rematchLoading ? '⏳ Creando revancha...' : '🔁 REVANCHA — Mismos jugadores'}
-          </button>
+        {spec.rematch.keepPlayers && effectiveIsHostES && (
+          !rematchLoading ? (
+            <button className="btn btn-cyan" style={{ marginBottom: 0 }} onClick={handleRematch}>
+              🔁 REVANCHA — Mismos jugadores
+            </button>
+          ) : (
+            <div style={{textAlign:'center',padding:'12px 0'}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',color:'var(--cyan)',
+                letterSpacing:2,animation:'osBlink 1s ease-in-out infinite'}}>🔁 PREPARANDO...</div>
+            </div>
+          )
+        )}
+        {spec.rematch.keepPlayers && !effectiveIsHostES && (
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
+            color:'rgba(255,255,255,.3)',letterSpacing:1,textAlign:'center',padding:'8px 0'}}>
+            ⏳ Esperando decisión del host para revancha
+          </div>
         )}
         <button className="btn btn-ghost" style={{ marginBottom: 0 }} onClick={onBack}>🏠 Volver al menú</button>
       </div>

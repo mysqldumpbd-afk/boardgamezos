@@ -484,6 +484,16 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 
   React.useEffect(()=>{if(room?.status==='finished')setShowEndScreen(true);},[room?.status]);
 
+  // Presencia — MUST be before early return (Rules of Hooks)
+  const [presence,setPresence]=React.useState({});
+  const [elimToast,setElimToast]=React.useState(null);
+  React.useEffect(()=>{
+    if(!session?.code||!myId) return;
+    setupPresence(session.code,myId);
+    const unsub=listenPresence(session.code,setPresence);
+    return ()=>{ teardownPresence(); unsub&&unsub(); };
+  },[session?.code,myId]);
+
   if(!room) return(<div className="os-wrap"><div className="os-page" style={{paddingTop:80,textAlign:'center'}}><div className="os-spin" style={{marginBottom:16}}/></div></div>);
 
   const players=room.players||[];
@@ -497,15 +507,20 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const me=players.find(p=>p.id===myId);
   const alreadyElim=me?.eliminated;
 
-  // Presencia
-  const [presence,setPresence]=React.useState({});
-  const [elimToast,setElimToast]=React.useState(null);
+  // Escuchar rematchCode — todos los jugadores se redirigen cuando host hace revancha
   React.useEffect(()=>{
-    if(!session?.code||!myId) return;
-    setupPresence(session.code,myId);
-    const unsub=listenPresence(session.code,setPresence);
-    return ()=>{ teardownPresence(); unsub&&unsub(); };
-  },[session?.code,myId]);
+    if(!session?.code) return;
+    const unsub=db.listen(`rooms/${session.code}/rematchCode`,newCode=>{
+      if(!newCode) return;
+      // Non-host players: redirect automatically
+      const myIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
+      if(!myIsHost){
+        localStorage.setItem('bgos_rematch_code','generic:'+newCode);
+        window.location.reload();
+      }
+    });
+    return()=>unsub&&unsub();
+  },[session?.code,room?.hostId,myId,isHost]);
 
   // Toast de eliminación broadcast
   React.useEffect(()=>{
@@ -1018,6 +1033,9 @@ function GenericEndScreen({room,myId,onBack,db,session}){
     });
     // Redirigir al lobby de la revancha — navegar al home y luego el host abre el nuevo lobby
     // Como workaround, guardamos el código en localStorage para que App lo detecte
+    // Broadcast newCode to all players via Firebase (localStorage is device-local!)
+    await db.set(`rooms/${session.code}/rematchCode`, newCode);
+    // Host redirects via localStorage
     localStorage.setItem('bgos_rematch_code','generic:'+newCode);
     window.location.reload();
   }
