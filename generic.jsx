@@ -489,6 +489,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const [presence,setPresence]=React.useState({});
   const [elimToast,setElimToast]=React.useState(null);
   const [showRematchOverlay,setShowRematchOverlay]=React.useState(false);
+  const [hostPanelOpen,setHostPanelOpen]=React.useState(false);
   const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
   const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
 
@@ -691,7 +692,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     },session.demo);
   }
 
-  if(showEndScreen) return <GenericEndScreen room={room} myId={myId} onBack={onBack} db={db} session={session}/>;
+  if(showEndScreen) return <GenericEndScreen room={room} myId={myId} isHost={effectiveIsHost} onBack={onBack} db={db} session={session}/>;
 
   // Ganador auto calculado en tiempo real para mostrar sugerencia
   const suggestedWinner = config.mode!=='wins' ? autoWinner() : null;
@@ -876,9 +877,21 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
         )}
 
         {/* ACCIONES HOST — siempre visibles, no colapsadas */}
-        {effectiveIsHost&&!isSurvival&&(
+        {/* ── PANEL HOST (colapsable) — solo visible para el host ── */}
+        {effectiveIsHost&&(
+          <div style={{marginTop:20,borderTop:'1px solid rgba(255,107,53,.25)',paddingTop:16}}>
+            <button onClick={()=>{snd('tap');setHostPanelOpen(o=>!o);}}
+              style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
+                background:'rgba(255,107,53,.08)',border:'1px solid rgba(255,107,53,.25)',
+                borderRadius:12,padding:'12px 16px',cursor:'pointer',marginBottom:8}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:2,color:'#FF6B35'}}>
+                ⚙️ PANEL DEL HOST
+              </div>
+              <div style={{color:'rgba(255,107,53,.6)',fontSize:'1rem'}}>{hostPanelOpen?'▲':'▼'}</div>
+            </button>
+          {hostPanelOpen&&!isSurvival&&(
           <>
-            <div className="os-section" style={{marginTop:20}}>
+            <div className="os-section" style={{marginTop:4}}>
               RONDA {currentRound}{totalRounds?` DE ${totalRounds}`:''}
             </div>
             <div className="round-box">
@@ -990,8 +1003,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
             </button>
           </>
         )}
-
-        {effectiveIsHost&&isSurvival&&(
+          {hostPanelOpen&&isSurvival&&(
           <button style={{
             width:'100%',padding:'18px 20px',borderRadius:14,border:'2px solid rgba(255,59,92,.35)',
             background:'rgba(255,59,92,.15)',color:'var(--red)',cursor:'pointer',
@@ -1002,34 +1014,37 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
             <span style={{fontSize:'1.3rem'}}>🏁</span> Terminar partida
           </button>
         )}
+          </div>
+        )}
 
-        {!effectiveIsHost&&(
-          <div style={{marginTop:16}}>
+        {/* ── ZONA DE JUGADOR — visible para TODOS incluyendo host ── */}
+        <div style={{marginTop:16}}>
+          {!effectiveIsHost&&(
             <div className="os-alert alert-cyan" style={{justifyContent:'center',textAlign:'center',marginBottom:10}}>
               ⏳ Esperando al host...
             </div>
-            {/* Emoji spam para jugadores no-host */}
-            <div style={{display:'flex',gap:8}}>
-              <div style={{display:'flex',gap:5,flexWrap:'wrap',flex:1}}>
-                {['🔥','💥','⚡','🎉','❤️','💀','👑','😈','🤡','🚀'].map(e=>(
-                  <button key={e} onClick={()=>{snd('tap');setMyEmoji(e);}}
-                    style={{width:34,height:34,borderRadius:8,border:`2px solid ${myEmoji===e?'var(--cyan)':'rgba(255,255,255,.1)'}`,
-                      background:myEmoji===e?'rgba(0,245,255,.15)':'rgba(255,255,255,.05)',
-                      cursor:'pointer',fontSize:'1.1rem',flexShrink:0}}>
-                    {e}
-                  </button>
-                ))}
-              </div>
-              <button onClick={sendEmoji}
-                style={{height:34,padding:'0 14px',borderRadius:10,border:'2px solid rgba(0,245,255,.2)',
-                  background:'rgba(0,245,255,.08)',cursor:'pointer',flexShrink:0,
-                  fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:1,color:'var(--cyan)',
-                  display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}>
-                {myEmoji} ENVIAR
-              </button>
+          )}
+          {/* Emoji spam — todos los jugadores (host también) */}
+          <div style={{display:'flex',gap:8}}>
+            <div style={{display:'flex',gap:5,flexWrap:'wrap',flex:1}}>
+              {['🔥','💥','⚡','🎉','❤️','💀','👑','😈','🤡','🚀'].map(e=>(
+                <button key={e} onClick={()=>{snd('tap');setMyEmoji(e);}}
+                  style={{width:34,height:34,borderRadius:8,border:`2px solid ${myEmoji===e?'var(--cyan)':'rgba(255,255,255,.1)'}`,
+                    background:myEmoji===e?'rgba(0,245,255,.15)':'rgba(255,255,255,.05)',
+                    cursor:'pointer',fontSize:'1.1rem',flexShrink:0}}>
+                  {e}
+                </button>
+              ))}
             </div>
+            <button onClick={sendEmoji}
+              style={{height:34,padding:'0 14px',borderRadius:10,border:'2px solid rgba(0,245,255,.2)',
+                background:'rgba(0,245,255,.08)',cursor:'pointer',flexShrink:0,
+                fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:1,color:'var(--cyan)',
+                display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}>
+              {myEmoji} ENVIAR
+            </button>
           </div>
-        )}
+        </div>
 
         <div className="g16"/>
         <button className="btn btn-back" onClick={onBack}>← Volver al menú</button>
@@ -1039,7 +1054,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
 }
 
 // ── GENERIC END SCREEN — con revancha ────────────────────────────
-function GenericEndScreen({room,myId,onBack,db,session}){
+function GenericEndScreen({room,myId,isHost,onBack,db,session}){
   const config=room.config||{};
   const [rematchLoading,setRematchLoading]=React.useState(false);
   const players=[...(room.players||[])].sort((a,b)=>
@@ -1113,7 +1128,7 @@ function GenericEndScreen({room,myId,onBack,db,session}){
         ))}
       </div>
       <div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:8}}>
-        {myId===room.hostId ? (
+        {(myId===room.hostId||isHost) ? (
           <button className="btn btn-cyan" style={{marginBottom:0}} disabled={rematchLoading}
             onClick={handleRematch}>
             {rematchLoading?'⏳ Creando revancha...':'🔁 REVANCHA — Mismos jugadores'}

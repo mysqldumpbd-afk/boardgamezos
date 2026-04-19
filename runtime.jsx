@@ -674,7 +674,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   );
 
   if (showEndScreen) return (
-    <UniversalEndScreen room={room} myId={myId} spec={spec} onBack={onBack} db={db} session={session} />
+    <UniversalEndScreen room={room} myId={myId} isHost={effectiveIsHost} spec={spec} onBack={onBack} db={db} session={session} />
   );
 
   const players = room.players || [];
@@ -787,6 +787,22 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         })()}
 
         {/* Panel del host */}
+        {/* ── EMOJI SPAM — todos los jugadores incluyendo host ── */}
+        <div style={{display:'flex',gap:8,marginTop:12,marginBottom:4}}>
+          <div style={{display:'flex',gap:5,flexWrap:'wrap',flex:1}}>
+            {['🔥','💥','⚡','🎉','❤️','💀','👑','😈','🤡','🚀'].map(e=>(
+              <button key={e}
+                onClick={()=>{snd('tap');setMyEmojiU&&setMyEmojiU(e);}}
+                style={{width:34,height:34,borderRadius:8,
+                  border:'2px solid rgba(255,255,255,.1)',
+                  background:'rgba(255,255,255,.05)',
+                  cursor:'pointer',fontSize:'1.1rem',flexShrink:0}}>
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {effectiveIsHost && (
           <HostPanel
             spec={spec}
@@ -811,7 +827,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
 }
 
 // ── UNIVERSAL END SCREEN ──────────────────────────────────────────
-function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
+function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }) {
   const players = sortPlayers(room.players || [], spec);
   const winner = players[0];
   const totalDuration = room.endedAt && room.startedAt ? fmtDuration(room.endedAt - room.startedAt) : '—';
@@ -829,7 +845,7 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
 
   const winEmoji = spec.victoryMode === 'points' ? '🏅' : spec.victoryMode === 'wins' ? '🏆' : spec.victoryMode === 'lives' ? '❤️' : spec.victoryMode === 'elimination' ? '💀' : '🏆';
 
-  const effectiveIsHostES = myId && room.hostId && room.hostId === myId;
+  const effectiveIsHostES = isHost || (myId && room.hostId && room.hostId === myId);
 
   async function handleRematch() {
     if (!effectiveIsHostES) return;
@@ -910,7 +926,7 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
             </div>
           )
         )}
-        {spec.rematch.keepPlayers && !effectiveIsHostES && (
+        {spec.rematch.keepPlayers && !effectiveIsHostES && !isHost && (
           <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
             color:'rgba(255,255,255,.3)',letterSpacing:1,textAlign:'center',padding:'8px 0'}}>
             ⏳ Esperando decisión del host para revancha

@@ -634,7 +634,7 @@ function App(){
       // Verificar que la sala sigue viva
       const db2=makeDB(false);
       db2.get(`rooms/${saved.code}`).then(room=>{
-        if(room && room.status!=='finished'){
+        if(room && room.status!=='finished' && room.status!=='dissolved'){
           setSession({code:saved.code,demo:false,date:room.createdAt});
           setIsHost(saved.isHost||false);
           // Always load template config from room (most up-to-date)
@@ -1613,22 +1613,50 @@ function JoinRoom({onBack,onJoin,myId,profile,db,onSpectate}){
               color:'rgba(255,255,255,.3)',letterSpacing:1,marginBottom:8}}>
               Si estás reemplazando a alguien desconectado
             </div>
-            {activePlayers.map(p=>(
-              <div key={p.id} className="os-card" style={{
-                cursor:'pointer',marginBottom:6,
-                opacity:busy?.7:1,
-              }} onClick={()=>!busy&&pickSlot(p)}>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
-                  <div style={{flex:1,fontFamily:'var(--font-body)',fontWeight:700,
-                    fontSize:'var(--fs-sm)',color:p.color||'#fff'}}>{p.name}</div>
-                  <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
-                    color:'rgba(255,255,255,.5)'}}>
-                    {p.total||0} pts →
+            {activePlayers.map(p=>{
+              const isRoomHost = p.id === roomData?.hostId;
+              const isOnline   = true; // presencia futura
+              const blocked    = isRoomHost; // host no es tomable
+              return(
+                <div key={p.id} className="os-card" style={{
+                  cursor: blocked ? 'not-allowed' : 'pointer',
+                  marginBottom:6,
+                  opacity: blocked ? 0.45 : busy ? 0.7 : 1,
+                  border: isRoomHost ? '1px solid rgba(255,212,71,.35)' : undefined,
+                  background: isRoomHost ? 'rgba(255,212,71,.04)' : undefined,
+                }} onClick={()=>!busy&&!blocked&&pickSlot(p)}>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{fontSize:'1.6rem'}}>{p.emoji}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:'var(--font-body)',fontWeight:700,
+                        fontSize:'var(--fs-sm)',color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
+                        {p.name}
+                        {isRoomHost&&(
+                          <span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',
+                            color:'var(--gold)',letterSpacing:2,
+                            background:'rgba(255,212,71,.12)',border:'1px solid rgba(255,212,71,.3)',
+                            borderRadius:4,padding:'1px 5px'}}>
+                            👑 HOST
+                          </span>
+                        )}
+                      </div>
+                      {isRoomHost&&(
+                        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+                          color:'rgba(255,212,71,.5)',letterSpacing:1,marginTop:2}}>
+                          Lugar reservado — no disponible
+                        </div>
+                      )}
+                    </div>
+                    {!isRoomHost&&(
+                      <div style={{fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
+                        color:'rgba(255,255,255,.5)'}}>
+                        {p.total||0} pts →
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

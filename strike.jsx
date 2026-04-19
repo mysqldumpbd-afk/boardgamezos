@@ -27,6 +27,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
   const [showEndConfirm,setShowEndConfirm]=React.useState(false);
   const [elimToast,setElimToast]=React.useState(null);
+  const [hostPanelOpen,setHostPanelOpen]=React.useState(false);
 
   function sendEmoji(){
     if(!session?.code) return;
@@ -264,7 +265,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     </div>
   );
 
-  if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack} session={session} db={db}/>;
+  if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} isHost={effectiveIsHost} onBack={onBack} session={session} db={db}/>;
 
   return(
     <div className="os-wrap">
@@ -327,8 +328,43 @@ function StrikeGame({session,onBack,isHost,myId,db}){
           <div className="os-tag green">● EN JUEGO</div>
         </div>
 
-        {/* ── PANEL HOST: terminar + eliminar ── */}
+        {/* ── EMOJI SPAM — visible para TODOS incluyendo host ── */}
+        <div style={{display:'flex',gap:8,marginTop:12}}>
+          <div style={{display:'flex',gap:5,flexWrap:'wrap',flex:1}}>
+            {['🔥','💥','⚡','🎉','❤️','💀','👑','🎳','🤡','🚀'].map(e=>(
+              <button key={e} onClick={()=>{snd('tap');setMyEmoji(e);}}
+                style={{width:34,height:34,borderRadius:8,
+                  border:`2px solid ${myEmoji===e?'var(--cyan)':'rgba(255,255,255,.1)'}`,
+                  background:myEmoji===e?'rgba(0,245,255,.15)':'rgba(255,255,255,.05)',
+                  cursor:'pointer',fontSize:'1.1rem',flexShrink:0}}>
+                {e}
+              </button>
+            ))}
+          </div>
+          <button onClick={sendEmoji}
+            style={{height:34,padding:'0 14px',borderRadius:10,
+              border:'2px solid rgba(0,245,255,.2)',
+              background:'rgba(0,245,255,.08)',cursor:'pointer',flexShrink:0,
+              fontFamily:'var(--font-display)',fontSize:'.75rem',letterSpacing:1,
+              color:'var(--cyan)',display:'flex',alignItems:'center',gap:6}}>
+            {myEmoji} ENVIAR
+          </button>
+        </div>
+
+        {/* ── PANEL HOST (colapsable) ── */}
         {effectiveIsHost && (
+          <div style={{marginTop:16,borderTop:'1px solid rgba(255,107,53,.2)',paddingTop:12}}>
+            <button onClick={()=>{snd('tap');setHostPanelOpen(o=>!o);}}
+              style={{width:'100%',display:'flex',alignItems:'center',
+                justifyContent:'space-between',
+                background:'rgba(255,107,53,.07)',border:'1px solid rgba(255,107,53,.2)',
+                borderRadius:12,padding:'10px 14px',cursor:'pointer',marginBottom:8}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'.8rem',
+                letterSpacing:2,color:'#FF6B35'}}>⚙️ PANEL DEL HOST</div>
+              <div style={{color:'rgba(255,107,53,.5)',fontSize:'1rem'}}>
+                {hostPanelOpen?'▲':'▼'}</div>
+            </button>
+          {hostPanelOpen && (
           <>
             {/* Confirmación de terminar */}
             {showEndConfirm && (
@@ -502,6 +538,8 @@ function StrikeGame({session,onBack,isHost,myId,db}){
               })}
             </div>
           </>
+          )}
+          </div>
         )}
 
         {effectiveIsHost&&activePlayers.length<=1&&room.status!=='finished'&&(
@@ -518,7 +556,7 @@ function StrikeGame({session,onBack,isHost,myId,db}){
   );
 }
 
-function StrikeEndScreen({room,myId,onBack,session,db}){
+function StrikeEndScreen({room,myId,isHost,onBack,session,db}){
   const players=[...(room.players||[])].sort((a,b)=>(a.finalPosition||99)-(b.finalPosition||99));
   const winner=players.find(p=>p.finalPosition===1);
   const confetti=Array.from({length:30},(_,i)=>({
@@ -571,7 +609,7 @@ function StrikeEndScreen({room,myId,onBack,session,db}){
         })}
       </div>
       <button className="btn btn-cyan" style={{maxWidth:320}} onClick={onBack}>🏠 Volver al menú</button>
-      {myId===room.hostId && (
+      {(myId===room.hostId||isHost) && (
         <button className="btn btn-ghost" style={{maxWidth:320,marginTop:8}}
           onClick={async()=>{
             snd('round');
@@ -592,7 +630,7 @@ function StrikeEndScreen({room,myId,onBack,session,db}){
           }}>🔁 Revancha — mismos jugadores
         </button>
       )}
-      {myId!==room.hostId && (
+      {(!isHost && myId!==room.hostId) && (
         <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
           color:'rgba(255,255,255,.3)',letterSpacing:1,marginTop:8,textAlign:'center'}}>
           ⏳ Esperando decisión del host para revancha
