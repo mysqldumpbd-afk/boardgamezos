@@ -526,6 +526,17 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     return () => teardownPresence();
   }, [session.code, myId]);
 
+  // RematchPending overlay state (Flip7 pattern)
+  const [showRematchOverlay, setShowRematchOverlay] = React.useState(false);
+  React.useEffect(() => {
+    if (!session?.code) return;
+    const unsub = db.listen(`rooms/${session.code}/rematchPending`, pending => {
+      if (pending === true) setShowRematchOverlay(true);
+      else if (pending === false) setShowRematchOverlay(false);
+    });
+    return () => unsub && unsub();
+  }, [session?.code]);
+
   // Presencia de otros jugadores
   const [presence, setPresence] = React.useState({});
   React.useEffect(() => {
@@ -540,9 +551,8 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     const unsub = db.listen(`rooms/${session.code}/rematchCode`, newCode => {
       if (!newCode) return;
       const myIsHost = myId && room?.hostId && room?.hostId === myId;
-      // All players redirect — _restoreNormal determines isHost from room.hostId
-      localStorage.setItem('bgos_rematch_code', 'rematch:' + newCode);
-      window.location.reload();
+    // Reload handled by db.listen rematchPending
+
     });
     return () => unsub && unsub();
   }, [session?.code, room?.hostId, myId]);
@@ -641,6 +651,16 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
       default: break;
     }
   }
+
+  if (showRematchOverlay) return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9999,
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'3rem',animation:'elimPulse 1s ease-in-out infinite'}}>🔁</div>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',letterSpacing:3,color:'var(--cyan)'}}>REVANCHA</div>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.4)',letterSpacing:2}}>Preparando nueva partida...</div>
+      <div className="os-spin" style={{width:32,height:32,borderWidth:3,marginTop:8}}/>
+    </div>
+  );
 
   if (!room || !resolvedConfig) return (
     <div className="os-wrap">
@@ -812,25 +832,27 @@ function UniversalEndScreen({ room, myId, spec, onBack, db, session }) {
   const effectiveIsHostES = myId && room.hostId && room.hostId === myId;
 
   async function handleRematch() {
+    if (!effectiveIsHostES) return;
     snd('round');
     setRematchLoading(true);
-    const newCode = uid4();
+    // Flip7 pattern: signal → overlay → reset in-place
+    await db.set(`rooms/${session.code}/rematchPending`, true);
+    await new Promise(r => setTimeout(r, 2500));
     const freshPlayers = (room.players || []).map(p => ({
       ...spec.playerInit,
       id: p.id, name: p.name, emoji: p.emoji, color: p.color, isHost: p.isHost || false,
     }));
-    await db.set(`rooms/${newCode}`, {
-      code: newCode, gameType: room.gameType,
-      customTitle: (room.customTitle || 'Partida') + ' (revancha)',
-      status: 'lobby', hostId: room.hostId,
-      createdAt: Date.now(), config: room.config,
-      players: freshPlayers, events: [], currentRound: 1, rounds: [],
+    await db.set(`rooms/${session.code}`, {
+      ...room,
+      status: 'lobby',
+      players: freshPlayers,
+      currentRound: 1, rounds: [], events: [],
+      startedAt: null, endedAt: null, winner: null,
+      rematchPending: false, rematchCode: null,
     });
-    // Broadcast to ALL players via Firebase (localStorage is device-local!)
-    await db.set(`rooms/${session.code}/rematchCode`, newCode);
-    localStorage.setItem('bgos_rematch_code', 'rematch:' + newCode);
-    window.location.reload();
+    setRematchLoading(false);
   }
+
 
   return (
     <div className="end-screen">

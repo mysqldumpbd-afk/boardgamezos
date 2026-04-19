@@ -488,6 +488,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   // Presencia — MUST be before early return (Rules of Hooks)
   const [presence,setPresence]=React.useState({});
   const [elimToast,setElimToast]=React.useState(null);
+  const [showRematchOverlay,setShowRematchOverlay]=React.useState(false);
   const [myEmoji,setMyEmoji]=React.useState(()=>getProfile()?.emoji||'🎉');
   const [showSpamEmojis,setShowSpamEmojis]=React.useState([]);
 
@@ -513,19 +514,15 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   },[session?.code,myId]);
 
 
-  // Escuchar rematchCode — todos los jugadores se redirigen cuando host hace revancha
+  // Escuchar rematchPending (Flip7 pattern) — overlay en TODOS los dispositivos
   React.useEffect(()=>{
     if(!session?.code) return;
-    const unsub=db.listen(`rooms/${session.code}/rematchCode`,newCode=>{
-      if(!newCode) return;
-      // Non-host players: redirect automatically
-      const myIsHost=isHost||(myId&&room?.hostId&&room?.hostId===myId);
-      // All players redirect — _restoreNormal determines isHost from room.hostId
-      localStorage.setItem('bgos_rematch_code','rematch:'+newCode);
-      window.location.reload();
+    const unsub=db.listen(`rooms/${session.code}/rematchPending`,pending=>{
+      if(pending===true) setShowRematchOverlay(true);
+      else if(pending===false) setShowRematchOverlay(false);
     });
     return()=>unsub&&unsub();
-  },[session?.code,room?.hostId,myId,isHost]);
+  },[session?.code]);
 
   // Toast de eliminación broadcast
   React.useEffect(()=>{
@@ -1060,36 +1057,29 @@ function GenericEndScreen({room,myId,onBack,db,session}){
 
   async function handleRematch(){
     if(!session||!db) return;
+    const myIsHost = myId&&room?.hostId&&room?.hostId===myId;
+    if(!myIsHost) return;
     snd('round');
     setRematchLoading(true);
-    // Crear nueva sala con los mismos jugadores y config, reset de stats
-    const newCode=uid4();
-    const freshPlayers=room.players.map(p=>({
+    // Flip7 pattern: signal all, pause for overlay, reset in-place
+    await db.set(`rooms/${session.code}/rematchPending`, true);
+    await new Promise(r=>setTimeout(r,2500));
+    const freshPlayers=(room.players||[]).map(p=>({
       ...p,total:0,wins:0,rounds:[],
-      eliminated:false,finalPosition:null,survivalMs:null,
-      eliminatedAt:null,survivalLabel:null
+      eliminated:false,finalPosition:null,
+      survivalMs:null,eliminatedAt:null,survivalLabel:null,
     }));
-    await db.set(`rooms/${newCode}`,{
-      code:newCode,
-      gameType:room.gameType,
-      customTitle:(room.customTitle||'Partida')+ ' (revancha)',
+    await db.set(`rooms/${session.code}`,{
+      ...room,
       status:'lobby',
-      hostId:room.hostId,
-      createdAt:Date.now(),
-      config:room.config,
       players:freshPlayers,
-      events:[],currentRound:1,rounds:[]
+      currentRound:1,rounds:[],events:[],
+      startedAt:null,endedAt:null,winner:null,
+      rematchPending:false,rematchCode:null,
     });
-    // Redirigir al lobby de la revancha — navegar al home y luego el host abre el nuevo lobby
-    // Como workaround, guardamos el código en localStorage para que App lo detecte
-    // Broadcast newCode to all players via Firebase (localStorage is device-local!)
-    await db.set(`rooms/${session.code}/rematchCode`, newCode);
-    // Host redirects via localStorage
-    // Use correct prefix based on gameType so routing works on reload
-    const prefix = room.gameType==='generic:template' ? 'template:' : 'generic:';
-    localStorage.setItem('bgos_rematch_code', 'rematch:'+newCode);
-    window.location.reload();
+    setRematchLoading(false);
   }
+
 
   return(
     <div className="end-screen">

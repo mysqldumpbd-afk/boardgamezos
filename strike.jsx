@@ -56,12 +56,22 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     if(!session?.code) return;
     const unsub=db.listen(`rooms/${session.code}/rematchCode`,newCode=>{
       if(!newCode) return;
-      // All players redirect — _restoreNormal determines isHost from room.hostId
-      localStorage.setItem('bgos_rematch_code','rematch:'+newCode);
-      window.location.reload();
+    // Reload handled by db.listen rematchPending
+
     });
     return()=>unsub&&unsub();
   },[session?.code,room?.hostId,myId,isHost]);
+
+  // Escuchar rematchPending (Flip7 pattern) — overlay en TODOS
+  const [showRematchOverlay,setShowRematchOverlay]=React.useState(false);
+  React.useEffect(()=>{
+    if(!session?.code) return;
+    const unsub=db.listen(`rooms/${session.code}/rematchPending`,pending=>{
+      if(pending===true) setShowRematchOverlay(true);
+      else if(pending===false) setShowRematchOverlay(false);
+    });
+    return()=>unsub&&unsub();
+  },[session?.code]);
 
   // Escuchar broadcast de eliminación
   React.useEffect(()=>{
@@ -243,6 +253,16 @@ function StrikeGame({session,onBack,isHost,myId,db}){
     await db.set(`rooms/${session.code}`,{...room,players:winnerUpdated,status:'finished',endedAt:now,winner:{id:winner.id,name:winner.name,emoji:winner.emoji}});
     snd('victory');
   }
+
+  if(showRematchOverlay) return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.92)',zIndex:9999,
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'3rem',animation:'elimPulse 1s ease-in-out infinite'}}>🔁</div>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'1.4rem',letterSpacing:3,color:'var(--cyan)'}}>REVANCHA</div>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',color:'rgba(255,255,255,.4)',letterSpacing:2}}>Preparando nueva partida...</div>
+      <div className="os-spin" style={{width:32,height:32,borderWidth:3,marginTop:8}}/>
+    </div>
+  );
 
   if(showEndScreen) return <StrikeEndScreen room={room} myId={myId} onBack={onBack} session={session} db={db}/>;
 
@@ -552,26 +572,25 @@ function StrikeEndScreen({room,myId,onBack,session,db}){
       </div>
       <button className="btn btn-cyan" style={{maxWidth:320}} onClick={onBack}>🏠 Volver al menú</button>
       {myId===room.hostId && (
-        <button className="btn btn-ghost" style={{maxWidth:320,marginTop:8}} onClick={async()=>{
-          const code=uid4();
-          const newPlayers=(room.players||[]).map(p=>({
-            ...p,total:0,wins:0,rounds:[],lives:5,
-            eliminated:false,finalPosition:null,survivalMs:null,elimReason:null,
-            activeShield:false,activeBlock:false,activeDouble:false,
-          }));
-          const db2=makeDB(false);
-          await db2.set(`rooms/${code}`,{
-            code,gameType:'preset:strike',
-            customTitle:(room.customTitle||'Strike 🎳')+' (revancha)',
-            status:'lobby',hostId:myId,createdAt:Date.now(),
-            config:room.config||null,players:newPlayers,events:[]
-          });
-          saveActiveSession({code,isHost:true,gameType:'preset:strike',screen:'strike-lobby',myId});
-          // Broadcast to all players via Firebase
-          await db2.set(`rooms/${session.code}/rematchCode`, code);
-          localStorage.setItem('bgos_rematch_code','rematch:'+code);
-          window.location.reload();
-        }}>🔁 Revancha — mismos jugadores</button>
+        <button className="btn btn-ghost" style={{maxWidth:320,marginTop:8}}
+          onClick={async()=>{
+            snd('round');
+            // Flip7 pattern: signal all → overlay → reset in-place
+            await db.set(`rooms/${session.code}/rematchPending`, true);
+            await new Promise(r=>setTimeout(r,2500));
+            const freshPlayers=(room.players||[]).map(p=>({
+              ...p,total:0,wins:0,rounds:[],lives:5,
+              eliminated:false,finalPosition:null,survivalMs:null,
+              elimReason:null,activeShield:false,activeBlock:false,activeDouble:false,
+            }));
+            await db.set(`rooms/${session.code}`,{
+              ...room,
+              status:'lobby',players:freshPlayers,events:[],
+              startedAt:null,endedAt:null,winner:null,
+              rematchPending:false,rematchCode:null,
+            });
+          }}>🔁 Revancha — mismos jugadores
+        </button>
       )}
       {myId!==room.hostId && (
         <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
