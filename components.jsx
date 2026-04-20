@@ -797,40 +797,62 @@ function App(){
     if(existing.status==='finished'||existing.status==='dissolved')
       return {error:'Esta partida ya terminó'};
 
-    const players   = [...(existing.players||[])];
-    const profile   = getProfile();
-    const resolvedId = myId || profile?.id;
-    if(!resolvedId) return {error:'Configura tu perfil primero'};
+    const players = [...(existing.players||[])];
+    const profile = getProfile();
+    const selectedSlot = playerId && playerId !== 'new'
+      ? players.find(p => p.id === playerId)
+      : null;
 
-    // ── RECONNECT: jugador ya en sala con este ID ────────────────
+    // Si el usuario eligió un jugador existente, primero respetamos ese flujo
+    // y luego validamos el perfil. Esto evita bloquear la selección con el
+    // mensaje "Configura tu perfil primero" antes de tiempo.
+    let resolvedId = myId || profile?.id || null;
+
+    // Si no hay perfil local todavía, solo permitimos continuar cuando haya
+    // un perfil guardado. Para tomar un slot existente se requiere identidad
+    // local, pero ya no se invalida antes de resolver el slot seleccionado.
+    if(!resolvedId){
+      return {error:'Configura tu perfil primero'};
+    }
+
     const alreadyIn = players.find(p => p.id === resolvedId);
+
     if(!alreadyIn){
-      if(playerId && playerId !== 'new'){
-        // Tomar slot específico (reconexión con otro nombre)
+      if(selectedSlot){
+        // Tomar slot específico de la partida con el perfil actual.
         const updated = players.map(p =>
-          p.id===playerId
-            ? {...p, id:resolvedId, emoji:playerEmoji||p.emoji, color:playerColor||p.color}
+          p.id === selectedSlot.id
+            ? {
+                ...p,
+                id: resolvedId,
+                name: profile?.name || playerName || p.name,
+                emoji: playerEmoji || profile?.emoji || p.emoji,
+                color: playerColor || profile?.color || p.color,
+              }
             : p
         );
         await db.set(`rooms/${code}/players`, updated);
       } else {
         // Jugador nuevo — agregar al array
         const newP = {
-          id:resolvedId,
-          name: playerName||profile?.name||'Jugador',
-          emoji: playerEmoji||profile?.emoji||'🎮',
-          color: playerColor||profile?.color||'#00F5FF',
-          isHost:false, total:0, wins:0, rounds:[], lives:5,
-          eliminated:false, finalPosition:null,
+          id: resolvedId,
+          name: playerName || profile?.name || 'Jugador',
+          emoji: playerEmoji || profile?.emoji || '🎮',
+          color: playerColor || profile?.color || '#00F5FF',
+          isHost: false,
+          total: 0,
+          wins: 0,
+          rounds: [],
+          lives: 5,
+          eliminated: false,
+          finalPosition: null,
         };
         await db.set(`rooms/${code}/players`, [...players, newP]);
       }
     }
 
-    // ── PRESENCIA ────────────────────────────────────────────────
     setupPresence(code, resolvedId);
 
-    // ── SESSION + ROUTING (desde room real, no localStorage) ─────
     const gt = existing.gameType||'';
     const iAmHost = resolvedId === existing.hostId;
     let targetScreen;
@@ -845,7 +867,6 @@ function App(){
     }
     saveActiveSession({code, isHost:iAmHost, gameType:gt, screen:targetScreen,
       myId:resolvedId, templateConfig:gt==='generic:template'?existing.config:null});
-    setMyId(resolvedId);
     setIsHost(iAmHost);
     setSession({code, demo:false, date:existing.createdAt||Date.now()});
     if(gt==='generic:template' && existing.config)
