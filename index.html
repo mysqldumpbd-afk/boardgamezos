@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#07070F"/>
+
   <title>BOARDGAMEZ OS</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -234,6 +235,11 @@
 <!-- Babel -->
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+<!-- Cambios nuevo motor -->
+<script src="./engine-schema.js"></script>
+<script src="./schema-utils.js"></script>
+
+
 <!-- Globals -->
 <script src="app.js"               onload="_splashStep(0)"></script>
 <script src="config-interpreter.js" onload="_splashStep(1)"></script>
@@ -247,6 +253,10 @@
 <script type="text/babel" src="components.jsx"></script>
 <script type="text/babel" src="boardgamez-motor-diagrama.jsx"></script>
   <script type="text/babel" src="builder.jsx"   ></script>
+
+<!-- Cambios nuevo builder -->
+<script type="text/babel" src="./builder-vnext.jsx"></script>
+
 
 <!-- Service Worker -->
 <script>
