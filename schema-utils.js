@@ -45,6 +45,47 @@ window.SchemaUtils = (function(){
     });
   }
 
+
+
+
+function hasValue(field, value){
+  if(field.type === 'boolean') return value === true || value === false;
+  if(field.type === 'multi_select' || field.type === 'list_text'){
+    return Array.isArray(value) && value.length > 0;
+  }
+  if(field.type === 'number'){
+    return value !== null && value !== undefined && value !== '';
+  }
+  return String(value ?? '').trim().length > 0;
+}
+
+function sectionState(section, config){
+  const visibleFields = (section.fields || []).filter(f => isVisible(f, config));
+  const requiredFields = visibleFields.filter(f => f.required);
+  const filledRequired = requiredFields.filter(f => hasValue(f, config[f.id]));
+
+  if(requiredFields.length === 0){
+    const anyFilled = visibleFields.some(f => hasValue(f, config[f.id]));
+    return {
+      status: anyFilled ? 'complete' : 'idle',
+      label: anyFilled ? 'LISTA' : 'OPCIONAL'
+    };
+  }
+
+  if(filledRequired.length === 0){
+    return { status: 'empty', label: 'PENDIENTE' };
+  }
+
+  if(filledRequired.length < requiredFields.length){
+    return { status: 'partial', label: 'EN PROCESO' };
+  }
+
+  return { status: 'complete', label: 'LISTA' };
+}
+
+
+
+
   // ═══════════════════════════════════════════════════════════════
   // SANITIZE
   // ═══════════════════════════════════════════════════════════════
@@ -237,7 +278,9 @@ window.SchemaUtils = (function(){
     validateConfig,
     exportPayload,
     summarizeConfig,
-    groupConfigForStorage
+    groupConfigForStorage,
+    hasValue,
+    sectionState
   };
 
 })();
