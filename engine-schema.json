@@ -1,1 +1,246 @@
-{"test": "ok"}
+{
+  "schemaVersion": "1.0",
+  "source": "builder+diagram audit",
+  "sections": [
+    {
+      "id": "general",
+      "title": "Información general",
+      "mapsToBuilderFields": [
+        "name",
+        "emoji",
+        "description",
+        "type",
+        "numTeams",
+        "roomAccess",
+        "minPlayers",
+        "maxPlayers"
+      ],
+      "diagramMatches": [
+        "Nombre + Descripción",
+        "Tipo",
+        "Nº jugadores",
+        "Acceso"
+      ],
+      "dbProposal": {
+        "path": "config.identity",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "structure",
+      "title": "Estructura de partida",
+      "mapsToBuilderFields": [
+        "useRounds",
+        "rounds",
+        "roundClose",
+        "roundTimerSecs",
+        "roundReset",
+        "useTurns",
+        "turnOrder",
+        "canSkipTurn",
+        "hasExtraTurns",
+        "turnLimitPerRound",
+        "turnLimitCount",
+        "noTurnMode",
+        "useFirstPlayerToken",
+        "useTimer",
+        "timerScope",
+        "timerSecs",
+        "timerVisualAlert",
+        "timerSoundAlert",
+        "timerExpireAction"
+      ],
+      "diagramMatches": [
+        "Rondas",
+        "Turnos",
+        "Token primer jugador",
+        "Temporizador"
+      ],
+      "dbProposal": {
+        "path": "config.structure",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "victory",
+      "title": "Condición de victoria",
+      "mapsToBuilderFields": [
+        "victoryMode",
+        "pointsWinMode",
+        "pointsValidation",
+        "useTarget",
+        "targetScore",
+        "winsMode",
+        "winsTarget",
+        "livesWinMode",
+        "elimWinMode",
+        "objectiveWinMode",
+        "manualWinMode",
+        "winConditions",
+        "tiebreak"
+      ],
+      "diagramMatches": [
+        "Por puntos",
+        "Por victorias",
+        "Por vidas",
+        "Por eliminación",
+        "Por objetivo/evento",
+        "Por tiempo",
+        "Manual",
+        "+ Condiciones custom"
+      ],
+      "dbProposal": {
+        "path": "config.victory",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "defeat",
+      "title": "Condición de derrota",
+      "mapsToBuilderFields": [
+        "useDefeat",
+        "defeatType",
+        "defeatPoints",
+        "defeatPointsX",
+        "defeatWins",
+        "defeatLoseN",
+        "defeatLives",
+        "defeatElim",
+        "defeatElimRound",
+        "defeatTime",
+        "defeatObjective",
+        "defeatExternal",
+        "defeatMoment",
+        "defeatConsequence"
+      ],
+      "diagramMatches": [
+        "Con derrota explícita",
+        "Momento evaluación",
+        "Consecuencia"
+      ],
+      "dbProposal": {
+        "path": "config.defeat",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "progress",
+      "title": "Sistema de progreso",
+      "mapsToBuilderFields": [
+        "registers",
+        "customCounterName",
+        "captureType",
+        "valueNature",
+        "accumulation",
+        "modifiers",
+        "capturedBy",
+        "scoreVisibility"
+      ],
+      "diagramMatches": [
+        "¿Qué se registra?",
+        "Tipo de captura",
+        "Naturaleza del valor",
+        "Acumulación",
+        "Modificadores",
+        "Visibilidad"
+      ],
+      "dbProposal": {
+        "path": "config.progress",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "elimination",
+      "title": "Sistema de eliminación",
+      "mapsToBuilderFields": [
+        "useElimination",
+        "elimStartsAt",
+        "elimStartRound",
+        "elimMethod",
+        "elimTieRule",
+        "elimAftermath"
+      ],
+      "diagramMatches": [
+        "Sin eliminación",
+        "Con eliminación"
+      ],
+      "dbProposal": {
+        "path": "config.elimination",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "tools",
+      "title": "Herramientas integradas",
+      "mapsToBuilderFields": [
+        "useTools",
+        "tools",
+        "toolsMode",
+        "toolsRegistered",
+        "toolsAffect",
+        "diceType",
+        "diceCustomSides",
+        "coinUse",
+        "wheelSegments",
+        "rpsScope"
+      ],
+      "diagramMatches": [
+        "Sin herramientas en app",
+        "Con herramientas",
+        "¿Qué afectan?"
+      ],
+      "dbProposal": {
+        "path": "config.tools",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "roles",
+      "title": "Roles y permisos",
+      "mapsToBuilderFields": [
+        "roles",
+        "scoreCapture",
+        "toolsWho",
+        "roundCloseWho",
+        "pauseWho",
+        "errorWho",
+        "visHost",
+        "visPlayer",
+        "visSpectator"
+      ],
+      "diagramMatches": [
+        "Roles",
+        "Permisos",
+        "Visibilidad"
+      ],
+      "dbProposal": {
+        "path": "config.roles",
+        "storeAs": "flat object"
+      }
+    },
+    {
+      "id": "finish",
+      "title": "Finalización",
+      "mapsToBuilderFields": [
+        "endConditions",
+        "showEndScreen",
+        "saveHistory",
+        "exportFormat",
+        "rematchKeepPlayers",
+        "rematchKeepRoom",
+        "rematchKeepConfig",
+        "rematchResetScore",
+        "rematchResetAll"
+      ],
+      "diagramMatches": [
+        "¿Cómo termina?",
+        "¿Qué pasa al terminar?",
+        "¿Hay revancha?"
+      ],
+      "dbProposal": {
+        "path": "config.finish",
+        "storeAs": "flat object"
+      }
+    }
+  ]
+}

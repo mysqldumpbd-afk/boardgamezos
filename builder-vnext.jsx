@@ -93,15 +93,9 @@ function SchemaField({ field, value, config, onChange }){
 
   if(field.type === 'boolean'){
     return (
-      <div
-        className={`check-row ${value ? 'active' : ''}`}
-        style={{marginBottom:8}}
-        onClick={()=>set(!value)}
-      >
+      <div className={`check-row ${value ? 'active' : ''}`} style={{marginBottom:8}} onClick={()=>set(!value)}>
         <div className="check-box">{value ? '✓' : ''}</div>
-        <div>
-          <div className="check-label">{field.label}</div>
-        </div>
+        <div><div className="check-label">{field.label}</div></div>
       </div>
     );
   }
@@ -144,15 +138,9 @@ function SchemaField({ field, value, config, onChange }){
     return (
       <div style={{marginBottom:12}}>
         <div style={labelStyle}>{field.label}</div>
-        <select
-          className="os-select"
-          value={value ?? ''}
-          onChange={e=>set(e.target.value)}
-        >
+        <select className="os-select" value={value ?? ''} onChange={e=>set(e.target.value)}>
           {(field.options || []).map(opt=>(
-            <option key={String(opt.value)} value={opt.value}>
-              {opt.label}
-            </option>
+            <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       </div>
@@ -161,24 +149,19 @@ function SchemaField({ field, value, config, onChange }){
 
   if(field.type === 'multi_select'){
     const current = Array.isArray(value) ? value : [];
-
     return (
       <div style={{marginBottom:12}}>
         <div style={labelStyle}>{field.label}</div>
         <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
           {(field.options || []).map(opt=>{
             const active = current.includes(opt.value);
-
             return (
               <button
                 key={opt.value}
                 type="button"
                 onClick={()=>{
-                  if(active){
-                    set(current.filter(v=>v!==opt.value));
-                  } else {
-                    set([...current, opt.value]);
-                  }
+                  if(active) set(current.filter(v=>v!==opt.value));
+                  else set([...current, opt.value]);
                 }}
                 style={{
                   padding:'7px 11px',
@@ -202,38 +185,49 @@ function SchemaField({ field, value, config, onChange }){
   }
 
   if(field.type === 'list_text'){
-    return (
-      <ListTextField
-        label={field.label}
-        value={Array.isArray(value) ? value : []}
-        onChange={set}
-      />
-    );
+    return <ListTextField label={field.label} value={Array.isArray(value) ? value : []} onChange={set} />;
   }
 
   return null;
 }
 
-function SchemaDrivenBuilder({
-  initialConfig = {},
-  onSave,
-  onBack,
-  title = 'Schema Builder V1'
-}){
-  const schema = window.ENGINE_SCHEMA;
+function ValidationPanel({ validation }){
+  if(!validation) return null;
+  const { errors = [], warnings = [] } = validation;
+  if(errors.length === 0 && warnings.length === 0) return null;
 
+  return (
+    <div style={{marginBottom:16}}>
+      {errors.length > 0 && (
+        <div className="os-alert alert-red" style={{marginBottom:8, display:'block'}}>
+          <div style={{fontWeight:700, marginBottom:6}}>Errores</div>
+          {errors.map((msg, i)=><div key={i}>• {msg}</div>)}
+        </div>
+      )}
+      {warnings.length > 0 && (
+        <div className="os-alert alert-cyan" style={{display:'block'}}>
+          <div style={{fontWeight:700, marginBottom:6}}>Warnings</div>
+          {warnings.map((msg, i)=><div key={i}>• {msg}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema Builder V1' }){
+  const schema = window.ENGINE_SCHEMA;
   const [config, setConfig] = React.useState(()=>{
-    if(!schema || !window.SchemaUtils){
-      return {};
-    }
+    if(!schema || !window.SchemaUtils) return {};
     return window.SchemaUtils.normalizeConfig(schema, initialConfig || {});
   });
 
+  const validation = React.useMemo(()=>{
+    if(!schema || !window.SchemaUtils) return null;
+    return window.SchemaUtils.validateConfig(schema, config);
+  }, [schema, config]);
+
   function updateField(id, value){
-    setConfig(prev => ({
-      ...prev,
-      [id]: value
-    }));
+    setConfig(prev => ({ ...prev, [id]: value }));
   }
 
   if(!schema){
@@ -249,32 +243,19 @@ function SchemaDrivenBuilder({
   return (
     <div className="os-wrap">
       <div className="os-header">
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{width:'auto'}}
-          onClick={onBack || (()=>history.back())}
-        >
-          ← Atrás
-        </button>
-        <div className="os-logo" style={{fontSize:'1rem'}}>
-          {title}
-        </div>
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack || (()=>history.back())}>← Atrás</button>
+        <div className="os-logo" style={{fontSize:'1rem'}}>{title}</div>
         <div style={{width:70}}/>
       </div>
 
       <div className="os-page" style={{paddingTop:16}}>
+        <ValidationPanel validation={validation} />
+
         {(schema.sections || []).map(section=>{
           const collapsed = window.SchemaUtils.isCollapsed(section, config);
-
           return (
-            <div
-              key={section.id}
-              style={{marginBottom:18, opacity:collapsed ? 0.45 : 1}}
-            >
-              <div className="os-section">
-                {section.icon || '•'} {section.title}
-              </div>
-
+            <div key={section.id} style={{marginBottom:18, opacity:collapsed ? 0.45 : 1}}>
+              <div className="os-section">{section.icon || '•'} {section.title}</div>
               {!collapsed && (section.fields || []).map(field=>(
                 <SchemaField
                   key={field.id}
@@ -293,7 +274,7 @@ function SchemaDrivenBuilder({
         <button
           className="btn btn-cyan"
           onClick={()=>{
-            if(onSave) onSave(config);
+            if(onSave) onSave(window.SchemaUtils.exportPayload(schema, config));
           }}
         >
           💾 Guardar config
