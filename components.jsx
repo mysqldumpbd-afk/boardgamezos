@@ -977,6 +977,7 @@ function App(){
           onGoProfile={()=>setScreen('profile-edit')}
           onGoTools={()=>setScreen('tools')}
           onGoDiagram={()=>setScreen('diagram')}
+          onGoSchemaBuilder={()=>setScreen('schema-builder')}
           myId={myId} db={db} authUser={authUser}
         />
       )}
@@ -1110,6 +1111,18 @@ function App(){
         />
       )}
 
+      {screen==='schema-builder' && (
+        <SchemaDrivenBuilder
+          title="Schema Builder V1"
+          initialConfig={{}}
+          onBack={goHome}
+          onSave={(cfg)=>{
+            console.log('Schema config guardado:', cfg);
+            alert('Config generado. Revisa la consola.');
+          }}
+        />
+      )}
+
       {screen==='stats' && <StatsScreen onBack={goHome} db={db}/>}
 
       {/* HERRAMIENTAS */}
@@ -1213,7 +1226,7 @@ function PlayerPicker({player,onUpdate,onClose}){
 }
 
 // ── MAIN MENU v1.3 ────────────────────────────────────────────────
-function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,onGoTools,onGoDiagram,myId,db,authUser}){
+function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames,onGoProfile,onGoTools,onGoDiagram,onGoSchemaBuilder,myId,db,authUser}){
   const [recentSessions,setRecentSessions]=useState([]);
   useEffect(()=>{loadRecentSessions(3).then(setRecentSessions).catch(()=>{});},[]);
 
@@ -1338,6 +1351,7 @@ function MainMenu({profile,onGoStrike,onGoGeneric,onGoJoin,onGoStats,onGoMyGames
             {color:'#00FF9D',icon:'📊',title:'Stats',sub:'RANKING',onClick:onGoStats},
             {color:'#00FF9D',icon:'🧰',title:'Herramientas',sub:'MONEDA · DADOS',onClick:onGoTools},
             {color:'#FF6B35',icon:'🗺️',title:'Motor',sub:'DIAGRAMA TÉCNICO',onClick:onGoDiagram},
+            {color:'#9B5DE5',icon:'🧩',title:'Schema Builder',sub:'EXPERIMENTAL',onClick:onGoSchemaBuilder},
           ].map(card=>(
             <div key={card.title} onClick={()=>{snd('tap');card.onClick();}} style={{
               borderRadius:16,border:`1.5px solid ${card.color}33`,
