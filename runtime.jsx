@@ -673,12 +673,13 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     </div>
   );
 
+  const players = room.players || [];
+  const effectiveIsHost = isHost || (myId && room.hostId && room.hostId === myId);
+
   if (showEndScreen) return (
     <UniversalEndScreen room={room} myId={myId} isHost={effectiveIsHost} spec={spec} onBack={onBack} db={db} session={session} />
   );
 
-  const players = room.players || [];
-  const effectiveIsHost = isHost || (myId && room.hostId && room.hostId === myId);
   const sorted = sortPlayers(players, spec);
   const currentRound = room.currentRound || 1;
   const totalRounds = spec.totalRounds;
@@ -687,6 +688,9 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   const currentTurnPlayer = spec.hasTurns
     ? (players.filter(p => !p.eliminated)[(room.currentTurnIdx || 0) % Math.max(1, activeCount)])
     : null;
+  const me = players.find(p => p.id === myId) || null;
+  const myPinnedCard = me && !me.eliminated ? me : null;
+  const otherSorted = sorted.filter(p => p.id !== myId);
 
   return (
     <div className="os-wrap">
@@ -751,13 +755,31 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
           <ToolsToolbar spec={spec} players={players.filter(p => !p.eliminated)} />
         )}
 
+        {/* MI PANEL */}
+        {myPinnedCard && (
+          <>
+            <div className="os-section">MI PANEL</div>
+            <PlayerActionCard
+              key={`me-${myPinnedCard.id}`}
+              player={myPinnedCard}
+              spec={spec}
+              actions={actions}
+              isHost={effectiveIsHost}
+              myId={myId}
+              onAction={handlePlayerAction}
+              currentRound={currentRound}
+              presence={presence}
+            />
+          </>
+        )}
+
         {/* MARCADOR + ACCIONES por jugador */}
         <div className="os-section">
           {activeCount} ACTIVOS
           {players.some(p => p.eliminated) && ` · ${players.filter(p => p.eliminated).length} ELIMINADOS`}
         </div>
 
-        {sorted.map((player, i) => (
+        {otherSorted.map((player, i) => (
           <PlayerActionCard
             key={player.id}
             player={player}

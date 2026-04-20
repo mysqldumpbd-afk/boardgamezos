@@ -30,6 +30,89 @@ function ConfirmModal({title,message,onConfirm,onCancel,confirmLabel='Confirmar'
   );
 }
 
+
+function GenericPointsModal({player, initialValue=0, conditions=[], initialCondition='', allowNegative=false, onConfirm, onCancel}){
+  const [value,setValue]=React.useState(Number(initialValue)||0);
+  const [condition,setCondition]=React.useState(initialCondition||'');
+  function step(delta){
+    snd('tap');
+    setValue(v=>{
+      const next=(Number(v)||0)+delta;
+      if(!allowNegative && next<0) return 0;
+      return next;
+    });
+  }
+  function confirm(){
+    if((Number(value)||0)===0) return;
+    snd('score');
+    onConfirm({ value:Number(value)||0, condition:condition||null });
+  }
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.82)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="anim-pop" style={{background:'#0D0D1C',border:'1px solid rgba(0,245,255,.28)',borderRadius:20,padding:'24px 20px',width:'100%',maxWidth:340}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+          <div style={{fontSize:'1.8rem'}}>{player?.emoji||'🎮'}</div>
+          <div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--cyan)'}}>Registrar puntos</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.4)',letterSpacing:1}}>{player?.name||'Jugador'}</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+          {[1,5,10,20].map(v=>(
+            <button key={v} onClick={()=>{snd('tap');setValue(v);}}
+              style={{flex:1,padding:'9px 6px',borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',background:value===v?'var(--cyan)':'rgba(255,255,255,.08)',color:value===v?'var(--bg)':'rgba(255,255,255,.82)'}}>
+              +{v}
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+          <button onClick={()=>step(-1)} style={{width:48,height:56,borderRadius:12,border:'1px solid rgba(255,255,255,.15)',background:'rgba(255,255,255,.06)',color:'rgba(255,255,255,.8)',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.6rem',flexShrink:0}}>−</button>
+          <div style={{flex:1,textAlign:'center',fontFamily:'var(--font-display)',fontSize:'2.4rem',color:(Number(value)||0)!==0?'var(--cyan)':'rgba(255,255,255,.25)',borderBottom:'2px solid '+((Number(value)||0)!==0?'var(--cyan)':'rgba(255,255,255,.1)'),paddingBottom:4}}>
+            {(Number(value)||0)>0?'+':''}{Number(value)||0}
+          </div>
+          <button onClick={()=>step(1)} style={{width:48,height:56,borderRadius:12,border:'1px solid rgba(255,255,255,.15)',background:'rgba(255,255,255,.06)',color:'rgba(255,255,255,.8)',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.6rem',flexShrink:0}}>+</button>
+        </div>
+        {allowNegative && (
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {[-1,-5,-10].map(v=>(
+              <button key={v} onClick={()=>{snd('tap');setValue(v);}}
+                style={{flex:1,padding:'9px 6px',borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',background:value===v?'rgba(255,59,92,.85)':'rgba(255,59,92,.12)',color:value===v?'#fff':'#FF6B6B'}}>
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+        {conditions.length>0 && (
+          <div style={{marginTop:8}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:2,marginBottom:6}}>¿CÓMO GANÓ? (OPCIONAL)</div>
+            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+              <button onClick={()=>{snd('tap');setCondition('');}}
+                style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${!condition?'rgba(255,255,255,.3)':'rgba(255,255,255,.1)'}`,background:!condition?'rgba(255,255,255,.1)':'transparent',color:'rgba(255,255,255,.5)',cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)'}}>
+                Sin especificar
+              </button>
+              {conditions.map(c=>(
+                <button key={c} onClick={()=>{snd('tap');setCondition(c);}}
+                  style={{padding:'4px 10px',borderRadius:20,border:`1px solid ${condition===c?'rgba(255,212,71,.5)':'rgba(255,255,255,.1)'}`,background:condition===c?'rgba(255,212,71,.15)':'transparent',color:condition===c?'var(--gold)':'rgba(255,255,255,.5)',cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)'}}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{display:'flex',gap:10,marginTop:16}}>
+          <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={onCancel}>Cancelar</button>
+          <button className="btn" disabled={(Number(value)||0)===0}
+            style={{flex:1,marginBottom:0,background:(Number(value)||0)!==0?'var(--cyan)':'rgba(255,255,255,.1)',color:(Number(value)||0)!==0?'var(--bg)':'rgba(255,255,255,.3)',border:'none',borderRadius:12,padding:14,fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',cursor:(Number(value)||0)!==0?'pointer':'not-allowed'}}
+            onClick={confirm}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── PLAYER PICKER ────────────────────────────────────────────────
 function PlayerPicker_G({player,onUpdate,onClose}){
   const [mode,setMode]=React.useState('emoji');
@@ -456,6 +539,8 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   const [showCloseRoundConfirm,setShowCloseRoundConfirm]=React.useState(false);
   // Para condiciones de victoria
   const [selectedCondition,setSelectedCondition]=React.useState('');
+  const [showPlayerScoreModal,setShowPlayerScoreModal]=React.useState(false);
+  const [playerDraft,setPlayerDraft]=React.useState({value:0,condition:''});
   // Animación de posiciones previas
   const [prevPositions,setPrevPositions]=React.useState({});
   const timerRef=React.useRef(null);
@@ -695,6 +780,24 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   if(showEndScreen) return <GenericEndScreen room={room} myId={myId} isHost={effectiveIsHost} onBack={onBack} db={db} session={session}/>;
 
   // Ganador auto calculado en tiempo real para mostrar sugerencia
+  const playerSubmittedScore = me ? (parseInt(scoreInputs[me.id]??0)||0) : 0;
+  const canOpenSelfScore = !!me && !alreadyElim && !isSurvival && room?.status==='active';
+
+  function openSelfScoreModal(){
+    if(!canOpenSelfScore) return;
+    snd('tap');
+    setPlayerDraft({ value: parseInt(scoreInputs[myId]??0)||0, condition: selectedCondition||'' });
+    setShowPlayerScoreModal(true);
+  }
+
+  function confirmSelfScore({value,condition}){
+    if(!me) return;
+    setScoreInputs(prev=>({ ...prev, [me.id]: value }));
+    if(condition) setSelectedCondition(condition);
+    setPlayerDraft({ value, condition: condition||'' });
+    setShowPlayerScoreModal(false);
+  }
+
   const suggestedWinner = config.mode!=='wins' ? autoWinner() : null;
 
   return(
@@ -716,6 +819,17 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
         </div>
       )}
       {/* Modales inline */}
+      {showPlayerScoreModal&&me&&(!alreadyElim)&&(!isSurvival)&&(
+        <GenericPointsModal
+          player={me}
+          initialValue={playerDraft.value}
+          initialCondition={playerDraft.condition}
+          conditions={winConditions}
+          allowNegative={config.scoreSign==='both'}
+          onConfirm={confirmSelfScore}
+          onCancel={()=>setShowPlayerScoreModal(false)}
+        />
+      )}
       {showEndConfirm&&(
         <ConfirmModal
           title="¿Terminar partida?"
@@ -765,6 +879,48 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
         {isSurvival&&alreadyElim&&(
           <div className="os-alert alert-red anim-fade" style={{marginBottom:16}}>
             💀 Eliminado en <strong>{me?.survivalLabel||'—'}</strong>
+          </div>
+        )}
+
+
+        {/* MI PANEL — visible también para el host */}
+        {me && !alreadyElim && (
+          <div style={{
+            background:'rgba(0,245,255,.05)',border:'1px solid rgba(0,245,255,.18)',
+            borderRadius:16,padding:'14px 14px',marginBottom:16
+          }}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+              <div style={{fontSize:'1.7rem'}}>{me.emoji}</div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',letterSpacing:1,color:'var(--cyan)'}}>MI PANEL</div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.38)',letterSpacing:1}}>
+                  {effectiveIsHost ? 'Host + jugador' : 'Jugador'} · {me.name}
+                </div>
+              </div>
+              {!isSurvival && (
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',color:'var(--cyan)'}}>{playerSubmittedScore || 0}</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.28)',letterSpacing:1}}>PUNTOS RONDA</div>
+                </div>
+              )}
+            </div>
+
+            {!isSurvival ? (
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button className="btn btn-cyan" style={{marginBottom:0,flex:1,minWidth:180}} onClick={openSelfScoreModal}>
+                  🧮 Registrar mis puntos
+                </button>
+                {selectedCondition && (
+                  <div style={{display:'flex',alignItems:'center',padding:'0 12px',borderRadius:12,border:'1px solid rgba(255,212,71,.2)',background:'rgba(255,212,71,.08)',fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'var(--gold)',letterSpacing:1}}>
+                    {selectedCondition}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.45)',letterSpacing:1,lineHeight:1.5}}>
+                En supervivencia no llevas puntos por ronda. Tu control principal es seguir activo o marcar eliminación.
+              </div>
+            )}
           </div>
         )}
 
@@ -899,6 +1055,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
               {config.mode!=='wins'&&(
                 <>
                   <div className="round-box-title">PUNTOS DE ESTA RONDA</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.28)',letterSpacing:1,marginBottom:10}}>Tip: el host también puede cargar sus puntos desde MI PANEL sin perder su menú de jugador.</div>
                   {players.filter(p=>!p.eliminated).map(p=>{
                     const isAutoWinner=suggestedWinner===p.id;
                     return(
