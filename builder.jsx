@@ -338,7 +338,132 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
 
   // Estado completo del template
   const [tmpl, setTmpl] = React.useState(()=>{
-    if(editingTemplate) return { ...editingTemplate };
+    if(editingTemplate){
+      const cfg = editingTemplate.config || {};
+      return {
+        // Base del template
+        id: editingTemplate.id || null,
+        name: editingTemplate.name || '',
+        emoji: editingTemplate.emoji || '🎮',
+        description: editingTemplate.description || '',
+
+        // Identidad
+        type: editingTemplate.type ?? cfg.type ?? 'individual',
+        numTeams: editingTemplate.numTeams ?? cfg.numTeams ?? 2,
+        roomAccess: editingTemplate.roomAccess ?? cfg.roomAccess ?? 'code',
+        minPlayers: editingTemplate.minPlayers ?? cfg.minPlayers ?? 2,
+        maxPlayers: editingTemplate.maxPlayers ?? cfg.maxPlayers ?? 8,
+
+        // Estructura
+        useRounds: editingTemplate.useRounds ?? cfg.useRounds ?? true,
+        rounds: editingTemplate.rounds ?? cfg.rounds ?? 3,
+        roundClose: editingTemplate.roundClose ?? cfg.roundClose ?? 'manual',
+        roundTimerSecs: editingTemplate.roundTimerSecs ?? cfg.roundTimerSecs ?? 60,
+        roundReset: editingTemplate.roundReset ?? cfg.roundReset ?? 'nothing',
+
+        useTurns: editingTemplate.useTurns ?? cfg.useTurns ?? false,
+        turnOrder: editingTemplate.turnOrder ?? cfg.turnOrder ?? 'fixed',
+        canSkipTurn: editingTemplate.canSkipTurn ?? cfg.canSkipTurn ?? false,
+        hasExtraTurns: editingTemplate.hasExtraTurns ?? cfg.hasExtraTurns ?? false,
+        turnLimitPerRound: editingTemplate.turnLimitPerRound ?? cfg.turnLimitPerRound ?? false,
+        turnLimitCount: editingTemplate.turnLimitCount ?? cfg.turnLimitCount ?? 1,
+        noTurnMode: editingTemplate.noTurnMode ?? cfg.noTurnMode ?? 'simultaneous',
+
+        useFirstPlayerToken: editingTemplate.useFirstPlayerToken ?? cfg.useFirstPlayerToken ?? false,
+
+        useTimer: editingTemplate.useTimer ?? cfg.useTimer ?? false,
+        timerScope: editingTemplate.timerScope ?? cfg.timerScope ?? 'turn',
+        timerSecs: editingTemplate.timerSecs ?? cfg.timerSecs ?? 60,
+        timerVisualAlert: editingTemplate.timerVisualAlert ?? cfg.timerVisualAlert ?? true,
+        timerSoundAlert: editingTemplate.timerSoundAlert ?? cfg.timerSoundAlert ?? true,
+        timerExpireAction: editingTemplate.timerExpireAction ?? cfg.timerExpireAction ?? 'nothing',
+
+        // Victoria
+        victoryMode: editingTemplate.victoryMode ?? cfg.victoryMode ?? 'points',
+        pointsWinMode: editingTemplate.pointsWinMode ?? cfg.pointsWinMode ?? 'most',
+        pointsValidation: editingTemplate.pointsValidation ?? cfg.pointsValidation ?? 'instant',
+        useTarget: editingTemplate.useTarget ?? cfg.useTarget ?? false,
+        targetScore: editingTemplate.targetScore ?? cfg.targetScore ?? 100,
+        winsMode: editingTemplate.winsMode ?? cfg.winsMode ?? 'most',
+        winsTarget: editingTemplate.winsTarget ?? cfg.winsTarget ?? 3,
+        livesWinMode: editingTemplate.livesWinMode ?? cfg.livesWinMode ?? 'last_alive',
+        elimWinMode: editingTemplate.elimWinMode ?? cfg.elimWinMode ?? 'last_player',
+        objectiveWinMode: editingTemplate.objectiveWinMode ?? cfg.objectiveWinMode ?? 'complete_mission',
+        manualWinMode: editingTemplate.manualWinMode ?? cfg.manualWinMode ?? 'host_end',
+        winConditions: Array.isArray(editingTemplate.winConditions) ? editingTemplate.winConditions : (Array.isArray(cfg.winConditions) ? cfg.winConditions : []),
+        tiebreak: editingTemplate.tiebreak ?? cfg.tiebreak ?? 'share',
+
+        // Derrota
+        useDefeat: editingTemplate.useDefeat ?? cfg.useDefeat ?? false,
+        defeatType: editingTemplate.defeatType ?? cfg.defeatType ?? 'points',
+        defeatPoints: editingTemplate.defeatPoints ?? cfg.defeatPoints ?? 'last',
+        defeatPointsX: editingTemplate.defeatPointsX ?? cfg.defeatPointsX ?? 0,
+        defeatWins: editingTemplate.defeatWins ?? cfg.defeatWins ?? 'fewer',
+        defeatLoseN: editingTemplate.defeatLoseN ?? cfg.defeatLoseN ?? 3,
+        defeatLives: editingTemplate.defeatLives ?? cfg.defeatLives ?? 'zero',
+        defeatElim: editingTemplate.defeatElim ?? cfg.defeatElim ?? 'last_round',
+        defeatElimRound: editingTemplate.defeatElimRound ?? cfg.defeatElimRound ?? 1,
+        defeatTime: editingTemplate.defeatTime ?? cfg.defeatTime ?? 'timeout',
+        defeatObjective: editingTemplate.defeatObjective ?? cfg.defeatObjective ?? 'no_mission',
+        defeatExternal: editingTemplate.defeatExternal ?? cfg.defeatExternal ?? 'dice',
+        defeatMoment: editingTemplate.defeatMoment ?? cfg.defeatMoment ?? 'round_end',
+        defeatConsequence: editingTemplate.defeatConsequence ?? cfg.defeatConsequence ?? 'eliminated',
+
+        // Eliminación
+        useElimination: editingTemplate.useElimination ?? cfg.useElimination ?? false,
+        elimStartsAt: editingTemplate.elimStartsAt ?? cfg.elimStartsAt ?? 'round_1',
+        elimStartRound: editingTemplate.elimStartRound ?? cfg.elimStartRound ?? 1,
+        elimMethod: editingTemplate.elimMethod ?? cfg.elimMethod ?? 'last_place',
+        elimTieRule: editingTemplate.elimTieRule ?? cfg.elimTieRule ?? 'nobody',
+        elimAftermath: editingTemplate.elimAftermath ?? cfg.elimAftermath ?? 'out',
+
+        // Progreso
+        registers: Array.isArray(editingTemplate.registers) ? editingTemplate.registers : (Array.isArray(cfg.registers) ? cfg.registers : ['points']),
+        customCounterName: editingTemplate.customCounterName ?? cfg.customCounterName ?? '',
+        captureType: editingTemplate.captureType ?? cfg.captureType ?? 'manual',
+        valueNature: editingTemplate.valueNature ?? cfg.valueNature ?? 'positive',
+        accumulation: editingTemplate.accumulation ?? cfg.accumulation ?? 'global',
+        modifiers: Array.isArray(editingTemplate.modifiers) ? editingTemplate.modifiers : (Array.isArray(cfg.modifiers) ? cfg.modifiers : []),
+        capturedBy: editingTemplate.capturedBy ?? cfg.capturedBy ?? 'host',
+        scoreVisibility: editingTemplate.scoreVisibility ?? cfg.scoreVisibility ?? 'all',
+        accumulates: editingTemplate.accumulates ?? cfg.accumulates ?? 'points',
+        scoreSign: editingTemplate.scoreSign ?? cfg.scoreSign ?? 'positive',
+
+        // Herramientas
+        useTools: editingTemplate.useTools ?? cfg.useTools ?? true,
+        tools: Array.isArray(editingTemplate.tools) ? editingTemplate.tools : (Array.isArray(cfg.tools) ? cfg.tools : []),
+        toolsMode: editingTemplate.toolsMode ?? cfg.toolsMode ?? 'informal',
+        toolsRegistered: editingTemplate.toolsRegistered ?? cfg.toolsRegistered ?? 'no',
+        toolsAffect: Array.isArray(editingTemplate.toolsAffect) ? editingTemplate.toolsAffect : (Array.isArray(cfg.toolsAffect) ? cfg.toolsAffect : []),
+        diceType: editingTemplate.diceType ?? cfg.diceType ?? 'd6',
+        diceCustomSides: editingTemplate.diceCustomSides ?? cfg.diceCustomSides ?? 6,
+        coinUse: editingTemplate.coinUse ?? cfg.coinUse ?? 'free',
+        wheelSegments: editingTemplate.wheelSegments ?? cfg.wheelSegments ?? 'fixed',
+        rpsScope: editingTemplate.rpsScope ?? cfg.rpsScope ?? 'any',
+
+        // Roles
+        roles: Array.isArray(editingTemplate.roles) ? editingTemplate.roles : (Array.isArray(cfg.roles) ? cfg.roles : ['host','player']),
+        scoreCapture: editingTemplate.scoreCapture ?? cfg.scoreCapture ?? 'host',
+        toolsWho: editingTemplate.toolsWho ?? cfg.toolsWho ?? 'all',
+        roundCloseWho: editingTemplate.roundCloseWho ?? cfg.roundCloseWho ?? 'host',
+        pauseWho: editingTemplate.pauseWho ?? cfg.pauseWho ?? 'host',
+        errorWho: editingTemplate.errorWho ?? cfg.errorWho ?? 'host',
+        visHost: editingTemplate.visHost ?? cfg.visHost ?? 'all',
+        visPlayer: editingTemplate.visPlayer ?? cfg.visPlayer ?? 'partial',
+        visSpectator: editingTemplate.visSpectator ?? cfg.visSpectator ?? 'score',
+
+        // Finalización
+        endConditions: Array.isArray(editingTemplate.endConditions) ? editingTemplate.endConditions : (Array.isArray(cfg.endConditions) ? cfg.endConditions : ['victory']),
+        showEndScreen: editingTemplate.showEndScreen ?? cfg.showEndScreen ?? true,
+        saveHistory: editingTemplate.saveHistory ?? cfg.saveHistory ?? true,
+        exportFormat: Array.isArray(editingTemplate.exportFormat) ? editingTemplate.exportFormat : (Array.isArray(cfg.exportFormat) ? cfg.exportFormat : []),
+        rematchKeepPlayers: editingTemplate.rematchKeepPlayers ?? cfg.rematchKeepPlayers ?? true,
+        rematchKeepRoom: editingTemplate.rematchKeepRoom ?? cfg.rematchKeepRoom ?? true,
+        rematchKeepConfig: editingTemplate.rematchKeepConfig ?? cfg.rematchKeepConfig ?? true,
+        rematchResetScore: editingTemplate.rematchResetScore ?? cfg.rematchResetScore ?? true,
+        rematchResetAll: editingTemplate.rematchResetAll ?? cfg.rematchResetAll ?? false,
+      };
+    }
     return {
       id: null,
       name: '',
@@ -477,7 +602,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleTool(tool){
     setTmpl(prev=>({
       ...prev,
-      tools: prev.tools.includes(tool)
+      tools: (Array.isArray(prev.tools)?prev.tools:[]).includes(tool)
         ? prev.tools.filter(t=>t!==tool)
         : [...prev.tools, tool]
     }));
@@ -485,7 +610,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleRegister(reg){
     setTmpl(prev=>({
       ...prev,
-      registers: prev.registers.includes(reg)
+      registers: (Array.isArray(prev.registers)?prev.registers:[]).includes(reg)
         ? prev.registers.filter(r=>r!==reg)
         : [...prev.registers, reg]
     }));
@@ -493,7 +618,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleModifier(mod){
     setTmpl(prev=>({
       ...prev,
-      modifiers: prev.modifiers.includes(mod)
+      modifiers: (Array.isArray(prev.modifiers)?prev.modifiers:[]).includes(mod)
         ? prev.modifiers.filter(m=>m!==mod)
         : [...prev.modifiers, mod]
     }));
@@ -501,7 +626,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleToolsAffect(effect){
     setTmpl(prev=>({
       ...prev,
-      toolsAffect: prev.toolsAffect.includes(effect)
+      toolsAffect: (Array.isArray(prev.toolsAffect)?prev.toolsAffect:[]).includes(effect)
         ? prev.toolsAffect.filter(e=>e!==effect)
         : [...prev.toolsAffect, effect]
     }));
@@ -509,7 +634,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleRole(role){
     setTmpl(prev=>({
       ...prev,
-      roles: prev.roles.includes(role)
+      roles: (Array.isArray(prev.roles)?prev.roles:[]).includes(role)
         ? prev.roles.filter(r=>r!==role)
         : [...prev.roles, role]
     }));
@@ -517,7 +642,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleEndCond(cond){
     setTmpl(prev=>({
       ...prev,
-      endConditions: prev.endConditions.includes(cond)
+      endConditions: (Array.isArray(prev.endConditions)?prev.endConditions:[]).includes(cond)
         ? prev.endConditions.filter(c=>c!==cond)
         : [...prev.endConditions, cond]
     }));
@@ -525,7 +650,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
   function toggleExport(fmt){
     setTmpl(prev=>({
       ...prev,
-      exportFormat: prev.exportFormat.includes(fmt)
+      exportFormat: (Array.isArray(prev.exportFormat)?prev.exportFormat:[]).includes(fmt)
         ? prev.exportFormat.filter(f=>f!==fmt)
         : [...prev.exportFormat, fmt]
     }));
@@ -547,6 +672,14 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
     setSaveError('');
     snd('save');
     try {
+    const registersSafe = Array.isArray(tmpl.registers) ? tmpl.registers : ['points'];
+    const toolsSafe = Array.isArray(tmpl.tools) ? tmpl.tools : [];
+    const toolsAffectSafe = Array.isArray(tmpl.toolsAffect) ? tmpl.toolsAffect : [];
+    const rolesSafe = Array.isArray(tmpl.roles) ? tmpl.roles : ['host','player'];
+    const endConditionsSafe = Array.isArray(tmpl.endConditions) ? tmpl.endConditions : ['victory'];
+    const exportFormatSafe = Array.isArray(tmpl.exportFormat) ? tmpl.exportFormat : [];
+    const modifiersSafe = Array.isArray(tmpl.modifiers) ? tmpl.modifiers : [];
+    const winConditionsSafe = Array.isArray(tmpl.winConditions) ? tmpl.winConditions : [];
     const saved = await saveGameTemplate(user.uid, {
       ...tmpl,
       config: {
@@ -591,7 +724,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         elimWinMode: tmpl.elimWinMode,
         objectiveWinMode: tmpl.objectiveWinMode,
         manualWinMode: tmpl.manualWinMode,
-        winConditions: tmpl.winConditions,
+        winConditions: winConditionsSafe,
         tiebreak: tmpl.tiebreak,
         // Derrota
         useDefeat: tmpl.useDefeat,
@@ -616,30 +749,30 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         elimTieRule: tmpl.elimTieRule,
         elimAftermath: tmpl.elimAftermath,
         // Sistema de progreso / registro
-        registers: tmpl.registers,
+        registers: registersSafe,
         customCounterName: tmpl.customCounterName,
         captureType: tmpl.captureType,
         valueNature: tmpl.valueNature,
         accumulation: tmpl.accumulation,
-        modifiers: tmpl.modifiers,
+        modifiers: modifiersSafe,
         capturedBy: tmpl.capturedBy,
         scoreVisibility: tmpl.scoreVisibility,
         // Legado runtime
-        accumulates: tmpl.registers.includes('points')?'points':tmpl.registers.includes('wins')?'wins':'lives',
+        accumulates: registersSafe.includes('points')?'points':registersSafe.includes('wins')?'wins':'lives',
         scoreSign: tmpl.valueNature==='positive'?'positive':'both',
         // Herramientas
         useTools: tmpl.useTools,
-        tools: tmpl.tools,
+        tools: toolsSafe,
         toolsMode: tmpl.toolsMode,
         toolsRegistered: tmpl.toolsRegistered,
-        toolsAffect: tmpl.toolsAffect,
+        toolsAffect: toolsAffectSafe,
         diceType: tmpl.diceType,
         diceCustomSides: tmpl.diceCustomSides,
         coinUse: tmpl.coinUse,
         wheelSegments: tmpl.wheelSegments,
         rpsScope: tmpl.rpsScope,
         // Roles y permisos
-        roles: tmpl.roles,
+        roles: rolesSafe,
         scoreCapture: tmpl.scoreCapture,
         toolsWho: tmpl.toolsWho,
         roundCloseWho: tmpl.roundCloseWho,
@@ -649,10 +782,10 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
         visPlayer: tmpl.visPlayer,
         visSpectator: tmpl.visSpectator,
         // Finalización
-        endConditions: tmpl.endConditions,
+        endConditions: endConditionsSafe,
         showEndScreen: tmpl.showEndScreen,
         saveHistory: tmpl.saveHistory,
-        exportFormat: tmpl.exportFormat,
+        exportFormat: exportFormatSafe,
         rematchKeepPlayers: tmpl.rematchKeepPlayers,
         rematchKeepRoom: tmpl.rematchKeepRoom,
         rematchKeepConfig: tmpl.rematchKeepConfig,
@@ -1668,7 +1801,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 </div>
               ))}
 
-              {tmpl.registers.includes('custom') && (
+              {(Array.isArray(tmpl.registers)?tmpl.registers:[]).includes('custom') && (
                 <div style={{marginTop:8}}>
                   <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,255,157,.6)',letterSpacing:2,marginBottom:6}}>NOMBRE DEL CONTADOR</div>
                   <input className="os-input" placeholder="Ej: Puntos de honor, Energía, Mana..."
@@ -1759,10 +1892,10 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 {v:'double_next', icon:'🎯', label:'Doble siguiente ronda',  sub:'Los puntos de la próxima ronda valen doble para ese jugador'},
               ].map(o=>(
                 <div key={o.v}
-                  className={`check-row ${tmpl.modifiers.includes(o.v)?'active':''}`}
+                  className={`check-row ${(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'active':''}`}
                   style={{
-                    borderColor:tmpl.modifiers.includes(o.v)?'rgba(255,107,53,.4)':undefined,
-                    background:tmpl.modifiers.includes(o.v)?'rgba(255,107,53,.07)':undefined,
+                    borderColor:(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'rgba(255,107,53,.4)':undefined,
+                    background:(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'rgba(255,107,53,.07)':undefined,
                     marginBottom:6
                   }}
                   onClick={()=>{snd('tap');toggleArr('modifiers',o.v);}}>
@@ -1772,10 +1905,10 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                     <div className="check-sub">{o.sub}</div>
                   </div>
                   <div className="check-box" style={{
-                    borderColor:tmpl.modifiers.includes(o.v)?'var(--orange)':undefined,
-                    background:tmpl.modifiers.includes(o.v)?'var(--orange)':undefined,
-                    color:tmpl.modifiers.includes(o.v)?'var(--bg)':undefined
-                  }}>{tmpl.modifiers.includes(o.v)?'✓':''}</div>
+                    borderColor:(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'var(--orange)':undefined,
+                    background:(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'var(--orange)':undefined,
+                    color:(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'var(--bg)':undefined
+                  }}>{(Array.isArray(tmpl.modifiers)?tmpl.modifiers:[]).includes(o.v)?'✓':''}</div>
                 </div>
               ))}
 
@@ -1933,7 +2066,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 ))}
 
                 {/* Nota de consistencia con condición de victoria */}
-                {tmpl.elimMethod==='zero_lives' && !tmpl.registers.includes('lives') && (
+                {tmpl.elimMethod==='zero_lives' && !(Array.isArray(tmpl.registers)?tmpl.registers:[]).includes('lives') && (
                   <div className="os-alert alert-gold" style={{marginTop:6,fontSize:'var(--fs-micro)'}}>
                     ⚠ La eliminación por 0 vidas requiere que "Vidas" esté activado en el Sistema de Progreso (Paso 5).
                   </div>
@@ -2074,7 +2207,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                     {id:'events',label:'Eventos',sub:'Activa eventos especiales del juego'},
                     {id:'rules',label:'Reglas',sub:'Modifica temporalmente una regla'},
                   ].map(e=>{
-                    const a=tmpl.toolsAffect.includes(e.id);
+                    const a=(Array.isArray(tmpl.toolsAffect)?tmpl.toolsAffect:[]).includes(e.id);
                     return(
                       <div key={e.id} className="check-row" style={{borderColor:a?'rgba(155,93,229,.4)':undefined,background:a?'rgba(155,93,229,.07)':undefined,marginBottom:6}} onClick={()=>{snd('tap');toggleToolsAffect(e.id);}}>
                         <div className="check-box" style={{borderColor:a?'var(--purple)':undefined,background:a?'var(--purple)':undefined,color:a?'var(--bg)':undefined}}>{a?'✓':''}</div>
@@ -2112,7 +2245,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                   {id:'counter',icon:'🔢',label:'Contador manual',col:'var(--green)'},
                   {id:'ai',icon:'🤖',label:'Juez IA',col:'rgba(255,255,255,.4)'},
                 ].map(tool=>{
-                  const active=tmpl.tools.includes(tool.id);
+                  const active=(Array.isArray(tmpl.tools)?tmpl.tools:[]).includes(tool.id);
                   const isSoon=tool.id==='ai';
                   return(
                     <div key={tool.id}>
@@ -2294,7 +2427,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 {id:'judge',    icon:'⚖️', label:'Juez',       sub:'Árbitro neutral — puede resolver disputas y corregir errores'},
                 {id:'recorder', icon:'📝', label:'Anotador',   sub:'Solo puede registrar puntos — no toma decisiones de juego'},
               ].map(r=>{
-                const active=r.locked||tmpl.roles.includes(r.id);
+                const active=r.locked||(Array.isArray(tmpl.roles)?tmpl.roles:[]).includes(r.id);
                 return(
                   <div key={r.id} className="check-row"
                     style={{borderColor:active?'rgba(74,144,255,.4)':undefined,background:active?'rgba(74,144,255,.07)':undefined,marginBottom:6,opacity:r.locked?.8:1}}
@@ -2441,7 +2574,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 {id:'last_elim', icon:'💀', label:'Eliminación final',       sub:'Solo queda un jugador activo'},
                 {id:'manual',    icon:'✋', label:'Cierre manual',           sub:'El host decide cuándo terminar la partida'},
               ].map(c=>{
-                const active=tmpl.endConditions.includes(c.id);
+                const active=(Array.isArray(tmpl.endConditions)?tmpl.endConditions:[]).includes(c.id);
                 return(
                   <div key={c.id} className="check-row"
                     style={{borderColor:active?'rgba(0,255,157,.4)':undefined,background:active?'rgba(0,255,157,.07)':undefined,marginBottom:6}}
@@ -2481,7 +2614,7 @@ function GameBuilder({ user, editingTemplate, onBack, onSaved }){
                 {id:'image',  icon:'🖼', label:'Imagen resumen', sub:'Captura visual del marcador final'},
                 {id:'report', icon:'📋', label:'Reporte',        sub:'Resumen detallado con estadísticas de la partida'},
               ].map(f=>{
-                const active=tmpl.exportFormat.includes(f.id);
+                const active=(Array.isArray(tmpl.exportFormat)?tmpl.exportFormat:[]).includes(f.id);
                 return(
                   <div key={f.id} className="check-row"
                     style={{borderColor:active?'rgba(255,212,71,.4)':undefined,background:active?'rgba(255,212,71,.07)':undefined,marginBottom:6}}
