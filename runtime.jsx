@@ -497,6 +497,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   const [toast, setToast] = React.useState(null);
   const [victoryResult, setVictoryResult] = React.useState(null);
   const timerRef = React.useRef(null);
+  const prevStartedAtRef = React.useRef(null);
 
   // Interpretar el config — puede venir del prop o del room en Firebase
   const [resolvedConfig, setResolvedConfig] = React.useState(templateConfig);
@@ -568,6 +569,27 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     if (room?.status === 'finished') setShowEndScreen(true);
     else setShowEndScreen(false);
   }, [room?.status]);
+
+  React.useEffect(() => {
+    if (!room) return;
+
+    // Limpiar residuos de victoria cuando se inicia otra partida
+    // o cuando la sala regresa al lobby por revancha.
+    if (room.status === 'active') {
+      if (prevStartedAtRef.current !== room.startedAt) {
+        prevStartedAtRef.current = room.startedAt || null;
+        setShowEndScreen(false);
+        setVictoryResult(null);
+        setToast(null);
+        setShowRematchOverlay(false);
+      }
+    } else if (room.status === 'lobby') {
+      setShowEndScreen(false);
+      setVictoryResult(null);
+      setToast(null);
+      setShowRematchOverlay(false);
+    }
+  }, [room?.status, room?.startedAt]);
 
   function showToast(msg, color = 'var(--cyan)') {
     setToast({ msg, color });

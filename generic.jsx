@@ -459,6 +459,7 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
   // Animación de posiciones previas
   const [prevPositions,setPrevPositions]=React.useState({});
   const timerRef=React.useRef(null);
+  const prevStartedAtRef=React.useRef(null);
 
   React.useEffect(()=>{
     const unsub=db.listen(`rooms/${session.code}`,data=>{
@@ -487,6 +488,34 @@ function GenericRuntime({session,onBack,isHost,myId,db}){
     if(room?.status==='finished') setShowEndScreen(true);
     else setShowEndScreen(false);
   },[room?.status]);
+
+  React.useEffect(()=>{
+    if(!room) return;
+
+    // Cuando arranca una nueva partida o la sala vuelve a lobby/active,
+    // limpiamos cualquier residuo visual/sonoro de la victoria anterior.
+    if(room.status==='active'){
+      if(prevStartedAtRef.current !== room.startedAt){
+        prevStartedAtRef.current = room.startedAt || null;
+        setShowEndScreen(false);
+        setShowEndConfirm(false);
+        setShowCloseRoundConfirm(false);
+        setShowElimConfirm(false);
+        setSelectedCondition('');
+        setScoreInputs({});
+        setElimToast(null);
+        setShowRematchOverlay(false);
+      }
+    } else if(room.status==='lobby'){
+      setShowEndScreen(false);
+      setShowEndConfirm(false);
+      setShowCloseRoundConfirm(false);
+      setShowElimConfirm(false);
+      setSelectedCondition('');
+      setElimToast(null);
+      setShowRematchOverlay(false);
+    }
+  },[room?.status, room?.startedAt]);
 
   // Presencia — MUST be before early return (Rules of Hooks)
   const [presence,setPresence]=React.useState({});
