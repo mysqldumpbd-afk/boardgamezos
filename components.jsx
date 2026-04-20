@@ -1111,17 +1111,30 @@ function App(){
         />
       )}
 
-      {screen==='schema-builder' && (
-        <SchemaDrivenBuilder
-          title="Schema Builder V1"
-          initialConfig={{}}
-          onBack={goHome}
-          onSave={(cfg)=>{
-            console.log('Schema config guardado:', cfg);
-            alert('Config generado. Revisa la consola.');
-          }}
-        />
-      )}
+		{screen==='schema-builder' && (
+		  window.SchemaDrivenBuilder ? (
+			<window.SchemaDrivenBuilder
+			  title="Schema Builder V1"
+			  initialConfig={{}}
+			  onBack={goHome}
+			  onSave={(cfg)=>{
+				console.log('Schema config guardado:', cfg);
+				alert('Config generado. Revisa la consola.');
+			  }}
+			/>
+		  ) : (
+			<div className="os-wrap">
+			  <div className="os-page" style={{paddingTop:80,textAlign:'center'}}>
+				<div className="os-alert alert-red">
+				  SchemaDrivenBuilder no cargó. Revisa builder-vnext.jsx
+				</div>
+				<button className="btn btn-back" style={{marginTop:16}} onClick={goHome}>
+				  ← Volver
+				</button>
+			  </div>
+			</div>
+		  )
+		)}
 
       {screen==='stats' && <StatsScreen onBack={goHome} db={db}/>}
 
