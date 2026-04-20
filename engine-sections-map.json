@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0",
+  "source": "builder+diagram audit",
+  "note": "Mapa de secciones para mover builder actual y diagrama a JSON por bloques antes de persistir en BD",
+  "sections": [
+    { "id": "general", "title": "Información general", "dbPath": "config.identity" },
+    { "id": "structure", "title": "Estructura de partida", "dbPath": "config.structure" },
+    { "id": "victory", "title": "Condición de victoria", "dbPath": "config.victory" },
+    { "id": "defeat", "title": "Condición de derrota", "dbPath": "config.defeat" },
+    { "id": "progress", "title": "Sistema de progreso", "dbPath": "config.progress" },
+    { "id": "elimination", "title": "Sistema de eliminación", "dbPath": "config.elimination" },
+    { "id": "tools", "title": "Herramientas integradas", "dbPath": "config.tools" },
+    { "id": "roles", "title": "Roles y permisos", "dbPath": "config.roles" },
+    { "id": "finish", "title": "Finalización", "dbPath": "config.finish" }
+  ]
+}
