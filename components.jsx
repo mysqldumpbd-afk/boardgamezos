@@ -1111,30 +1111,166 @@ function App(){
         />
       )}
 
-		{screen==='schema-builder' && (
-		  window.SchemaDrivenBuilder ? (
-			<window.SchemaDrivenBuilder
-			  title="Schema Builder V1"
-			  initialConfig={{}}
-			  onBack={goHome}
-			  onSave={(cfg)=>{
-				console.log('Schema config guardado:', cfg);
-				alert('Config generado. Revisa la consola.');
-			  }}
-			/>
-		  ) : (
-			<div className="os-wrap">
-			  <div className="os-page" style={{paddingTop:80,textAlign:'center'}}>
-				<div className="os-alert alert-red">
-				  SchemaDrivenBuilder no cargó. Revisa builder-vnext.jsx
-				</div>
-				<button className="btn btn-back" style={{marginTop:16}} onClick={goHome}>
-				  ← Volver
-				</button>
-			  </div>
-			</div>
-		  )
-		)}
+      {screen==='schema-builder' && (
+        window.SchemaDrivenBuilder ? (
+          <window.SchemaDrivenBuilder
+            title="Schema Builder V1"
+            initialConfig={{}}
+            onBack={goHome}
+            onSave={(cfg)=>{
+              console.log('Schema config guardado:', cfg);
+
+              try{
+                const payload = {
+                  schemaVersion: '1.0',
+                  exportedAt: new Date().toISOString(),
+                  source: 'Schema Builder V1',
+                  config: cfg
+                };
+
+                const blob = new Blob(
+                  [JSON.stringify(payload, null, 2)],
+                  { type: 'application/json' }
+                );
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const safeName = (cfg?.name || 'boardgamez-config')
+                  .toString()
+                  .trim()
+                  .replace(/[^a-z0-9-_]+/gi, '_')
+                  .replace(/^_+|_+$/g, '') || 'boardgamez-config';
+
+                a.href = url;
+                a.download = `${safeName}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(()=>URL.revokeObjectURL(url), 1200);
+
+                const pretty = JSON.stringify(payload, null, 2)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
+
+                const overlay = document.createElement('div');
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.zIndex = '99999';
+                overlay.style.background = 'rgba(0,0,0,.82)';
+                overlay.style.backdropFilter = 'blur(6px)';
+                overlay.style.display = 'flex';
+                overlay.style.alignItems = 'center';
+                overlay.style.justifyContent = 'center';
+                overlay.style.padding = '20px';
+
+                overlay.innerHTML = `
+                  <div style="
+                    width:100%;
+                    max-width:780px;
+                    max-height:85vh;
+                    display:flex;
+                    flex-direction:column;
+                    background:#0D0D1C;
+                    border:1px solid rgba(0,245,255,.22);
+                    border-radius:18px;
+                    box-shadow:0 20px 70px rgba(0,0,0,.55);
+                    overflow:hidden;
+                  ">
+                    <div style="
+                      display:flex;
+                      align-items:center;
+                      justify-content:space-between;
+                      gap:12px;
+                      padding:16px 18px;
+                      border-bottom:1px solid rgba(255,255,255,.08);
+                      background:linear-gradient(180deg,rgba(0,245,255,.08),rgba(255,255,255,.02));
+                    ">
+                      <div>
+                        <div style="font-family:var(--font-display);font-size:1.1rem;letter-spacing:1px;color:var(--cyan);">
+                          📦 Config exportado
+                        </div>
+                        <div style="font-family:var(--font-label);font-size:var(--fs-micro);letter-spacing:2px;color:rgba(255,255,255,.35);margin-top:4px;">
+                          JSON generado y descargado
+                        </div>
+                      </div>
+                      <button id="schema-preview-close" style="
+                        background:none;
+                        border:1px solid rgba(255,255,255,.12);
+                        color:rgba(255,255,255,.7);
+                        border-radius:10px;
+                        padding:8px 12px;
+                        cursor:pointer;
+                        font-family:var(--font-label);
+                        font-size:var(--fs-xs);
+                      ">Cerrar</button>
+                    </div>
+
+                    <div style="
+                      display:flex;
+                      gap:8px;
+                      padding:12px 16px;
+                      border-bottom:1px solid rgba(255,255,255,.06);
+                      flex-wrap:wrap;
+                    ">
+                      <div style="padding:6px 10px;border-radius:999px;background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.2);font-family:var(--font-label);font-size:var(--fs-micro);color:var(--cyan);">
+                        Nombre: ${cfg?.name || 'Sin nombre'}
+                      </div>
+                      <div style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-family:var(--font-label);font-size:var(--fs-micro);color:rgba(255,255,255,.65);">
+                        Tipo: ${cfg?.type || 'individual'}
+                      </div>
+                      <div style="padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-family:var(--font-label);font-size:var(--fs-micro);color:rgba(255,255,255,.65);">
+                        Victoria: ${cfg?.victoryMode || 'points'}
+                      </div>
+                    </div>
+
+                    <pre style="
+                      margin:0;
+                      padding:18px;
+                      overflow:auto;
+                      flex:1;
+                      font-family:Consolas, monospace;
+                      font-size:12px;
+                      line-height:1.45;
+                      color:#D8F9FF;
+                      background:#090915;
+                    ">${pretty}</pre>
+                  </div>
+                `;
+
+                function closePreview(){
+                  overlay.remove();
+                  document.removeEventListener('keydown', onKey);
+                }
+                function onKey(e){
+                  if(e.key === 'Escape') closePreview();
+                }
+
+                overlay.addEventListener('click', (e)=>{
+                  if(e.target === overlay) closePreview();
+                });
+
+                document.body.appendChild(overlay);
+                document.getElementById('schema-preview-close')?.addEventListener('click', closePreview);
+                document.addEventListener('keydown', onKey);
+              }catch(err){
+                console.error('Error exportando schema config:', err);
+                alert('No se pudo exportar el JSON.');
+              }
+            }}
+          />
+        ) : (
+          <div className="os-wrap">
+            <div className="os-page" style={{paddingTop:80,textAlign:'center'}}>
+              <div className="os-alert alert-red">
+                SchemaDrivenBuilder no cargó. Revisa builder-vnext.jsx
+              </div>
+              <button className="btn btn-back" style={{marginTop:16}} onClick={goHome}>
+                ← Volver
+              </button>
+            </div>
+          </div>
+        )
+      )}
 
       {screen==='stats' && <StatsScreen onBack={goHome} db={db}/>}
 
