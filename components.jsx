@@ -797,59 +797,140 @@ function App(){
     if(existing.status==='finished'||existing.status==='dissolved')
       return {error:'Esta partida ya terminó'};
 
-    const players   = [...(existing.players||[])];
-    const profile   = getProfile();
-    const resolvedId = myId || profile?.id;
-    if(!resolvedId) return {error:'Configura tu perfil primero'};
+    const players = [...(existing.players || [])];
+    const profile = getProfile();
 
-    // ── RECONNECT: jugador ya en sala con este ID ────────────────
+    const selectedSlot =
+      playerId && playerId !== 'new'
+        ? players.find(p => p.id === playerId)
+        : null;
+
+    let resolvedProfile = profile || null;
+    let resolvedId = myId || profile?.id || null;
+
+    // Si eligió un slot existente y no hay perfil local,
+    // adoptamos ese slot como perfil local automáticamente.
+    if (selectedSlot && !resolvedId) {
+      resolvedProfile = {
+        id: selectedSlot.id,
+        name: selectedSlot.name || playerName || 'Jugador',
+        emoji: playerEmoji || selectedSlot.emoji || '🎮',
+        color: playerColor || selectedSlot.color || '#00F5FF',
+        createdAt: Date.now(),
+      };
+
+      saveProfile(resolvedProfile);
+      setProfile(resolvedProfile);
+      resolvedId = resolvedProfile.id;
+    }
+
+    if (!resolvedId) {
+      return { error:'Configura tu perfil primero' };
+    }
+
     const alreadyIn = players.find(p => p.id === resolvedId);
-    if(!alreadyIn){
-      if(playerId && playerId !== 'new'){
-        // Tomar slot específico (reconexión con otro nombre)
+
+    if (!alreadyIn) {
+      if (selectedSlot) {
+        // Toma el slot existente SIN cambiarle el id
+        const adoptedProfile = {
+          id: selectedSlot.id,
+          name: playerName || resolvedProfile?.name || selectedSlot.name || 'Jugador',
+          emoji: playerEmoji || resolvedProfile?.emoji || selectedSlot.emoji || '🎮',
+          color: playerColor || resolvedProfile?.color || selectedSlot.color || '#00F5FF',
+          createdAt: resolvedProfile?.createdAt || Date.now(),
+        };
+
+        saveProfile(adoptedProfile);
+        setProfile(adoptedProfile);
+        resolvedProfile = adoptedProfile;
+        resolvedId = adoptedProfile.id;
+
         const updated = players.map(p =>
-          p.id===playerId
-            ? {...p, id:resolvedId, emoji:playerEmoji||p.emoji, color:playerColor||p.color}
+          p.id === selectedSlot.id
+            ? {
+                ...p,
+                name: adoptedProfile.name,
+                emoji: adoptedProfile.emoji,
+                color: adoptedProfile.color,
+              }
             : p
         );
+
         await db.set(`rooms/${code}/players`, updated);
       } else {
-        // Jugador nuevo — agregar al array
+        // Jugador nuevo
         const newP = {
-          id:resolvedId,
-          name: playerName||profile?.name||'Jugador',
-          emoji: playerEmoji||profile?.emoji||'🎮',
-          color: playerColor||profile?.color||'#00F5FF',
-          isHost:false, total:0, wins:0, rounds:[], lives:5,
-          eliminated:false, finalPosition:null,
+          id: resolvedId,
+          name: playerName || resolvedProfile?.name || 'Jugador',
+          emoji: playerEmoji || resolvedProfile?.emoji || '🎮',
+          color: playerColor || resolvedProfile?.color || '#00F5FF',
+          isHost: false,
+          total: 0,
+          wins: 0,
+          rounds: [],
+          lives: 5,
+          eliminated: false,
+          finalPosition: null,
         };
+
         await db.set(`rooms/${code}/players`, [...players, newP]);
       }
+    } else if (selectedSlot && resolvedProfile && resolvedProfile.id !== selectedSlot.id) {
+      // Si ya había perfil local pero eligió otro slot, cambia el perfil local
+      const switchedProfile = {
+        id: selectedSlot.id,
+        name: playerName || selectedSlot.name || resolvedProfile.name || 'Jugador',
+        emoji: playerEmoji || selectedSlot.emoji || resolvedProfile.emoji || '🎮',
+        color: playerColor || selectedSlot.color || resolvedProfile.color || '#00F5FF',
+        createdAt: resolvedProfile.createdAt || Date.now(),
+      };
+
+      saveProfile(switchedProfile);
+      setProfile(switchedProfile);
+      resolvedProfile = switchedProfile;
+      resolvedId = switchedProfile.id;
     }
 
-    // ── PRESENCIA ────────────────────────────────────────────────
     setupPresence(code, resolvedId);
 
-    // ── SESSION + ROUTING (desde room real, no localStorage) ─────
-    const gt = existing.gameType||'';
+    const gt = existing.gameType || '';
     const iAmHost = resolvedId === existing.hostId;
+
     let targetScreen;
-    if(existing.status==='active'){
-      targetScreen = gt==='preset:strike'?'strike-game'
-        : gt==='generic:template'?'universal-game'
-        : 'generic-game';
+    if (existing.status === 'active') {
+      targetScreen = gt === 'preset:strike'
+        ? 'strike-game'
+        : gt === 'generic:template'
+          ? 'universal-game'
+          : 'generic-game';
     } else {
-      targetScreen = gt==='preset:strike'?'strike-lobby'
-        : gt==='generic:template'?'universal-lobby'
-        : 'generic-lobby';
+      targetScreen = gt === 'preset:strike'
+        ? 'strike-lobby'
+        : gt === 'generic:template'
+          ? 'universal-lobby'
+          : 'generic-lobby';
     }
-    saveActiveSession({code, isHost:iAmHost, gameType:gt, screen:targetScreen,
-      myId:resolvedId, templateConfig:gt==='generic:template'?existing.config:null});
-    setMyId(resolvedId);
+
+    saveActiveSession({
+      code,
+      isHost: iAmHost,
+      gameType: gt,
+      screen: targetScreen,
+      myId: resolvedId,
+      templateConfig: gt === 'generic:template' ? existing.config : null
+    });
+
     setIsHost(iAmHost);
-    setSession({code, demo:false, date:existing.createdAt||Date.now()});
-    if(gt==='generic:template' && existing.config)
-      setPlayTemplate({config:existing.config, name:existing.customTitle||''});
+    setSession({ code, demo:false, date: existing.createdAt || Date.now() });
+
+    if (gt === 'generic:template' && existing.config) {
+      setPlayTemplate({
+        config: existing.config,
+        name: existing.customTitle || ''
+      });
+    }
+
     setScreen(targetScreen);
     return null;
   }
