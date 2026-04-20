@@ -803,14 +803,24 @@ function App(){
       ? players.find(p => p.id === playerId)
       : null;
 
-    // Si el usuario eligió un jugador existente, primero respetamos ese flujo
-    // y luego validamos el perfil. Esto evita bloquear la selección con el
-    // mensaje "Configura tu perfil primero" antes de tiempo.
+    let resolvedProfile = profile || null;
     let resolvedId = myId || profile?.id || null;
 
-    // Si no hay perfil local todavía, solo permitimos continuar cuando haya
-    // un perfil guardado. Para tomar un slot existente se requiere identidad
-    // local, pero ya no se invalida antes de resolver el slot seleccionado.
+    // Si el usuario eligió un slot existente y no hay perfil local,
+    // adoptamos ese slot como perfil local para permitir la reconexión.
+    if(selectedSlot && !resolvedId){
+      resolvedProfile = {
+        id: selectedSlot.id,
+        name: selectedSlot.name || playerName || 'Jugador',
+        emoji: playerEmoji || selectedSlot.emoji || '🎮',
+        color: playerColor || selectedSlot.color || '#00F5FF',
+        createdAt: profile?.createdAt || Date.now(),
+      };
+      saveProfile(resolvedProfile);
+      setProfile(resolvedProfile);
+      resolvedId = resolvedProfile.id;
+    }
+
     if(!resolvedId){
       return {error:'Configura tu perfil primero'};
     }
@@ -819,26 +829,37 @@ function App(){
 
     if(!alreadyIn){
       if(selectedSlot){
-        // Tomar slot específico de la partida con el perfil actual.
+        // Tomar el slot específico sin cambiarle el ID.
+        const adoptedProfile = {
+          id: selectedSlot.id,
+          name: playerName || resolvedProfile?.name || selectedSlot.name || 'Jugador',
+          emoji: playerEmoji || resolvedProfile?.emoji || selectedSlot.emoji || '🎮',
+          color: playerColor || resolvedProfile?.color || selectedSlot.color || '#00F5FF',
+          createdAt: resolvedProfile?.createdAt || Date.now(),
+        };
+
+        saveProfile(adoptedProfile);
+        setProfile(adoptedProfile);
+        resolvedProfile = adoptedProfile;
+        resolvedId = adoptedProfile.id;
+
         const updated = players.map(p =>
           p.id === selectedSlot.id
             ? {
                 ...p,
-                id: resolvedId,
-                name: profile?.name || playerName || p.name,
-                emoji: playerEmoji || profile?.emoji || p.emoji,
-                color: playerColor || profile?.color || p.color,
+                name: adoptedProfile.name,
+                emoji: adoptedProfile.emoji,
+                color: adoptedProfile.color,
               }
             : p
         );
         await db.set(`rooms/${code}/players`, updated);
       } else {
-        // Jugador nuevo — agregar al array
         const newP = {
           id: resolvedId,
-          name: playerName || profile?.name || 'Jugador',
-          emoji: playerEmoji || profile?.emoji || '🎮',
-          color: playerColor || profile?.color || '#00F5FF',
+          name: playerName || resolvedProfile?.name || 'Jugador',
+          emoji: playerEmoji || resolvedProfile?.emoji || '🎮',
+          color: playerColor || resolvedProfile?.color || '#00F5FF',
           isHost: false,
           total: 0,
           wins: 0,
@@ -849,6 +870,20 @@ function App(){
         };
         await db.set(`rooms/${code}/players`, [...players, newP]);
       }
+    } else if(selectedSlot && resolvedProfile && resolvedProfile.id !== selectedSlot.id){
+      // Si ya había perfil local pero eligió otro slot, cambiamos el perfil local
+      // para que la identidad coincida con el jugador reconectado.
+      const switchedProfile = {
+        id: selectedSlot.id,
+        name: playerName || selectedSlot.name || resolvedProfile.name || 'Jugador',
+        emoji: playerEmoji || selectedSlot.emoji || resolvedProfile.emoji || '🎮',
+        color: playerColor || selectedSlot.color || resolvedProfile.color || '#00F5FF',
+        createdAt: resolvedProfile.createdAt || Date.now(),
+      };
+      saveProfile(switchedProfile);
+      setProfile(switchedProfile);
+      resolvedProfile = switchedProfile;
+      resolvedId = switchedProfile.id;
     }
 
     setupPresence(code, resolvedId);
