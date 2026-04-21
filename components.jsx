@@ -1121,12 +1121,10 @@ function App(){
               console.log('Schema config guardado:', cfg);
 
               try{
-                const payload = {
-                  schemaVersion: '1.0',
-                  exportedAt: new Date().toISOString(),
-                  source: 'Schema Builder V1',
-                  config: cfg
-                };
+				const payload = {
+				  ...cfg,
+				  source: 'Schema Builder V6'
+				};
 
                 const blob = new Blob(
                   [JSON.stringify(payload, null, 2)],

@@ -111,11 +111,23 @@ function sectionState(section, config){
     cfg.winsTarget = Math.max(1, parseInt(cfg.winsTarget || 1));
 
     // Arrays seguros
-    const arrays = [
-      'registers','tools','toolsAffect','roles',
-      'endConditions','exportFormat','modifiers','winConditions'
-    ];
-
+	const arrays = [
+	  'registers',
+	  'tools',
+	  'toolsAffect',
+	  'roles',
+	  'endConditions',
+	  'exportFormat',
+	  'modifiers',
+	  'winConditions',
+	  'customRules',
+	  'specialEvents',
+	  'playObjects',
+	  'scoreInputQuickValues',
+	  'counterSet',
+	  'roundResolutionFields'
+	];
+	
     arrays.forEach(k=>{
       if(!Array.isArray(cfg[k])) cfg[k] = [];
     });
@@ -136,6 +148,28 @@ function sectionState(section, config){
     if(cfg.victoryMode === 'lives' && !cfg.registers.includes('lives')){
       cfg.registers.push('lives');
     }
+
+	//-------Nuevos
+	if(!cfg.playMode) cfg.playMode = 'minimal';
+	if(!cfg.objectControlScope) cfg.objectControlScope = 'host';
+
+	if(!cfg.victoryButtonLabel) cfg.victoryButtonLabel = 'Gané';
+	if(!cfg.victoryButtonScope) cfg.victoryButtonScope = 'round';
+
+	if(!cfg.defeatButtonLabel) cfg.defeatButtonLabel = 'Perdí';
+	if(!cfg.defeatButtonScope) cfg.defeatButtonScope = 'round';
+
+	if(!cfg.scoreInputLabel) cfg.scoreInputLabel = 'Capturar';
+	if(!cfg.scoreInputTarget) cfg.scoreInputTarget = 'points';
+	if(cfg.scoreInputAllowNegative === undefined) cfg.scoreInputAllowNegative = false;
+
+	if(!cfg.trackingLevel) cfg.trackingLevel = 'normal';
+	if(cfg.trackWinnerReason === undefined) cfg.trackWinnerReason = true;
+	if(cfg.trackDefeatReason === undefined) cfg.trackDefeatReason = true;
+	if(cfg.trackRoundHistory === undefined) cfg.trackRoundHistory = true;
+	if(cfg.trackFinancials === undefined) cfg.trackFinancials = false;
+	if(cfg.trackTimers === undefined) cfg.trackTimers = false;
+	//-------
 
     return cfg;
   }
@@ -177,6 +211,43 @@ function sectionState(section, config){
       warnings.push('El emoji se ajustó automáticamente.');
     }
 
+	///---------------------------------------------------
+	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('score_input')){
+	  if(!cfg.scoreInputLabel || String(cfg.scoreInputLabel).trim().length < 2){
+		errors.push('Define el texto del botón de captura manual.');
+	  }
+	}
+
+	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('victory_button')){
+	  if(!cfg.victoryButtonLabel || String(cfg.victoryButtonLabel).trim().length < 2){
+		errors.push('Define el texto del botón verde de victoria.');
+	  }
+	}
+
+	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('defeat_button')){
+	  if(!cfg.defeatButtonLabel || String(cfg.defeatButtonLabel).trim().length < 2){
+		errors.push('Define el texto del botón rojo de derrota.');
+	  }
+	}
+
+	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('counter_set')){
+	  if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
+		warnings.push('Activaste contadores pero no definiste ninguno todavía.');
+	  }
+	}
+
+	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('round_resolution_popup')){
+	  if(!Array.isArray(cfg.roundResolutionFields) || cfg.roundResolutionFields.length === 0){
+		warnings.push('El popup de resolución está activo pero aún no tiene campos definidos.');
+	  }
+	}
+
+	if(cfg.trackFinancials && !Array.isArray(cfg.playObjects)?.includes('round_resolution_popup')){
+	  warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
+	}
+	///---------------------------------------------------
+
+
     return {
       valid: errors.length === 0,
       errors,
@@ -189,67 +260,191 @@ function sectionState(section, config){
   // RESUMEN UX
   // ═══════════════════════════════════════════════════════════════
 
-  function summarizeConfig(cfg){
-    return {
-      title: cfg.name || 'Sin nombre',
-      emoji: cfg.emoji || '🎮',
-      players: `${cfg.minPlayers}-${cfg.maxPlayers} jugadores`,
-      mode: cfg.type === 'teams'
-        ? `Equipos (${cfg.numTeams})`
-        : cfg.type === 'cooperative'
-          ? 'Cooperativo'
-          : 'Individual',
-      victory:
-        cfg.victoryMode === 'points'
-          ? `Puntos a ${cfg.targetScore}`
-          : cfg.victoryMode === 'wins'
-          ? `Victorias a ${cfg.winsTarget}`
-          : cfg.victoryMode || 'No definida'
-    };
-  }
+	function summarizeConfig(cfg){
+	  const playObjects = Array.isArray(cfg.playObjects) ? cfg.playObjects : [];
+
+	  return {
+		title: cfg.name || 'Sin nombre',
+		emoji: cfg.emoji || '🎮',
+		players: `${cfg.minPlayers || 1}-${cfg.maxPlayers || 1} jugadores`,
+		mode: cfg.type === 'teams'
+		  ? `Equipos (${cfg.numTeams || 2})`
+		  : cfg.type === 'cooperative'
+			? 'Cooperativo'
+			: 'Individual',
+		victory:
+		  cfg.victoryMode === 'points'
+			? `Puntos a ${cfg.targetScore || 0}`
+			: cfg.victoryMode === 'wins'
+			  ? `Victorias a ${cfg.winsTarget || 0}`
+			  : cfg.victoryMode || 'No definida',
+		play:
+		  playObjects.length > 0
+			? `${playObjects.length} objetos activos`
+			: 'Sin objetos de partida'
+	  };
+	}
 
   // ═══════════════════════════════════════════════════════════════
   // EXPORT AGRUPADO (PARA BD)
   // ═══════════════════════════════════════════════════════════════
 
-  function groupConfigForStorage(cfg){
-    return {
-      identity: {
-        name: cfg.name,
-        emoji: cfg.emoji,
-        description: cfg.description,
-        type: cfg.type,
-        numTeams: cfg.numTeams,
-        minPlayers: cfg.minPlayers,
-        maxPlayers: cfg.maxPlayers
-      },
-      structure: {
-        useRounds: cfg.useRounds,
-        rounds: cfg.rounds,
-        useTurns: cfg.useTurns
-      },
-      victory: {
-        victoryMode: cfg.victoryMode,
-        targetScore: cfg.targetScore,
-        winsTarget: cfg.winsTarget
-      },
-      progress: {
-        registers: cfg.registers,
-        capturedBy: cfg.capturedBy
-      },
-      tools: {
-        useTools: cfg.useTools,
-        tools: cfg.tools
-      },
-      roles: {
-        roles: cfg.roles
-      },
-      finish: {
-        saveHistory: cfg.saveHistory,
-        endConditions: cfg.endConditions
-      }
-    };
-  }
+	function groupConfigForStorage(cfg){
+	  return {
+		identity: {
+		  name: cfg.name,
+		  emoji: cfg.emoji,
+		  description: cfg.description,
+		  type: cfg.type,
+		  numTeams: cfg.numTeams,
+		  roomAccess: cfg.roomAccess,
+		  minPlayers: cfg.minPlayers,
+		  maxPlayers: cfg.maxPlayers
+		},
+
+		structure: {
+		  useRounds: cfg.useRounds,
+		  rounds: cfg.rounds,
+		  roundClose: cfg.roundClose,
+		  roundTimerSecs: cfg.roundTimerSecs,
+		  roundReset: cfg.roundReset,
+
+		  useTurns: cfg.useTurns,
+		  turnOrder: cfg.turnOrder,
+		  canSkipTurn: cfg.canSkipTurn,
+		  hasExtraTurns: cfg.hasExtraTurns,
+		  turnLimitPerRound: cfg.turnLimitPerRound,
+		  turnLimitCount: cfg.turnLimitCount,
+		  noTurnMode: cfg.noTurnMode,
+
+		  useFirstPlayerToken: cfg.useFirstPlayerToken,
+
+		  useTimer: cfg.useTimer,
+		  timerScope: cfg.timerScope,
+		  timerSecs: cfg.timerSecs,
+		  timerVisualAlert: cfg.timerVisualAlert,
+		  timerSoundAlert: cfg.timerSoundAlert,
+		  timerExpireAction: cfg.timerExpireAction
+		},
+
+		victory: {
+		  victoryMode: cfg.victoryMode,
+		  pointsWinMode: cfg.pointsWinMode,
+		  pointsValidation: cfg.pointsValidation,
+		  targetScore: cfg.targetScore,
+
+		  winsMode: cfg.winsMode,
+		  winsTarget: cfg.winsTarget,
+
+		  livesWinMode: cfg.livesWinMode,
+		  elimWinMode: cfg.elimWinMode,
+		  objectiveWinMode: cfg.objectiveWinMode,
+		  manualWinMode: cfg.manualWinMode,
+
+		  tiebreak: cfg.tiebreak,
+		  winConditions: cfg.winConditions
+		},
+
+		defeat: {
+		  useDefeat: cfg.useDefeat,
+		  defeatType: cfg.defeatType,
+		  defeatMoment: cfg.defeatMoment,
+		  defeatConsequence: cfg.defeatConsequence
+		},
+
+		progress: {
+		  registers: cfg.registers,
+		  customCounterName: cfg.customCounterName,
+		  captureType: cfg.captureType,
+		  valueNature: cfg.valueNature,
+		  accumulation: cfg.accumulation,
+		  modifiers: cfg.modifiers,
+		  capturedBy: cfg.capturedBy,
+		  scoreVisibility: cfg.scoreVisibility
+		},
+
+		elimination: {
+		  useElimination: cfg.useElimination,
+		  elimStartsAt: cfg.elimStartsAt,
+		  elimStartRound: cfg.elimStartRound,
+		  elimMethod: cfg.elimMethod,
+		  elimTieRule: cfg.elimTieRule,
+		  elimAftermath: cfg.elimAftermath
+		},
+
+		tools: {
+		  useTools: cfg.useTools,
+		  tools: cfg.tools,
+		  toolsMode: cfg.toolsMode,
+		  toolsRegistered: cfg.toolsRegistered,
+		  toolsAffect: cfg.toolsAffect,
+
+		  diceType: cfg.diceType,
+		  diceCustomSides: cfg.diceCustomSides,
+		  coinUse: cfg.coinUse,
+		  wheelSegments: cfg.wheelSegments,
+		  rpsScope: cfg.rpsScope
+		},
+
+		roles: {
+		  roles: cfg.roles,
+		  scoreCapture: cfg.scoreCapture,
+		  toolsWho: cfg.toolsWho,
+		  roundCloseWho: cfg.roundCloseWho,
+		  pauseWho: cfg.pauseWho,
+		  errorWho: cfg.errorWho,
+		  visHost: cfg.visHost,
+		  visPlayer: cfg.visPlayer,
+		  visSpectator: cfg.visSpectator
+		},
+
+		play: {
+		  playMode: cfg.playMode,
+		  playObjects: cfg.playObjects,
+
+		  victoryButtonLabel: cfg.victoryButtonLabel,
+		  victoryButtonScope: cfg.victoryButtonScope,
+
+		  defeatButtonLabel: cfg.defeatButtonLabel,
+		  defeatButtonScope: cfg.defeatButtonScope,
+
+		  scoreInputLabel: cfg.scoreInputLabel,
+		  scoreInputTarget: cfg.scoreInputTarget,
+		  scoreInputAllowNegative: cfg.scoreInputAllowNegative,
+		  scoreInputQuickValues: cfg.scoreInputQuickValues,
+
+		  counterSet: cfg.counterSet,
+		  roundResolutionFields: cfg.roundResolutionFields,
+		  objectControlScope: cfg.objectControlScope
+		},
+
+		rules: {
+		  customRules: cfg.customRules,
+		  specialEvents: cfg.specialEvents
+		},
+
+		history: {
+		  trackingLevel: cfg.trackingLevel,
+		  trackWinnerReason: cfg.trackWinnerReason,
+		  trackDefeatReason: cfg.trackDefeatReason,
+		  trackRoundHistory: cfg.trackRoundHistory,
+		  trackFinancials: cfg.trackFinancials,
+		  trackTimers: cfg.trackTimers
+		},
+
+		finish: {
+		  showEndScreen: cfg.showEndScreen,
+		  saveHistory: cfg.saveHistory,
+		  endConditions: cfg.endConditions,
+		  exportFormat: cfg.exportFormat,
+		  rematchKeepPlayers: cfg.rematchKeepPlayers,
+		  rematchKeepRoom: cfg.rematchKeepRoom,
+		  rematchKeepConfig: cfg.rematchKeepConfig,
+		  rematchResetScore: cfg.rematchResetScore,
+		  rematchResetAll: cfg.rematchResetAll
+		}
+	  };
+	}
 
   // ═══════════════════════════════════════════════════════════════
   // EXPORT FINAL
