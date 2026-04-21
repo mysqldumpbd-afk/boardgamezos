@@ -302,7 +302,7 @@ function ListTextField({ label, value, onChange, disabled }){
     <div style={{marginBottom:12, opacity: disabled ? .45 : 1}}>
       <div style={{
         fontFamily:'var(--font-label)',
-        fontSize:nested ? '11px' : '12px',
+        fontSize:'12px',
         color:'rgba(255,255,255,.55)',
         letterSpacing:1,
         marginBottom:6
@@ -675,7 +675,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
                   background:active ? 'rgba(0,245,255,.16)' : 'rgba(255,255,255,.04)',
                   color:active ? 'var(--cyan)' : 'rgba(255,255,255,.65)',
                   fontFamily:'var(--font-label)',
-                  fontSize:nested ? '11px' : '12px',
+                  fontSize:'12px',
                   fontWeight:700,
                   opacity: disabled ? .55 : 1
                 }}
