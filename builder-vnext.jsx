@@ -302,7 +302,7 @@ function AnimatedFieldMount({ children, delay = 0 }){
   return (
     <div style={{
       opacity: entered ? 1 : 0,
-      transform: entered ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(.985)',
+      transform: entered ? 'translateY(0) scale(1)' : 'translateY(10px) scale(.985)',
       filter: entered ? 'blur(0px)' : 'blur(2px)',
       transition: 'opacity 220ms ease, transform 320ms cubic-bezier(.22,.9,.3,1), filter 220ms ease'
     }}>
@@ -439,7 +439,36 @@ function BuilderFXStyles(){
 }
 
 
-function FieldRenderer({ field, value, config, onChange }){
+
+function _findFieldById(fieldId){
+  const sections = window.ENGINE_SCHEMA?.sections || [];
+  for(const section of sections){
+    const found = (section.fields || []).find(f => f.id === fieldId);
+    if(found) return found;
+  }
+  return null;
+}
+
+function _fieldDepth(field, seen = new Set()){
+  if(!field?.visible_if) return 0;
+  const parents = Object.keys(field.visible_if || {});
+  if(!parents.length) return 0;
+  let maxParentDepth = 0;
+  parents.forEach(parentId => {
+    if(seen.has(parentId)) return;
+    const parentField = _findFieldById(parentId);
+    if(parentField){
+      const nextSeen = new Set(seen);
+      nextSeen.add(parentId);
+      maxParentDepth = Math.max(maxParentDepth, _fieldDepth(parentField, nextSeen) + 1);
+    } else {
+      maxParentDepth = Math.max(maxParentDepth, 1);
+    }
+  });
+  return maxParentDepth;
+}
+
+function FieldRenderer({ field, value, config, onChange, depth = 0 }){
   const visible = window.SchemaUtils.isVisible(field, config);
   const disabled = !visible;
   const reason = _disabledReason(field, config);
@@ -449,20 +478,28 @@ function FieldRenderer({ field, value, config, onChange }){
     onChange(field.id, next);
   }
 
+  const nested = depth > 0;
   const wrapStyle = {
-    marginBottom: 12,
-    padding: '10px 12px',
-    borderRadius: 12,
-    border: disabled ? '1px dashed rgba(255,255,255,.10)' : '1px solid rgba(255,255,255,.07)',
-    background: disabled ? 'rgba(255,255,255,.02)' : 'rgba(255,255,255,.03)',
+    marginBottom: nested ? 10 : 12,
+    marginLeft: nested ? Math.min(12 + depth * 10, 28) : 0,
+    padding: nested ? '9px 10px' : '10px 12px',
+    borderRadius: nested ? 10 : 12,
+    borderLeft: nested ? `3px solid ${disabled ? 'rgba(255,255,255,.08)' : 'rgba(0,245,255,.22)'}` : undefined,
+    borderTop: disabled ? '1px dashed rgba(255,255,255,.10)' : '1px solid rgba(255,255,255,.07)',
+    borderRight: disabled ? '1px dashed rgba(255,255,255,.10)' : '1px solid rgba(255,255,255,.07)',
+    borderBottom: disabled ? '1px dashed rgba(255,255,255,.10)' : '1px solid rgba(255,255,255,.07)',
+    background: nested
+      ? (disabled ? 'rgba(255,255,255,.018)' : 'linear-gradient(135deg, rgba(0,245,255,.045), rgba(255,255,255,.022))')
+      : (disabled ? 'rgba(255,255,255,.02)' : 'rgba(255,255,255,.03)'),
+    boxShadow: nested && !disabled ? 'inset 0 1px 0 rgba(255,255,255,.04)' : 'none',
     opacity: disabled ? .55 : 1
   };
 
   const labelStyle = {
     fontFamily:'var(--font-label)',
-    fontSize:'var(--fs-xs)',
-    color:'rgba(255,255,255,.55)',
-    letterSpacing:1,
+    fontSize: nested ? 'var(--fs-micro)' : 'var(--fs-xs)',
+    color: nested ? 'rgba(255,255,255,.48)' : 'rgba(255,255,255,.55)',
+    letterSpacing: nested ? .6 : 1,
     marginBottom:6
   };
 
@@ -475,29 +512,9 @@ function FieldRenderer({ field, value, config, onChange }){
           checked={!!value}
           disabled={disabled}
           label={field.label}
-          sublabel={reason || (value ? 'Activo · mostrará opciones relacionadas debajo.' : 'Inactivo · al encenderlo aparecerán más opciones.')}
+          sublabel={reason || (value ? 'Activo · las opciones hijas aparecen debajo y con sangría.' : 'Inactivo · al encenderlo aparecerán más opciones.')}
           onToggle={()=>set(!value)}
         />
-        <div style={{
-          maxHeight: value ? 14 : 0,
-          opacity: value ? 1 : 0,
-          overflow:'hidden',
-          transition:'max-height 240ms cubic-bezier(.22,.9,.3,1), opacity 180ms ease'
-        }}>
-          <div className="bgz-children-reveal" style={{
-            marginTop:8,
-            padding:'8px 10px',
-            borderRadius:10,
-            background:'linear-gradient(90deg, rgba(0,245,255,.08), rgba(255,255,255,.02))',
-            border:'1px solid rgba(0,245,255,.16)',
-            fontFamily:'var(--font-label)',
-            fontSize:'var(--fs-micro)',
-            color:'rgba(217,252,255,.72)',
-            letterSpacing:.6
-          }}>
-            Desplegando opciones relacionadas…
-          </div>
-        </div>
       </div>
     );
   }
@@ -891,6 +908,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                 value={config[field.id]}
                 config={config}
                 onChange={onChange}
+                depth={_fieldDepth(field)}
               />
             </AnimatedFieldMount>
           ))}
@@ -926,7 +944,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                   background:'rgba(255,255,255,.02)',
                   border:'1px dashed rgba(255,255,255,.10)'
                 }}>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.46)',lineHeight:1.45}}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.46)',lineHeight:1.45}}>
                     Esta sección tiene {inactiveFields.length} campo{inactiveFields.length > 1 ? 's' : ''} opcional{inactiveFields.length > 1 ? 'es' : ''} que no aplican con la configuración actual.
                     {preparedCount > 0 ? ` Ya tienes ${preparedCount} valor${preparedCount > 1 ? 'es' : ''} preparado${preparedCount > 1 ? 's' : ''}.` : ''}
                   </div>
@@ -947,6 +965,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                       value={config[field.id]}
                       config={config}
                       onChange={onChange}
+                      depth={_fieldDepth(field)}
                     />
                   </AnimatedFieldMount>
                 ))}
