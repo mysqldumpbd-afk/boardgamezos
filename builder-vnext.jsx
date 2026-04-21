@@ -291,162 +291,6 @@ function ListTextField({ label, value, onChange, disabled }){
   );
 }
 
-function CounterSetEditor({ value = [], onChange, disabled }){
-  const counters = Array.isArray(value) ? value : [];
-
-  function addCounter(){
-    if(disabled) return;
-    onChange([
-      ...counters,
-      {
-        id: `counter_${Date.now()}`,
-        label: 'Contador',
-        color: '#FFD447',
-        icon: '🪙',
-        scope: 'player',
-        initialValue: 0,
-        min: 0,
-        max: null,
-        resetOn: 'never',
-        visibleTo: 'all'
-      }
-    ]);
-  }
-
-  function updateCounter(idx, patch){
-    onChange(counters.map((c, i) => i === idx ? { ...c, ...patch } : c));
-  }
-
-  function removeCounter(idx){
-    onChange(counters.filter((_, i) => i !== idx));
-  }
-
-  return (
-    <div style={{opacity: disabled ? .55 : 1}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)'}}>
-          Contadores
-        </div>
-        {!disabled && (
-          <button type="button" className="btn btn-ghost" style={{width:'auto',padding:'8px 10px'}} onClick={addCounter}>
-            + Agregar
-          </button>
-        )}
-      </div>
-
-      {counters.length === 0 && (
-        <div style={{
-          padding:'12px',
-          borderRadius:12,
-          background:'rgba(255,255,255,.03)',
-          border:'1px solid rgba(255,255,255,.08)',
-          color:'rgba(255,255,255,.45)',
-          fontFamily:'var(--font-label)',
-          fontSize:'var(--fs-xs)'
-        }}>
-          No hay contadores todavía.
-        </div>
-      )}
-
-      {counters.map((counter, idx)=>(
-        <div key={counter.id || idx} style={{
-          padding:'12px',
-          borderRadius:14,
-          background:'rgba(255,255,255,.03)',
-          border:'1px solid rgba(255,255,255,.08)',
-          marginBottom:10
-        }}>
-          <div style={{display:'grid',gap:8}}>
-            <input
-              className="os-input"
-              value={counter.label ?? ''}
-              disabled={disabled}
-              onChange={e=>updateCounter(idx, { label: e.target.value })}
-              placeholder="Nombre"
-            />
-
-            <div style={{display:'grid',gridTemplateColumns:'1fr 90px',gap:8}}>
-              <input
-                className="os-input"
-                value={counter.icon ?? '🪙'}
-                disabled={disabled}
-                onChange={e=>updateCounter(idx, { icon: e.target.value })}
-                placeholder="Icono"
-              />
-              <input
-                className="os-input"
-                value={counter.color ?? '#FFD447'}
-                disabled={disabled}
-                onChange={e=>updateCounter(idx, { color: e.target.value })}
-                placeholder="#FFD447"
-              />
-            </div>
-
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <select className="os-select" value={counter.scope ?? 'player'} disabled={disabled}
-                onChange={e=>updateCounter(idx, { scope: e.target.value })}>
-                <option value="player">Jugador</option>
-                <option value="team">Equipo</option>
-                <option value="global">Global</option>
-              </select>
-
-              <input
-                className="os-input"
-                type="number"
-                value={counter.initialValue ?? 0}
-                disabled={disabled}
-                onChange={e=>updateCounter(idx, { initialValue: parseInt(e.target.value || '0', 10) || 0 })}
-                placeholder="Inicial"
-              />
-            </div>
-
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <input
-                className="os-input"
-                type="number"
-                value={counter.min ?? 0}
-                disabled={disabled}
-                onChange={e=>updateCounter(idx, { min: parseInt(e.target.value || '0', 10) || 0 })}
-                placeholder="Min"
-              />
-              <input
-                className="os-input"
-                type="number"
-                value={counter.max ?? ''}
-                disabled={disabled}
-                onChange={e=>updateCounter(idx, { max: e.target.value === '' ? null : (parseInt(e.target.value, 10) || 0) })}
-                placeholder="Max"
-              />
-            </div>
-
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <select className="os-select" value={counter.resetOn ?? 'never'} disabled={disabled}
-                onChange={e=>updateCounter(idx, { resetOn: e.target.value })}>
-                <option value="never">No reiniciar</option>
-                <option value="round">Cada ronda</option>
-                <option value="match">Cada partida</option>
-              </select>
-
-              <select className="os-select" value={counter.visibleTo ?? 'all'} disabled={disabled}
-                onChange={e=>updateCounter(idx, { visibleTo: e.target.value })}>
-                <option value="all">Todos</option>
-                <option value="host">Host</option>
-                <option value="player">Jugador</option>
-              </select>
-            </div>
-
-            {!disabled && (
-              <button type="button" className="btn btn-ghost" style={{color:'var(--red)'}} onClick={()=>removeCounter(idx)}>
-                Eliminar contador
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function FieldRenderer({ field, value, config, onChange }){
   const visible = window.SchemaUtils.isVisible(field, config);
   const disabled = !visible;
@@ -590,15 +434,6 @@ function FieldRenderer({ field, value, config, onChange }){
     );
   }
 
-  if(field.type === 'counter_set_editor'){
-    return (
-      <div style={wrapStyle}>
-        <CounterSetEditor value={Array.isArray(value) ? value : []} onChange={set} disabled={disabled} />
-        {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
-      </div>
-    );
-  }
-
   if(field.type === 'list_text'){
     return (
       <div style={wrapStyle}>
@@ -611,10 +446,67 @@ function FieldRenderer({ field, value, config, onChange }){
   return null;
 }
 
+function _fieldHasStoredValue(field, value){
+  if(value === null || value === undefined) return false;
+  if(field.type === 'boolean') return value === true;
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
+    return Array.isArray(value) && value.length > 0;
+  }
+  if(field.type === 'number') return value !== '' && !Number.isNaN(Number(value));
+  return String(value).trim().length > 0;
+}
+
+function _compactValueText(field, value){
+  if(value === null || value === undefined || value === '') return null;
+  if(field.type === 'boolean') return value ? 'Sí' : 'No';
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
+    return Array.isArray(value) && value.length ? `${value.length}` : null;
+  }
+  if(field.type === 'select'){
+    const opt = (field.options || []).find(o => String(o.value) === String(value));
+    return opt?.label || String(value);
+  }
+  if(field.type === 'textarea'){
+    const txt = String(value).trim();
+    return txt.length > 24 ? txt.slice(0, 24) + '…' : txt;
+  }
+  return String(value);
+}
+
+function _inactiveSectionSummary(section, config){
+  const active = [];
+  const prepared = [];
+
+  (section.fields || []).forEach(field => {
+    if(field.id === 'name' || field.id === 'emoji') return;
+    const visible = window.SchemaUtils.isVisible(field, config);
+    const val = config[field.id];
+    const compact = _compactValueText(field, val);
+
+    if(visible && _fieldHasStoredValue(field, val)){
+      active.push(`${field.label}: ${compact}`);
+      return;
+    }
+
+    if(!visible && _fieldHasStoredValue(field, val)){
+      prepared.push(`${field.label}: ${compact}`);
+    }
+  });
+
+  return { active, prepared };
+}
+
 function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onComplete, isLast }){
   const color = _sectionColor(section);
   const info = window.SchemaUtils.sectionState(section, config);
   const pct = _sectionPercent(section, config);
+  const summary = _inactiveSectionSummary(section, config);
+  const [showInactive, setShowInactive] = React.useState(false);
+
+  const visibleFields = (section.fields || []).filter(field => window.SchemaUtils.isVisible(field, config));
+  const inactiveFields = (section.fields || []).filter(field => !window.SchemaUtils.isVisible(field, config));
+  const preparedCount = summary.prepared.length;
+  const hiddenCount = inactiveFields.length;
 
   return (
     <div style={{marginBottom:14}}>
@@ -669,6 +561,50 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             </div>
           </div>
         </div>
+
+        {!isOpen && (summary.active.length > 0 || preparedCount > 0 || hiddenCount > 0) && (
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:10,pointerEvents:'none'}}>
+            {summary.active.slice(0, 2).map((line, i)=>(
+              <div key={i} style={{
+                padding:'5px 9px',
+                borderRadius:999,
+                background:'rgba(255,255,255,.05)',
+                border:'1px solid rgba(255,255,255,.08)',
+                fontFamily:'var(--font-label)',
+                fontSize:'11px',
+                color:'rgba(255,255,255,.62)'
+              }}>
+                {line}
+              </div>
+            ))}
+            {preparedCount > 0 && (
+              <div style={{
+                padding:'5px 9px',
+                borderRadius:999,
+                background: color + '18',
+                border:`1px solid ${color}33`,
+                fontFamily:'var(--font-label)',
+                fontSize:'11px',
+                color:color
+              }}>
+                {preparedCount} preparado{preparedCount > 1 ? 's' : ''}
+              </div>
+            )}
+            {hiddenCount > 0 && (
+              <div style={{
+                padding:'5px 9px',
+                borderRadius:999,
+                background:'rgba(255,255,255,.04)',
+                border:'1px solid rgba(255,255,255,.08)',
+                fontFamily:'var(--font-label)',
+                fontSize:'11px',
+                color:'rgba(255,255,255,.52)'
+              }}>
+                {hiddenCount} opciones avanzadas
+              </div>
+            )}
+          </div>
+        )}
       </button>
 
       {isOpen && (
@@ -688,7 +624,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             />
           )}
 
-          {(section.fields || []).map(field=>(
+          {visibleFields.map(field=>(
             <FieldRenderer
               key={field.id}
               field={field}
@@ -697,6 +633,48 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               onChange={onChange}
             />
           ))}
+
+          {inactiveFields.length > 0 && (
+            <div style={{marginTop:10}}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{width:'100%', justifyContent:'center'}}
+                onClick={()=>setShowInactive(v=>!v)}
+              >
+                {showInactive ? '▲ Ocultar opciones inactivas' : `▼ Ver opciones inactivas (${inactiveFields.length})`}
+              </button>
+
+              {!showInactive && (
+                <div style={{
+                  marginTop:8,
+                  padding:'10px 12px',
+                  borderRadius:12,
+                  background:'rgba(255,255,255,.02)',
+                  border:'1px dashed rgba(255,255,255,.10)'
+                }}>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.46)',lineHeight:1.45}}>
+                    Esta sección tiene {inactiveFields.length} campo{inactiveFields.length > 1 ? 's' : ''} opcional{inactiveFields.length > 1 ? 'es' : ''} que no aplican con la configuración actual.
+                    {preparedCount > 0 ? ` Ya tienes ${preparedCount} valor${preparedCount > 1 ? 'es' : ''} preparado${preparedCount > 1 ? 's' : ''}.` : ''}
+                  </div>
+                </div>
+              )}
+
+              {showInactive && (
+                <div style={{marginTop:10}}>
+                  {inactiveFields.map(field=>(
+                    <FieldRenderer
+                      key={field.id}
+                      field={field}
+                      value={config[field.id]}
+                      config={config}
+                      onChange={onChange}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{marginTop:10}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
@@ -762,34 +740,6 @@ function GroupedPreview({ payload }){
   );
 }
 
-function RuntimePreview({ payload }){
-  const [open, setOpen] = React.useState(false);
-  if(!payload || !payload.runtime) return null;
-
-  return (
-    <div style={{marginBottom:16}}>
-      <button type="button" className="btn btn-ghost" onClick={()=>setOpen(v=>!v)}>
-        {open ? '▼' : '▶'} Ver runtime resuelto
-      </button>
-      {open && (
-        <pre style={{
-          marginTop:10,
-          padding:14,
-          borderRadius:12,
-          background:'#090915',
-          border:'1px solid rgba(255,255,255,.08)',
-          color:'#D8F9FF',
-          overflow:'auto',
-          fontSize:12,
-          lineHeight:1.45
-        }}>
-{JSON.stringify(payload.runtime, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema Builder V4' }){
   const schema = window.ENGINE_SCHEMA;
   const [config, setConfig] = React.useState(()=>{
@@ -820,14 +770,6 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
   function toggleSection(id){
     setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
-  }
-
-  function applyPreset(key){
-    const preset = window.OFFICIAL_PRESETS?.[key];
-    if(!preset) return;
-    const nextConfig = window.SchemaUtils.normalizeConfig(schema, preset.config || preset);
-    setConfig(nextConfig);
-    setPreviewPayload(null);
   }
 
   function completeAndAdvance(index){
@@ -889,29 +831,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
           </div>
         </div>
 
-        <div style={{marginBottom:16}}>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)',letterSpacing:1,marginBottom:8}}>
-            Presets oficiales
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {Object.entries(window.OFFICIAL_PRESETS || {}).map(([key, preset])=>(
-              <button
-                key={key}
-                type="button"
-                className="btn btn-ghost"
-                style={{width:'auto'}}
-                onClick={()=>applyPreset(key)}
-                title={preset.description || key}
-              >
-                {preset.emoji || '🎮'} {preset.title || key}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <ValidationPanel validation={validation} />
         <GroupedPreview payload={previewPayload} />
-        <RuntimePreview payload={previewPayload} />
 
         {sections.map((section, index)=>(
           <SectionBlock
