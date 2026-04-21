@@ -207,95 +207,81 @@ function sectionState(section, config){
   // VALIDACIÓN (HUMANA)
   // ═══════════════════════════════════════════════════════════════
 
-  function validateConfig(schema, incoming){
-    const cfg = sanitizeConfig(schema, incoming);
-    const errors = [];
-    const warnings = [];
+	 function validateConfig(schema, incoming){
+	  const cfg = sanitizeConfig(schema, incoming);
+	  const errors = [];
+	  const warnings = [];
+	  const playObjects = Array.isArray(cfg.playObjects) ? cfg.playObjects : [];
 
-    if(!cfg.name || cfg.name.length < 2){
-      errors.push('Ponle un nombre al juego.');
-    }
-
-    if(cfg.minPlayers > cfg.maxPlayers){
-      errors.push('El mínimo de jugadores no puede ser mayor que el máximo.');
-    }
-
-    if(cfg.type === 'teams' && cfg.numTeams < 2){
-      errors.push('Si usas equipos, necesitas al menos 2.');
-    }
-
-    if(cfg.useRounds && cfg.rounds < 1){
-      errors.push('Define al menos 1 ronda.');
-    }
-
-    if(cfg.victoryMode === 'points' && cfg.targetScore < 1){
-      errors.push('Define la meta de puntos.');
-    }
-
-    if(cfg.victoryMode === 'wins' && cfg.winsTarget < 1){
-      errors.push('Define la meta de victorias.');
-    }
-
-    if(String(incoming?.emoji || '').length > 8){
-      warnings.push('El emoji se ajustó automáticamente.');
-    }
-
-	///---------------------------------------------------
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('score_input')){
-	  if(!cfg.scoreInputLabel || String(cfg.scoreInputLabel).trim().length < 2){
-		errors.push('Define el texto del botón de captura manual.');
+	  if(!cfg.name || cfg.name.length < 2){
+		errors.push('Ponle un nombre al juego.');
 	  }
-	}
 
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('victory_button')){
-	  if(!cfg.victoryButtonLabel || String(cfg.victoryButtonLabel).trim().length < 2){
-		errors.push('Define el texto del botón verde de victoria.');
+	  if(cfg.minPlayers > cfg.maxPlayers){
+		errors.push('El mínimo de jugadores no puede ser mayor que el máximo.');
 	  }
-	}
 
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('defeat_button')){
-	  if(!cfg.defeatButtonLabel || String(cfg.defeatButtonLabel).trim().length < 2){
-		errors.push('Define el texto del botón rojo de derrota.');
+	  if(cfg.type === 'teams' && cfg.numTeams < 2){
+		errors.push('Si usas equipos, necesitas al menos 2.');
 	  }
-	}
 
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('counter_set')){
-	  if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
-		warnings.push('Activaste contadores pero no definiste ninguno todavía.');
-	  } else {
-		cfg.counterSet.forEach((counter, index)=>{
-		  if(!counter.label || String(counter.label).trim().length < 2){
-			errors.push(`El contador ${index + 1} necesita nombre.`);
-		  }
-		  if(!counter.scope){
-			errors.push(`El contador ${index + 1} necesita alcance.`);
-		  }
-		  if(!Number.isFinite(+counter.initialValue)){
-			errors.push(`El contador ${index + 1} necesita valor inicial válido.`);
-		  }
-		});
+	  if(cfg.useRounds && cfg.rounds < 1){
+		errors.push('Define al menos 1 ronda.');
 	  }
-	}
 
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('round_resolution_popup')){
-	  if(!Array.isArray(cfg.roundResolutionFields) || cfg.roundResolutionFields.length === 0){
-		warnings.push('El popup de resolución está activo pero aún no tiene campos definidos.');
+	  if(cfg.victoryMode === 'points' && cfg.targetScore < 1){
+		errors.push('Define la meta de puntos.');
 	  }
+
+	  if(cfg.victoryMode === 'wins' && cfg.winsTarget < 1){
+		errors.push('Define la meta de victorias.');
+	  }
+
+	  if(String(incoming?.emoji || '').length > 8){
+		warnings.push('El emoji se ajustó automáticamente.');
+	  }
+
+	  if(playObjects.includes('score_input')){
+		if(!cfg.scoreInputLabel || String(cfg.scoreInputLabel).trim().length < 2){
+		  errors.push('Define el texto del botón de captura manual.');
+		}
+	  }
+
+	  if(playObjects.includes('victory_button')){
+		if(!cfg.victoryButtonLabel || String(cfg.victoryButtonLabel).trim().length < 2){
+		  errors.push('Define el texto del botón verde de victoria.');
+		}
+	  }
+
+	  if(playObjects.includes('defeat_button')){
+		if(!cfg.defeatButtonLabel || String(cfg.defeatButtonLabel).trim().length < 2){
+		  errors.push('Define el texto del botón rojo de derrota.');
+		}
+	  }
+
+	  if(playObjects.includes('counter_set')){
+		if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
+		  warnings.push('Activaste contadores pero no definiste ninguno todavía.');
+		}
+	  }
+
+	  if(playObjects.includes('round_resolution_popup')){
+		if(!Array.isArray(cfg.roundResolutionFields) || cfg.roundResolutionFields.length === 0){
+		  warnings.push('El popup de resolución está activo pero aún no tiene campos definidos.');
+		}
+	  }
+
+	  if(cfg.trackFinancials && !playObjects.includes('round_resolution_popup')){
+		warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
+	  }
+
+	  return {
+		valid: errors.length === 0,
+		errors,
+		warnings,
+		sanitized: cfg
+	  };
 	}
-
-	if(cfg.trackFinancials && !Array.isArray(cfg.playObjects)?.includes('round_resolution_popup')){
-	  warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
-	}
-	///---------------------------------------------------
-
-
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings,
-      sanitized: cfg
-    };
-  }
 
   // ═══════════════════════════════════════════════════════════════
   // RESUMEN UX
