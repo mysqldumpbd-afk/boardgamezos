@@ -1251,7 +1251,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
         <div style={{marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-            <div style={{fontFamily:'var(--font-label)',fontSize:nested ? '11px' : '12px',color:'rgba(255,255,255,.55)',letterSpacing:1}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)',letterSpacing:1}}>
               Avance total del motor
             </div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'0.95rem',color:'var(--cyan)'}}>
