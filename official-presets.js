@@ -1,49 +1,62 @@
 // ═══════════════════════════════════════════════════════════════
-// official-presets.js — BOARDGAMEZ OS v1.0
-// Presets oficiales iniciales para validar producto
+// official-presets.js — BOARDGAMEZ OS
+// Presets oficiales para validar el motor
 // ═══════════════════════════════════════════════════════════════
 
-window.OFFICIAL_PRESETS = [
-  {
-    id: 'strike',
-    label: 'Strike',
-    emoji: '🎲',
-    description: 'Último jugador con dados activos. Config minimalista para eliminación.',
+window.OFFICIAL_PRESETS = {
+  strike: {
+    title: 'Strike',
+    emoji: '🎳',
+    description: 'Preset centrado en eliminación y último jugador en pie.',
     config: {
       name: 'Strike',
-      emoji: '🎲',
-      description: 'Preset oficial Strike',
+      emoji: '🎳',
+      description: 'Preset oficial para Strike',
       type: 'individual',
       minPlayers: 2,
-      maxPlayers: 5,
+      maxPlayers: 8,
       useRounds: false,
-      useTurns: true,
-      turnOrder: 'fixed',
+      useTurns: false,
       victoryMode: 'elimination',
-      useElimination: true,
-      elimMethod: 'manual',
-      registers: ['wins'],
+      elimWinMode: 'last_player',
+      registers: ['points'],
       playMode: 'minimal',
-      playObjects: ['defeat_button', 'round_resolution_popup'],
+      playObjects: ['defeat_button','counter_set'],
       defeatButtonLabel: 'Eliminado',
       defeatButtonScope: 'individual',
-      roundResolutionFields: ['winner', 'notes'],
+      counterSet: [
+        {
+          id: 'dice_pool',
+          label: 'Dados',
+          color: '#FFD447',
+          icon: '🎲',
+          scope: 'player',
+          initialValue: 8,
+          min: 0,
+          max: null,
+          resetOn: 'never',
+          visibleTo: 'all'
+        }
+      ],
       objectControlScope: 'host',
+      roles: ['host','player'],
       trackingLevel: 'normal',
       trackWinnerReason: true,
       trackDefeatReason: true,
-      trackRoundHistory: true
+      trackRoundHistory: true,
+      trackFinancials: false,
+      trackTimers: false
     }
   },
-  {
-    id: 'cubilete',
-    label: 'Cubilete',
+
+  cubilete: {
+    title: 'Cubilete',
     emoji: '🎲',
-    description: 'Seguimiento de fichas/vidas y resolución manual por ronda.',
+    description: 'Preset con captura manual, popup de ronda y contadores.',
     config: {
       name: 'Cubilete',
       emoji: '🎲',
-      description: 'Preset oficial Cubilete',
+      description: 'Score tracker para cubilete',
       type: 'individual',
       minPlayers: 2,
       maxPlayers: 6,
@@ -53,37 +66,48 @@ window.OFFICIAL_PRESETS = [
       useTurns: true,
       turnOrder: 'fixed',
       useFirstPlayerToken: true,
-      victoryMode: 'lives',
-      useElimination: true,
-      elimMethod: 'manual',
-      registers: ['lives', 'wins'],
-      playMode: 'guided',
-      playObjects: ['score_input', 'counter_set', 'round_resolution_popup'],
-      scoreInputLabel: 'Ajustar fichas',
-      scoreInputTarget: 'lives',
-      scoreInputAllowNegative: true,
-      scoreInputQuickValues: ['-1', '-2', '+1'],
+      victoryMode: 'manual',
+      manualWinMode: 'host_end',
+      registers: ['points'],
+      playMode: 'standard',
+      playObjects: ['score_input','counter_set','round_resolution_popup','first_player_token'],
+      scoreInputLabel: 'Capturar',
+      scoreInputTarget: 'points',
+      scoreInputAllowNegative: false,
+      scoreInputQuickValues: ['1','5','10'],
       counterSet: [
-        { id:'fichas', label:'Fichas', color:'#FFD447', icon:'🪙', scope:'player', initialValue:5, min:0, max:null, resetOn:'never', visibleTo:'all' }
+        {
+          id: 'chips',
+          label: 'Fichas',
+          color: '#FFD447',
+          icon: '🪙',
+          scope: 'player',
+          initialValue: 5,
+          min: 0,
+          max: null,
+          resetOn: 'never',
+          visibleTo: 'all'
+        }
       ],
-      roundResolutionFields: ['winner', 'win_type', 'payout', 'notes'],
+      roundResolutionFields: ['winner','win_type','payout','notes'],
       objectControlScope: 'host',
-      trackingLevel: 'detailed',
+      trackingLevel: 'deep',
       trackWinnerReason: true,
-      trackFinancials: true,
+      trackDefeatReason: true,
       trackRoundHistory: true,
-      winConditions: ['Par', 'Dos pares', 'Tercia', 'Full', 'Póker', 'Quintilla']
+      trackFinancials: true,
+      trackTimers: false
     }
   },
-  {
-    id: 'sushi_go_score_tracker',
-    label: 'Sushi Go Score Tracker',
+
+  sushiGoScoreTracker: {
+    title: 'Sushi Go Score Tracker',
     emoji: '🍣',
-    description: 'Captura de puntos por ronda, historial y desempate manual.',
+    description: 'Preset para captura de puntos por ronda.',
     config: {
       name: 'Sushi Go Score Tracker',
       emoji: '🍣',
-      description: 'Preset oficial Sushi Go',
+      description: 'Marcador por rondas para Sushi Go',
       type: 'individual',
       minPlayers: 2,
       maxPlayers: 5,
@@ -92,20 +116,23 @@ window.OFFICIAL_PRESETS = [
       roundClose: 'manual',
       useTurns: false,
       victoryMode: 'points',
-      targetScore: 20,
-      registers: ['points', 'wins'],
-      playMode: 'guided',
-      playObjects: ['score_input', 'round_resolution_popup'],
-      scoreInputLabel: 'Capturar puntos de ronda',
+      pointsWinMode: 'most',
+      pointsValidation: 'end_round',
+      registers: ['points'],
+      playMode: 'minimal',
+      playObjects: ['score_input','round_resolution_popup'],
+      scoreInputLabel: 'Puntos de ronda',
       scoreInputTarget: 'points',
       scoreInputAllowNegative: false,
-      scoreInputQuickValues: ['1', '5', '10'],
-      roundResolutionFields: ['winner', 'round_points', 'notes'],
+      scoreInputQuickValues: ['1','3','5','10'],
+      roundResolutionFields: ['winner','round_points','notes'],
       objectControlScope: 'host',
-      trackingLevel: 'detailed',
+      trackingLevel: 'normal',
       trackWinnerReason: true,
+      trackDefeatReason: false,
       trackRoundHistory: true,
-      tiebreak: 'host'
+      trackFinancials: false,
+      trackTimers: false
     }
   }
-];
+};

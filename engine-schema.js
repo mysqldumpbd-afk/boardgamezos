@@ -918,8 +918,8 @@ window.ENGINE_SCHEMA = {
 
 		{
 		  id: "counterSet",
-		  type: "list_text",
-		  label: "Contadores definidos (nombre|color)",
+		  type: "counter_set_editor",
+		  label: "Contadores definidos",
 		  default: [],
 		  visible_if: { playObjects: ["counter_set"] }
 		},
@@ -1154,7 +1154,7 @@ window.ENGINE_SCHEMA = {
 		  default: false
 		}
 	  ]
-	},
+	}
 
     // ──────────────────────────────────────────────────────────
     // 10. FINALIZACIÓN

@@ -48,7 +48,7 @@ function _sectionFilledCount(section, config){
   const required = _sectionRequiredFields(section, config);
   const hasValue = window.SchemaUtils.hasValue || function(field, value){
     if(field.type === 'boolean') return value === true || value === false;
-    if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor') return Array.isArray(value) && value.length > 0;
+    if(field.type === 'multi_select' || field.type === 'list_text') return Array.isArray(value) && value.length > 0;
     if(field.type === 'number') return value !== null && value !== undefined && value !== '';
     return String(value ?? '').trim().length > 0;
   };
@@ -211,208 +211,24 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
   );
 }
 
-function CounterCard({ item, index, disabled, onChange, onRemove }){
-  const baseInputStyle = { marginBottom:0, padding:'9px 10px' };
-  function patch(key, value){
-    if(disabled) return;
-    onChange({ ...item, [key]: value });
-  }
-
-  return (
-    <div style={{
-      marginBottom:10,
-      padding:'12px',
-      borderRadius:14,
-      background:'rgba(255,255,255,.04)',
-      border:'1px solid rgba(255,255,255,.08)'
-    }}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:10}}>
-        <div style={{fontFamily:'var(--font-display)',fontSize:'0.9rem',color:'var(--gold)'}}>
-          {item.icon || '🪙'} Contador {index + 1}
-        </div>
-        {!disabled && (
-          <button type="button" onClick={onRemove} style={{background:'none',border:'none',color:'var(--red)',cursor:'pointer',fontSize:'1rem'}}>×</button>
-        )}
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 92px',gap:8,marginBottom:8}}>
-        <input className="os-input" style={baseInputStyle} value={item.label || ''} disabled={disabled} onChange={e=>patch('label', e.target.value)} placeholder="Nombre" />
-        <input className="os-input" style={baseInputStyle} value={item.icon || ''} disabled={disabled} onChange={e=>patch('icon', e.target.value)} placeholder="🪙" />
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-        <input className="os-input" style={baseInputStyle} type="color" value={item.color || '#FFD447'} disabled={disabled} onChange={e=>patch('color', e.target.value)} />
-        <select className="os-select" style={{marginBottom:0}} value={item.scope || 'player'} disabled={disabled} onChange={e=>patch('scope', e.target.value)}>
-          <option value="player">Por jugador</option>
-          <option value="team">Por equipo</option>
-          <option value="global">Global</option>
-        </select>
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
-        <input className="os-input" style={baseInputStyle} type="number" value={item.initialValue ?? 0} disabled={disabled} onChange={e=>patch('initialValue', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Inicial" />
-        <input className="os-input" style={baseInputStyle} type="number" value={item.min ?? 0} disabled={disabled} onChange={e=>patch('min', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} placeholder="Mín" />
-        <input className="os-input" style={baseInputStyle} type="number" value={item.max ?? ''} disabled={disabled} onChange={e=>patch('max', e.target.value === '' ? null : parseInt(e.target.value, 10))} placeholder="Máx" />
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-        <select className="os-select" style={{marginBottom:0}} value={item.resetOn || 'never'} disabled={disabled} onChange={e=>patch('resetOn', e.target.value)}>
-          <option value="never">No reiniciar</option>
-          <option value="round">Por ronda</option>
-          <option value="match">Por partida</option>
-        </select>
-        <select className="os-select" style={{marginBottom:0}} value={item.visibleTo || 'all'} disabled={disabled} onChange={e=>patch('visibleTo', e.target.value)}>
-          <option value="all">Visible a todos</option>
-          <option value="host">Solo host</option>
-          <option value="player">Solo jugador</option>
-        </select>
-      </div>
-    </div>
-  );
-}
-
-function CounterSetEditor({ label, value, onChange, disabled }){
-  const counters = Array.isArray(value) ? value : [];
-
-  function updateAt(index, next){
-    onChange(counters.map((item, i)=>i === index ? next : item));
-  }
-
-  function removeAt(index){
-    onChange(counters.filter((_, i)=>i !== index));
-  }
-
-  function addCounter(){
-    onChange([
-      ...counters,
-      {
-        id: `counter_${counters.length + 1}`,
-        label: `Contador ${counters.length + 1}`,
-        color: '#FFD447',
-        icon: '🪙',
-        scope: 'player',
-        initialValue: 0,
-        min: 0,
-        max: null,
-        resetOn: 'never',
-        visibleTo: 'all'
-      }
-    ]);
-  }
-
-  return (
-    <div style={{opacity: disabled ? .45 : 1}}>
-      <div style={{
-        fontFamily:'var(--font-label)',
-        fontSize:'var(--fs-xs)',
-        color:'rgba(255,255,255,.55)',
-        letterSpacing:1,
-        marginBottom:8
-      }}>
-        {label}
-      </div>
-
-      {counters.length === 0 && (
-        <div style={{
-          padding:'10px 12px',
-          borderRadius:12,
-          border:'1px dashed rgba(255,255,255,.14)',
-          color:'rgba(255,255,255,.4)',
-          fontFamily:'var(--font-label)',
-          fontSize:'var(--fs-xs)',
-          marginBottom:10
-        }}>
-          Aún no hay contadores definidos.
-        </div>
-      )}
-
-      {counters.map((item, index)=>(
-        <CounterCard
-          key={item.id || index}
-          item={item}
-          index={index}
-          disabled={disabled}
-          onChange={next=>updateAt(index, next)}
-          onRemove={()=>removeAt(index)}
-        />
-      ))}
-
-      {!disabled && (
-        <button type="button" className="btn btn-ghost" style={{width:'100%'}} onClick={addCounter}>
-          + Agregar contador
-        </button>
-      )}
-    </div>
-  );
-}
-
-function PresetBar({ onApply }){
-  const presets = window.OFFICIAL_PRESETS || [];
-  if(!presets.length) return null;
-
-  return (
-    <div style={{marginBottom:16}}>
-      <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)',letterSpacing:1,marginBottom:8}}>
-        Presets oficiales
-      </div>
-      <div style={{display:'grid',gap:8}}>
-        {presets.map(preset=>(
-          <button
-            key={preset.id}
-            type="button"
-            onClick={()=>onApply && onApply(preset)}
-            style={{
-              textAlign:'left',
-              padding:'12px 14px',
-              borderRadius:14,
-              border:'1px solid rgba(255,255,255,.08)',
-              background:'rgba(255,255,255,.035)',
-              cursor:'pointer'
-            }}
-          >
-            <div style={{fontFamily:'var(--font-display)',fontSize:'0.95rem',color:'var(--cyan)'}}>
-              {preset.emoji || '🎮'} {preset.label}
-            </div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.42)',marginTop:4}}>
-              {preset.description || ''}
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RuntimePreview({ payload }){
-  const [open, setOpen] = React.useState(false);
-  if(!payload || !payload.runtime) return null;
-
-  return (
-    <div style={{marginBottom:16}}>
-      <button type="button" className="btn btn-ghost" onClick={()=>setOpen(v=>!v)}>
-        {open ? '▼' : '▶'} Ver runtime resuelto
-      </button>
-      {open && (
-        <pre style={{
-          marginTop:10,
-          padding:14,
-          borderRadius:12,
-          background:'#090915',
-          border:'1px solid rgba(255,255,255,.08)',
-          color:'#D8F9FF',
-          overflow:'auto',
-          fontSize:12,
-          lineHeight:1.45
-        }}>
-{JSON.stringify(payload.runtime, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 function ListTextField({ label, value, onChange, disabled }){
   const [draft, setDraft] = React.useState('');
+
+  function _safeItemText(item){
+    if(item == null) return '';
+    if(typeof item === 'string' || typeof item === 'number') return String(item);
+    if(typeof item === 'object'){
+      if(item.label) return String(item.label);
+      if(item.name) return String(item.name);
+      if(item.id) return String(item.id);
+      try{
+        return JSON.stringify(item);
+      }catch{
+        return '[objeto]';
+      }
+    }
+    return String(item);
+  }
 
   return (
     <div style={{marginBottom:12, opacity: disabled ? .45 : 1}}>
@@ -435,7 +251,7 @@ function ListTextField({ label, value, onChange, disabled }){
             background:'rgba(255,255,255,.04)',
             border:'1px solid rgba(255,255,255,.08)'
           }}>
-            {item}
+            {_safeItemText(item)}
           </div>
           {!disabled && (
             <button
@@ -471,6 +287,162 @@ function ListTextField({ label, value, onChange, disabled }){
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function CounterSetEditor({ value = [], onChange, disabled }){
+  const counters = Array.isArray(value) ? value : [];
+
+  function addCounter(){
+    if(disabled) return;
+    onChange([
+      ...counters,
+      {
+        id: `counter_${Date.now()}`,
+        label: 'Contador',
+        color: '#FFD447',
+        icon: '🪙',
+        scope: 'player',
+        initialValue: 0,
+        min: 0,
+        max: null,
+        resetOn: 'never',
+        visibleTo: 'all'
+      }
+    ]);
+  }
+
+  function updateCounter(idx, patch){
+    onChange(counters.map((c, i) => i === idx ? { ...c, ...patch } : c));
+  }
+
+  function removeCounter(idx){
+    onChange(counters.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div style={{opacity: disabled ? .55 : 1}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)'}}>
+          Contadores
+        </div>
+        {!disabled && (
+          <button type="button" className="btn btn-ghost" style={{width:'auto',padding:'8px 10px'}} onClick={addCounter}>
+            + Agregar
+          </button>
+        )}
+      </div>
+
+      {counters.length === 0 && (
+        <div style={{
+          padding:'12px',
+          borderRadius:12,
+          background:'rgba(255,255,255,.03)',
+          border:'1px solid rgba(255,255,255,.08)',
+          color:'rgba(255,255,255,.45)',
+          fontFamily:'var(--font-label)',
+          fontSize:'var(--fs-xs)'
+        }}>
+          No hay contadores todavía.
+        </div>
+      )}
+
+      {counters.map((counter, idx)=>(
+        <div key={counter.id || idx} style={{
+          padding:'12px',
+          borderRadius:14,
+          background:'rgba(255,255,255,.03)',
+          border:'1px solid rgba(255,255,255,.08)',
+          marginBottom:10
+        }}>
+          <div style={{display:'grid',gap:8}}>
+            <input
+              className="os-input"
+              value={counter.label ?? ''}
+              disabled={disabled}
+              onChange={e=>updateCounter(idx, { label: e.target.value })}
+              placeholder="Nombre"
+            />
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 90px',gap:8}}>
+              <input
+                className="os-input"
+                value={counter.icon ?? '🪙'}
+                disabled={disabled}
+                onChange={e=>updateCounter(idx, { icon: e.target.value })}
+                placeholder="Icono"
+              />
+              <input
+                className="os-input"
+                value={counter.color ?? '#FFD447'}
+                disabled={disabled}
+                onChange={e=>updateCounter(idx, { color: e.target.value })}
+                placeholder="#FFD447"
+              />
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <select className="os-select" value={counter.scope ?? 'player'} disabled={disabled}
+                onChange={e=>updateCounter(idx, { scope: e.target.value })}>
+                <option value="player">Jugador</option>
+                <option value="team">Equipo</option>
+                <option value="global">Global</option>
+              </select>
+
+              <input
+                className="os-input"
+                type="number"
+                value={counter.initialValue ?? 0}
+                disabled={disabled}
+                onChange={e=>updateCounter(idx, { initialValue: parseInt(e.target.value || '0', 10) || 0 })}
+                placeholder="Inicial"
+              />
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <input
+                className="os-input"
+                type="number"
+                value={counter.min ?? 0}
+                disabled={disabled}
+                onChange={e=>updateCounter(idx, { min: parseInt(e.target.value || '0', 10) || 0 })}
+                placeholder="Min"
+              />
+              <input
+                className="os-input"
+                type="number"
+                value={counter.max ?? ''}
+                disabled={disabled}
+                onChange={e=>updateCounter(idx, { max: e.target.value === '' ? null : (parseInt(e.target.value, 10) || 0) })}
+                placeholder="Max"
+              />
+            </div>
+
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <select className="os-select" value={counter.resetOn ?? 'never'} disabled={disabled}
+                onChange={e=>updateCounter(idx, { resetOn: e.target.value })}>
+                <option value="never">No reiniciar</option>
+                <option value="round">Cada ronda</option>
+                <option value="match">Cada partida</option>
+              </select>
+
+              <select className="os-select" value={counter.visibleTo ?? 'all'} disabled={disabled}
+                onChange={e=>updateCounter(idx, { visibleTo: e.target.value })}>
+                <option value="all">Todos</option>
+                <option value="host">Host</option>
+                <option value="player">Jugador</option>
+              </select>
+            </div>
+
+            {!disabled && (
+              <button type="button" className="btn btn-ghost" style={{color:'var(--red)'}} onClick={()=>removeCounter(idx)}>
+                Eliminar contador
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -621,7 +593,7 @@ function FieldRenderer({ field, value, config, onChange }){
   if(field.type === 'counter_set_editor'){
     return (
       <div style={wrapStyle}>
-        <CounterSetEditor label={field.label} value={Array.isArray(value) ? value : []} onChange={set} disabled={disabled} />
+        <CounterSetEditor value={Array.isArray(value) ? value : []} onChange={set} disabled={disabled} />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
     );
@@ -790,6 +762,34 @@ function GroupedPreview({ payload }){
   );
 }
 
+function RuntimePreview({ payload }){
+  const [open, setOpen] = React.useState(false);
+  if(!payload || !payload.runtime) return null;
+
+  return (
+    <div style={{marginBottom:16}}>
+      <button type="button" className="btn btn-ghost" onClick={()=>setOpen(v=>!v)}>
+        {open ? '▼' : '▶'} Ver runtime resuelto
+      </button>
+      {open && (
+        <pre style={{
+          marginTop:10,
+          padding:14,
+          borderRadius:12,
+          background:'#090915',
+          border:'1px solid rgba(255,255,255,.08)',
+          color:'#D8F9FF',
+          overflow:'auto',
+          fontSize:12,
+          lineHeight:1.45
+        }}>
+{JSON.stringify(payload.runtime, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema Builder V4' }){
   const schema = window.ENGINE_SCHEMA;
   const [config, setConfig] = React.useState(()=>{
@@ -820,6 +820,14 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
   function toggleSection(id){
     setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function applyPreset(key){
+    const preset = window.OFFICIAL_PRESETS?.[key];
+    if(!preset) return;
+    const nextConfig = window.SchemaUtils.normalizeConfig(schema, preset.config || preset);
+    setConfig(nextConfig);
+    setPreviewPayload(null);
   }
 
   function completeAndAdvance(index){
@@ -881,11 +889,25 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
           </div>
         </div>
 
-        <PresetBar onApply={preset=>{
-          const nextConfig = window.SchemaUtils.sanitizeConfig(schema, { ...config, ...(preset.config || {}) });
-          setConfig(nextConfig);
-          setPreviewPayload(window.SchemaUtils.exportPayload(schema, nextConfig));
-        }} />
+        <div style={{marginBottom:16}}>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)',letterSpacing:1,marginBottom:8}}>
+            Presets oficiales
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {Object.entries(window.OFFICIAL_PRESETS || {}).map(([key, preset])=>(
+              <button
+                key={key}
+                type="button"
+                className="btn btn-ghost"
+                style={{width:'auto'}}
+                onClick={()=>applyPreset(key)}
+                title={preset.description || key}
+              >
+                {preset.emoji || '🎮'} {preset.title || key}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <ValidationPanel validation={validation} />
         <GroupedPreview payload={previewPayload} />

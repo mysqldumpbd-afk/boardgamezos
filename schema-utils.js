@@ -132,35 +132,6 @@ function sectionState(section, config){
       if(!Array.isArray(cfg[k])) cfg[k] = [];
     });
 
-    cfg.scoreInputQuickValues = cfg.scoreInputQuickValues
-      .map(v => parseInt(v, 10))
-      .filter(v => Number.isFinite(v));
-
-    cfg.counterSet = cfg.counterSet.map((counter, index)=>{
-      const source = (typeof counter === 'string')
-        ? (()=>{
-            const parts = counter.split('|');
-            return { label: parts[0], color: parts[1] };
-          })()
-        : (counter || {});
-
-      const label = String(source.label || source.name || `Contador ${index + 1}`).trim();
-      const id = String(source.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `counter_${index + 1}`);
-
-      return {
-        id,
-        label,
-        color: source.color || '#FFD447',
-        icon: source.icon || '🪙',
-        scope: source.scope || 'player',
-        initialValue: Number.isFinite(+source.initialValue) ? +source.initialValue : 0,
-        min: source.min === null || source.min === '' || source.min === undefined ? 0 : +source.min,
-        max: source.max === null || source.max === '' || source.max === undefined ? null : +source.max,
-        resetOn: source.resetOn || 'never',
-        visibleTo: source.visibleTo || 'all'
-      };
-    });
-
     // Defaults inteligentes
     if(cfg.registers.length === 0){
       cfg.registers = ['points'];
@@ -198,6 +169,37 @@ function sectionState(section, config){
 	if(cfg.trackRoundHistory === undefined) cfg.trackRoundHistory = true;
 	if(cfg.trackFinancials === undefined) cfg.trackFinancials = false;
 	if(cfg.trackTimers === undefined) cfg.trackTimers = false;
+
+	cfg.counterSet = (cfg.counterSet || []).map((c, i) => {
+	  if(typeof c === 'string'){
+		const parts = c.split('|');
+		return {
+		  id: `counter_${i + 1}`,
+		  label: String(parts[0] || 'Contador').trim(),
+		  color: String(parts[1] || '#FFD447').trim(),
+		  icon: '🪙',
+		  scope: 'player',
+		  initialValue: 0,
+		  min: 0,
+		  max: null,
+		  resetOn: 'never',
+		  visibleTo: 'all'
+		};
+	  }
+
+	  return {
+		id: c?.id || `counter_${i + 1}`,
+		label: String(c?.label || 'Contador').trim(),
+		color: String(c?.color || '#FFD447').trim(),
+		icon: String(c?.icon || '🪙').trim(),
+		scope: c?.scope || 'player',
+		initialValue: Number.isFinite(+c?.initialValue) ? +c.initialValue : 0,
+		min: c?.min === null || c?.min === undefined ? 0 : (+c.min || 0),
+		max: c?.max === null || c?.max === undefined || c?.max === '' ? null : (+c.max || 0),
+		resetOn: c?.resetOn || 'never',
+		visibleTo: c?.visibleTo || 'all'
+	  };
+	});
 	//-------
 
     return cfg;
@@ -207,84 +209,90 @@ function sectionState(section, config){
   // VALIDACIÓN (HUMANA)
   // ═══════════════════════════════════════════════════════════════
 
-	 function validateConfig(schema, incoming){
-	  const cfg = sanitizeConfig(schema, incoming);
-	  const errors = [];
-	  const warnings = [];
-	  const playObjects = Array.isArray(cfg.playObjects) ? cfg.playObjects : [];
+function validateConfig(schema, incoming){
+  const cfg = sanitizeConfig(schema, incoming);
+  const errors = [];
+  const warnings = [];
+  const playObjects = Array.isArray(cfg.playObjects) ? cfg.playObjects : [];
 
-	  if(!cfg.name || cfg.name.length < 2){
-		errors.push('Ponle un nombre al juego.');
-	  }
+  if(!cfg.name || cfg.name.length < 2){
+    errors.push('Ponle un nombre al juego.');
+  }
 
-	  if(cfg.minPlayers > cfg.maxPlayers){
-		errors.push('El mínimo de jugadores no puede ser mayor que el máximo.');
-	  }
+  if(cfg.minPlayers > cfg.maxPlayers){
+    errors.push('El mínimo de jugadores no puede ser mayor que el máximo.');
+  }
 
-	  if(cfg.type === 'teams' && cfg.numTeams < 2){
-		errors.push('Si usas equipos, necesitas al menos 2.');
-	  }
+  if(cfg.type === 'teams' && cfg.numTeams < 2){
+    errors.push('Si usas equipos, necesitas al menos 2.');
+  }
 
-	  if(cfg.useRounds && cfg.rounds < 1){
-		errors.push('Define al menos 1 ronda.');
-	  }
+  if(cfg.useRounds && cfg.rounds < 1){
+    errors.push('Define al menos 1 ronda.');
+  }
 
-	  if(cfg.victoryMode === 'points' && cfg.targetScore < 1){
-		errors.push('Define la meta de puntos.');
-	  }
+  if(cfg.victoryMode === 'points' && cfg.targetScore < 1){
+    errors.push('Define la meta de puntos.');
+  }
 
-	  if(cfg.victoryMode === 'wins' && cfg.winsTarget < 1){
-		errors.push('Define la meta de victorias.');
-	  }
+  if(cfg.victoryMode === 'wins' && cfg.winsTarget < 1){
+    errors.push('Define la meta de victorias.');
+  }
 
-	  if(String(incoming?.emoji || '').length > 8){
-		warnings.push('El emoji se ajustó automáticamente.');
-	  }
+  if(String(incoming?.emoji || '').length > 8){
+    warnings.push('El emoji se ajustó automáticamente.');
+  }
 
-	  if(playObjects.includes('score_input')){
-		if(!cfg.scoreInputLabel || String(cfg.scoreInputLabel).trim().length < 2){
-		  errors.push('Define el texto del botón de captura manual.');
-		}
-	  }
+  if(playObjects.includes('score_input')){
+    if(!cfg.scoreInputLabel || String(cfg.scoreInputLabel).trim().length < 2){
+      errors.push('Define el texto del botón de captura manual.');
+    }
+  }
 
-	  if(playObjects.includes('victory_button')){
-		if(!cfg.victoryButtonLabel || String(cfg.victoryButtonLabel).trim().length < 2){
-		  errors.push('Define el texto del botón verde de victoria.');
-		}
-	  }
+  if(playObjects.includes('victory_button')){
+    if(!cfg.victoryButtonLabel || String(cfg.victoryButtonLabel).trim().length < 2){
+      errors.push('Define el texto del botón verde de victoria.');
+    }
+  }
 
-	  if(playObjects.includes('defeat_button')){
-		if(!cfg.defeatButtonLabel || String(cfg.defeatButtonLabel).trim().length < 2){
-		  errors.push('Define el texto del botón rojo de derrota.');
-		}
-	  }
+  if(playObjects.includes('defeat_button')){
+    if(!cfg.defeatButtonLabel || String(cfg.defeatButtonLabel).trim().length < 2){
+      errors.push('Define el texto del botón rojo de derrota.');
+    }
+  }
 
-	  if(playObjects.includes('counter_set')){
-		if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
-		  warnings.push('Activaste contadores pero no definiste ninguno todavía.');
-		}
-	  }
+  if(playObjects.includes('counter_set')){
+    if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
+      warnings.push('Activaste contadores pero no definiste ninguno todavía.');
+    } else {
+      cfg.counterSet.forEach((counter, idx) => {
+        if(!counter.label || String(counter.label).trim().length < 2){
+          errors.push(`El contador ${idx + 1} necesita nombre.`);
+        }
+      });
+    }
+  }
 
-	  if(playObjects.includes('round_resolution_popup')){
-		if(!Array.isArray(cfg.roundResolutionFields) || cfg.roundResolutionFields.length === 0){
-		  warnings.push('El popup de resolución está activo pero aún no tiene campos definidos.');
-		}
-	  }
+  if(playObjects.includes('round_resolution_popup')){
+    if(!Array.isArray(cfg.roundResolutionFields) || cfg.roundResolutionFields.length === 0){
+      warnings.push('El popup de resolución está activo pero aún no tiene campos definidos.');
+    }
+  }
 
-	  if(cfg.trackFinancials && !playObjects.includes('round_resolution_popup')){
-		warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
-	  }
+  if(cfg.trackFinancials && !playObjects.includes('round_resolution_popup')){
+    warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
+  }
 
-	  return {
-		valid: errors.length === 0,
-		errors,
-		warnings,
-		sanitized: cfg
-	  };
-	}
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+    sanitized: cfg
+  };
+}
 
-  // ═══════════════════════════════════════════════════════════════
-  // RESUMEN UX
+// ═══════════════════════════════════════════════════════════════
+// RESUMEN UX
   // ═══════════════════════════════════════════════════════════════
 
 	function summarizeConfig(cfg){
@@ -479,6 +487,13 @@ function sectionState(section, config){
 
   function exportPayload(schema, incoming){
     const validation = validateConfig(schema, incoming);
+    const cfg = validation.sanitized;
+    const grouped = groupConfigForStorage(cfg);
+
+    const runtimeBase = typeof interpret === 'function' ? interpret(cfg) : {};
+    const runtimeResolved = window.RuntimeResolver?.resolveRuntime
+      ? window.RuntimeResolver.resolveRuntime(cfg)
+      : { registersResolved: [], playObjectsResolved: [], derivedRules: [] };
 
     return {
       schemaVersion: '1.0',
@@ -486,16 +501,12 @@ function sectionState(section, config){
       valid: validation.valid,
       errors: validation.errors,
       warnings: validation.warnings,
-      summary: summarizeConfig(validation.sanitized),
-      config: validation.sanitized,
-      grouped: groupConfigForStorage(validation.sanitized),
+      summary: summarizeConfig(cfg),
+      config: cfg,
+      grouped,
       runtime: {
-        ...(typeof interpret === 'function' ? interpret(validation.sanitized) : {}),
-        ...(window.RuntimeResolver ? window.RuntimeResolver.resolveRuntime(validation.sanitized) : {
-          registersResolved: [],
-          playObjectsResolved: [],
-          derivedRules: []
-        })
+        ...runtimeBase,
+        ...runtimeResolved
       }
     };
   }

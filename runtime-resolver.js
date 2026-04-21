@@ -1,184 +1,148 @@
 // ═══════════════════════════════════════════════════════════════
-// runtime-resolver.js — BOARDGAMEZ OS v1.0
-// Resuelve objetos de partida y registros listos para runtime/BD
+// runtime-resolver.js — BOARDGAMEZ OS
+// Resuelve objetos de partida y registros derivados desde config
 // ═══════════════════════════════════════════════════════════════
 
 window.RuntimeResolver = (function(){
-  function clone(v){
-    return JSON.parse(JSON.stringify(v));
-  }
 
-  function makeId(label, fallback){
-    const raw = String(label || fallback || 'item')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '');
-    return raw || fallback || 'item';
-  }
-
-  function normalizeQuickValues(list){
-    if(!Array.isArray(list)) return [];
-    return list
-      .map(v => parseInt(v, 10))
-      .filter(v => Number.isFinite(v));
-  }
-
-  function normalizeCounter(counter, index){
-    const label = String(counter?.label || counter?.name || `Contador ${index + 1}`).trim();
-    return {
-      id: String(counter?.id || makeId(label, `counter_${index + 1}`)),
-      label,
-      color: counter?.color || '#FFD447',
-      icon: counter?.icon || '🪙',
-      scope: counter?.scope || 'player',
-      initialValue: Number.isFinite(+counter?.initialValue) ? +counter.initialValue : 0,
-      min: counter?.min === null || counter?.min === '' || counter?.min === undefined ? 0 : +counter.min,
-      max: counter?.max === null || counter?.max === '' || counter?.max === undefined ? null : +counter.max,
-      resetOn: counter?.resetOn || 'never',
-      visibleTo: counter?.visibleTo || 'all'
-    };
+  function _playObjects(config){
+    return Array.isArray(config?.playObjects) ? config.playObjects : [];
   }
 
   function resolveRegisters(config){
-    const resolved = [];
-    const pushUnique = item => {
-      if(!item?.id) return;
-      if(resolved.some(r => r.id === item.id)) return;
-      resolved.push(item);
-    };
+    const out = [];
+    const seen = new Set();
 
-    (Array.isArray(config.registers) ? config.registers : []).forEach(reg => {
-      pushUnique({
-        id: String(reg),
-        label: String(reg),
-        kind: 'built_in_register',
-        scope: 'player'
+    function pushRegister(reg){
+      if(!reg || !reg.id || seen.has(reg.id)) return;
+      seen.add(reg.id);
+      out.push(reg);
+    }
+
+    (Array.isArray(config?.registers) ? config.registers : []).forEach(id=>{
+      pushRegister({
+        id,
+        kind: 'core_register',
+        scope: 'player',
+        initialValue: 0
       });
     });
 
-    (Array.isArray(config.counterSet) ? config.counterSet : []).forEach((counter, index) => {
-      pushUnique({
-        ...normalizeCounter(counter, index),
-        kind: 'counter'
+    (Array.isArray(config?.counterSet) ? config.counterSet : []).forEach(counter=>{
+      pushRegister({
+        id: counter.id,
+        label: counter.label,
+        icon: counter.icon,
+        color: counter.color,
+        kind: 'counter',
+        scope: counter.scope || 'player',
+        initialValue: counter.initialValue ?? 0,
+        min: counter.min ?? 0,
+        max: counter.max ?? null,
+        resetOn: counter.resetOn || 'never',
+        visibleTo: counter.visibleTo || 'all'
       });
     });
 
-    const target = config.scoreInputTarget;
-    if(target && target !== 'custom'){
-      pushUnique({
-        id: String(target),
-        label: String(target),
+    const target = config?.scoreInputTarget;
+    if(target && target !== 'custom' && !seen.has(target)){
+      pushRegister({
+        id: target,
         kind: 'derived_register',
-        scope: 'player'
+        scope: 'player',
+        initialValue: 0
       });
     }
 
-    if(config.victoryMode === 'lives'){
-      pushUnique({ id:'lives', label:'lives', kind:'derived_register', scope:'player' });
-    }
-    if(config.victoryMode === 'wins'){
-      pushUnique({ id:'wins', label:'wins', kind:'derived_register', scope:'player' });
-    }
-    if(config.victoryMode === 'points'){
-      pushUnique({ id:'points', label:'points', kind:'derived_register', scope:'player' });
-    }
-
-    return resolved;
+    return out;
   }
 
   function resolvePlayObjects(config){
-    const active = Array.isArray(config.playObjects) ? config.playObjects : [];
-    const visibleTo = config.objectControlScope || 'host';
-    const resolved = [];
+    const playObjects = _playObjects(config);
+    const visibleTo = config?.objectControlScope || 'host';
+    const out = [];
 
-    if(active.includes('victory_button')){
-      resolved.push({
+    if(playObjects.includes('victory_button')){
+      out.push({
         id: 'victory_button',
         kind: 'action_button',
-        label: config.victoryButtonLabel || 'Gané',
-        style: 'success',
-        icon: '🟢',
-        scope: config.victoryButtonScope || 'round',
+        label: config?.victoryButtonLabel || 'Gané',
+        scope: config?.victoryButtonScope || 'round',
         visibleTo,
         action: 'mark_victory'
       });
     }
 
-    if(active.includes('defeat_button')){
-      resolved.push({
+    if(playObjects.includes('defeat_button')){
+      out.push({
         id: 'defeat_button',
         kind: 'action_button',
-        label: config.defeatButtonLabel || 'Perdí',
-        style: 'danger',
-        icon: '🔴',
-        scope: config.defeatButtonScope || 'round',
+        label: config?.defeatButtonLabel || 'Perdí',
+        scope: config?.defeatButtonScope || 'round',
         visibleTo,
         action: 'mark_defeat'
       });
     }
 
-    if(active.includes('score_input')){
-      resolved.push({
+    if(playObjects.includes('score_input')){
+      out.push({
         id: 'score_input',
         kind: 'numeric_input',
-        label: config.scoreInputLabel || 'Capturar',
-        target: config.scoreInputTarget || 'points',
-        allowNegative: !!config.scoreInputAllowNegative,
-        quickValues: normalizeQuickValues(config.scoreInputQuickValues),
-        visibleTo,
-        action: 'capture_numeric'
+        label: config?.scoreInputLabel || 'Capturar',
+        target: config?.scoreInputTarget || 'points',
+        allowNegative: !!config?.scoreInputAllowNegative,
+        quickValues: Array.isArray(config?.scoreInputQuickValues) ? config.scoreInputQuickValues : [],
+        visibleTo
       });
     }
 
-    if(active.includes('counter_set')){
-      resolved.push({
+    if(playObjects.includes('counter_set')){
+      out.push({
         id: 'counter_set',
-        kind: 'counter_collection',
-        counters: (Array.isArray(config.counterSet) ? config.counterSet : []).map(normalizeCounter),
-        visibleTo,
-        action: 'adjust_counter'
+        kind: 'counter_panel',
+        counters: Array.isArray(config?.counterSet) ? config.counterSet : [],
+        visibleTo
       });
     }
 
-    if(active.includes('round_resolution_popup')){
-      resolved.push({
+    if(playObjects.includes('round_resolution_popup')){
+      out.push({
         id: 'round_resolution_popup',
-        kind: 'resolution_modal',
-        fields: Array.isArray(config.roundResolutionFields) ? clone(config.roundResolutionFields) : [],
-        visibleTo,
-        action: 'resolve_round'
+        kind: 'resolution_popup',
+        fields: Array.isArray(config?.roundResolutionFields) ? config.roundResolutionFields : [],
+        visibleTo
       });
     }
 
-    return resolved;
+    ['first_player_token','coin_tool','dice_tool','wheel_tool','timer_match','timer_round','timer_turn']
+      .forEach(id=>{
+        if(playObjects.includes(id)){
+          out.push({
+            id,
+            kind: 'utility',
+            visibleTo
+          });
+        }
+      });
+
+    return out;
   }
 
-  function deriveRules(config, registersResolved){
+  function resolveDerivedRules(config){
     const rules = [];
-    const ids = registersResolved.map(r => r.id);
-    const active = Array.isArray(config.playObjects) ? config.playObjects : [];
+    const playObjects = _playObjects(config);
 
-    if(active.includes('score_input') && config.scoreInputTarget && config.scoreInputTarget !== 'custom' && !ids.includes(config.scoreInputTarget)){
+    if(config?.trackFinancials && !playObjects.includes('round_resolution_popup')){
       rules.push({
-        type: 'autocreate_register',
-        registerId: config.scoreInputTarget,
-        reason: 'score_input_target_missing'
+        type: 'warning_rule',
+        id: 'financials_requires_round_popup'
       });
     }
 
-    if(active.includes('counter_set') && (!Array.isArray(config.counterSet) || config.counterSet.length === 0)){
+    if((config?.scoreInputTarget === 'lives' || config?.victoryMode === 'lives') && !(Array.isArray(config?.counterSet) && config.counterSet.length)){
       rules.push({
-        type: 'warning',
-        code: 'counter_set_empty'
-      });
-    }
-
-    if(config.trackFinancials && !active.includes('round_resolution_popup')){
-      rules.push({
-        type: 'suggestion',
-        code: 'enable_round_resolution_popup'
+        type: 'suggestion_rule',
+        id: 'lives_counter_missing'
       });
     }
 
@@ -186,21 +150,17 @@ window.RuntimeResolver = (function(){
   }
 
   function resolveRuntime(config){
-    const registersResolved = resolveRegisters(config);
-    const playObjectsResolved = resolvePlayObjects(config);
-    const derivedRules = deriveRules(config, registersResolved);
-
     return {
-      registersResolved,
-      playObjectsResolved,
-      derivedRules
+      registersResolved: resolveRegisters(config),
+      playObjectsResolved: resolvePlayObjects(config),
+      derivedRules: resolveDerivedRules(config)
     };
   }
 
   return {
-    normalizeCounter,
     resolveRegisters,
     resolvePlayObjects,
+    resolveDerivedRules,
     resolveRuntime
   };
 })();
