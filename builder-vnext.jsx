@@ -496,42 +496,117 @@ function _inactiveSectionSummary(section, config){
   return { active, prepared };
 }
 
+
 function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onComplete, isLast }){
   const color = _sectionColor(section);
   const info = window.SchemaUtils.sectionState(section, config);
   const pct = _sectionPercent(section, config);
   const summary = _inactiveSectionSummary(section, config);
   const [showInactive, setShowInactive] = React.useState(false);
+  const headerRef = React.useRef(null);
+  const bodyInnerRef = React.useRef(null);
+  const [bodyMaxHeight, setBodyMaxHeight] = React.useState(0);
 
   const visibleFields = (section.fields || []).filter(field => window.SchemaUtils.isVisible(field, config));
   const inactiveFields = (section.fields || []).filter(field => !window.SchemaUtils.isVisible(field, config));
   const preparedCount = summary.prepared.length;
   const hiddenCount = inactiveFields.length;
 
+  React.useLayoutEffect(()=>{
+    const extraPad = 18;
+    const el = bodyInnerRef.current;
+    if(!el){
+      setBodyMaxHeight(isOpen ? 2400 : 0);
+      return;
+    }
+    const nextHeight = isOpen ? (el.scrollHeight + extraPad) : 0;
+    setBodyMaxHeight(nextHeight);
+  }, [isOpen, showInactive, config, section.id]);
+
+  React.useEffect(()=>{
+    if(!window.anime || !headerRef.current) return;
+
+    if(isOpen){
+      window.anime.remove(headerRef.current);
+      window.anime({
+        targets: headerRef.current,
+        scale: [0.992, 1],
+        duration: 260,
+        easing: 'easeOutQuad'
+      });
+    }
+  }, [isOpen]);
+
+  const headerStyle = {
+    width:'100%',
+    textAlign:'left',
+    background:isOpen
+      ? `linear-gradient(135deg, ${color}26, rgba(255,255,255,.055))`
+      : `linear-gradient(135deg, ${color}1A, rgba(255,255,255,.03))`,
+    border:`1px solid ${isOpen ? color + '66' : color + '40'}`,
+    borderRadius:isOpen ? '18px 18px 0 0' : '18px',
+    padding:'14px',
+    cursor:'pointer',
+    position:'relative',
+    overflow:'hidden',
+    transition:'background .28s ease, border-color .28s ease, border-radius .24s ease, box-shadow .28s ease, transform .18s ease',
+    boxShadow:isOpen ? `0 10px 30px ${color}18, inset 0 1px 0 rgba(255,255,255,.05)` : 'none',
+    transform:isOpen ? 'translateY(-1px)' : 'translateY(0)'
+  };
+
+  const bodyWrapStyle = {
+    maxHeight: isOpen ? bodyMaxHeight : 0,
+    opacity: isOpen ? 1 : 0,
+    overflow:'hidden',
+    transition:'max-height 360ms cubic-bezier(.22,.9,.3,1), opacity 180ms ease, transform 300ms ease',
+    transform:isOpen ? 'translateY(0)' : 'translateY(-6px)'
+  };
+
   return (
     <div style={{marginBottom:14}}>
       <button
+        ref={headerRef}
         type="button"
         onClick={onToggle}
-        style={{
-          width:'100%',
-          textAlign:'left',
-          background:`linear-gradient(135deg, ${color}1A, rgba(255,255,255,.03))`,
-          border:`1px solid ${color}40`,
-          borderRadius:isOpen ? '16px 16px 0 0' : '16px',
-          padding:'14px',
-          cursor:'pointer'
-        }}
+        style={headerStyle}
       >
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div style={{
+          position:'absolute',
+          left:0,
+          top:8,
+          bottom:8,
+          width:isOpen ? 5 : 0,
+          borderRadius:'0 10px 10px 0',
+          background:`linear-gradient(180deg, ${color}, rgba(255,255,255,.9))`,
+          boxShadow:isOpen ? `0 0 18px ${color}` : 'none',
+          opacity:isOpen ? 1 : 0,
+          transition:'width .22s ease, opacity .22s ease, box-shadow .28s ease'
+        }}/>
+
+        <div style={{
+          position:'absolute',
+          left:14,
+          right:14,
+          bottom:0,
+          height:isOpen ? 2 : 0,
+          borderRadius:999,
+          background:`linear-gradient(90deg, transparent, ${color}, transparent)`,
+          opacity:isOpen ? .95 : 0,
+          transition:'height .18s ease, opacity .25s ease'
+        }}/>
+
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12, position:'relative', zIndex:1}}>
           <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0}}>
             <div style={{
-              width:36,height:36,borderRadius:12,
+              width:38,height:38,borderRadius:12,
               display:'flex',alignItems:'center',justifyContent:'center',
-              background: color + '22',
-              border:`1px solid ${color}55`,
+              background: isOpen ? color + '2F' : color + '22',
+              border:`1px solid ${isOpen ? color + '88' : color + '55'}`,
               fontSize:'1rem',
-              flexShrink:0
+              flexShrink:0,
+              boxShadow:isOpen ? `0 0 20px ${color}33` : 'none',
+              transform:isOpen ? 'scale(1.04)' : 'scale(1)',
+              transition:'all .24s ease'
             }}>
               {section.icon || '•'}
             </div>
@@ -539,7 +614,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                 {index + 1}. {section.title}
               </div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',letterSpacing:2,color:'rgba(255,255,255,.38)',marginTop:3}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',letterSpacing:2,color:isOpen ? 'rgba(255,255,255,.56)' : 'rgba(255,255,255,.38)',marginTop:3, transition:'color .22s ease'}}>
                 {info.label} · {pct}%
               </div>
             </div>
@@ -552,18 +627,25 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               fontFamily:'var(--font-label)',
               fontSize:'var(--fs-micro)',
               letterSpacing:1.5,
+              transform:isOpen ? 'translateY(-1px)' : 'translateY(0)',
+              transition:'transform .22s ease',
               ..._badgeStyle(info.status, color)
             }}>
               {info.label}
             </div>
-            <div style={{color:'rgba(255,255,255,.55)',fontSize:'1rem'}}>
-              {isOpen ? '▲' : '▼'}
+            <div style={{
+              color:isOpen ? color : 'rgba(255,255,255,.55)',
+              fontSize:'1rem',
+              transform:isOpen ? 'rotate(180deg) scale(1.08)' : 'rotate(0deg) scale(1)',
+              transition:'transform .26s ease, color .22s ease'
+            }}>
+              ▼
             </div>
           </div>
         </div>
 
         {!isOpen && (summary.active.length > 0 || preparedCount > 0 || hiddenCount > 0) && (
-          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:10,pointerEvents:'none'}}>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:10,pointerEvents:'none',position:'relative',zIndex:1}}>
             {summary.active.slice(0, 2).map((line, i)=>(
               <div key={i} style={{
                 padding:'5px 9px',
@@ -607,14 +689,28 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
         )}
       </button>
 
-      {isOpen && (
-        <div style={{
-          border:`1px solid ${color}28`,
-          borderTop:'none',
-          borderRadius:'0 0 16px 16px',
-          padding:'14px 12px 12px',
-          background:'rgba(255,255,255,.025)'
-        }}>
+      <div style={bodyWrapStyle}>
+        <div
+          ref={bodyInnerRef}
+          style={{
+            border:`1px solid ${color}28`,
+            borderTop:'none',
+            borderRadius:'0 0 18px 18px',
+            padding:'14px 12px 12px',
+            background:'linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.018))',
+            position:'relative'
+          }}
+        >
+          <div style={{
+            position:'absolute',
+            top:0,
+            left:16,
+            right:16,
+            height:1,
+            background:`linear-gradient(90deg, transparent, ${color}55, transparent)`,
+            opacity:.9
+          }}/>
+
           {section.id === 'general' && (
             <EmojiInlineField
               nameValue={config.name}
@@ -639,10 +735,22 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               <button
                 type="button"
                 className="btn btn-ghost"
-                style={{width:'100%', justifyContent:'center'}}
+                style={{
+                  width:'100%',
+                  justifyContent:'center',
+                  borderColor: showInactive ? color + '55' : undefined,
+                  background: showInactive ? color + '14' : undefined,
+                  color: showInactive ? color : undefined
+                }}
                 onClick={()=>setShowInactive(v=>!v)}
               >
-                {showInactive ? '▲ Ocultar opciones inactivas' : `▼ Ver opciones inactivas (${inactiveFields.length})`}
+                <span style={{
+                  display:'inline-block',
+                  transform:showInactive ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition:'transform .24s ease',
+                  marginRight:6
+                }}>▼</span>
+                {showInactive ? 'Ocultar opciones inactivas' : `Ver opciones inactivas (${inactiveFields.length})`}
               </button>
 
               {!showInactive && (
@@ -660,19 +768,23 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                 </div>
               )}
 
-              {showInactive && (
-                <div style={{marginTop:10}}>
-                  {inactiveFields.map(field=>(
-                    <FieldRenderer
-                      key={field.id}
-                      field={field}
-                      value={config[field.id]}
-                      config={config}
-                      onChange={onChange}
-                    />
-                  ))}
-                </div>
-              )}
+              <div style={{
+                maxHeight: showInactive ? 2400 : 0,
+                opacity: showInactive ? 1 : 0,
+                overflow:'hidden',
+                transition:'max-height 300ms cubic-bezier(.22,.9,.3,1), opacity 180ms ease',
+                marginTop: showInactive ? 10 : 0
+              }}>
+                {inactiveFields.map(field=>(
+                  <FieldRenderer
+                    key={field.id}
+                    field={field}
+                    value={config[field.id]}
+                    config={config}
+                    onChange={onChange}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
@@ -691,7 +803,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                 height:'100%',
                 background:`linear-gradient(90deg, ${color}, rgba(255,255,255,.8))`,
                 borderRadius:999,
-                transition:'width .25s ease'
+                transition:'width .3s ease'
               }}/>
             </div>
           </div>
@@ -707,7 +819,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
