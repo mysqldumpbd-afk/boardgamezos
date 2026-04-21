@@ -789,6 +789,171 @@ window.ENGINE_SCHEMA = {
         }
       ]
     },
+	
+	//-----------------------------------------------------------
+	// PLAY (Funcion para registrar objetos)
+	//-----------------------------------------------------------
+	{
+	  id: "play",
+	  title: "Objetos de partida",
+	  icon: "🕹️",
+	  color: "#00F5FF",
+	  fields: [
+		{
+		  id: "playMode",
+		  type: "select",
+		  label: "Modo de interacción",
+		  default: "minimal",
+		  options: [
+			{ value: "minimal", label: "Mínimo" },
+			{ value: "standard", label: "Normal" },
+			{ value: "detailed", label: "Detallado" }
+		  ]
+		},
+
+		{
+		  id: "playObjects",
+		  type: "multi_select",
+		  label: "Objetos disponibles en partida",
+		  default: [],
+		  options: [
+			{ value: "victory_button", label: "Botón verde de victoria" },
+			{ value: "defeat_button", label: "Botón rojo de derrota" },
+			{ value: "score_input", label: "Calculadora / captura manual" },
+			{ value: "counter_set", label: "Contadores" },
+			{ value: "first_player_token", label: "Token primer jugador" },
+			{ value: "coin_tool", label: "Moneda" },
+			{ value: "dice_tool", label: "Dados" },
+			{ value: "wheel_tool", label: "Ruleta" },
+			{ value: "timer_match", label: "Cronómetro de partida" },
+			{ value: "timer_round", label: "Cronómetro de ronda" },
+			{ value: "timer_turn", label: "Cronómetro de turno" },
+			{ value: "round_resolution_popup", label: "Popup resolución de ronda" }
+		  ]
+		},
+
+		{
+		  id: "victoryButtonLabel",
+		  type: "text",
+		  label: "Texto del botón verde",
+		  default: "Gané",
+		  visible_if: { playObjects: ["victory_button"] }
+		},
+
+		{
+		  id: "victoryButtonScope",
+		  type: "select",
+		  label: "Qué resuelve el botón verde",
+		  default: "round",
+		  visible_if: { playObjects: ["victory_button"] },
+		  options: [
+			{ value: "round", label: "Victoria de ronda" },
+			{ value: "match", label: "Victoria de partida" },
+			{ value: "individual", label: "Jugador individual" },
+			{ value: "team", label: "Equipo" }
+		  ]
+		},
+
+		{
+		  id: "defeatButtonLabel",
+		  type: "text",
+		  label: "Texto del botón rojo",
+		  default: "Perdí",
+		  visible_if: { playObjects: ["defeat_button"] }
+		},
+
+		{
+		  id: "defeatButtonScope",
+		  type: "select",
+		  label: "Qué resuelve el botón rojo",
+		  default: "round",
+		  visible_if: { playObjects: ["defeat_button"] },
+		  options: [
+			{ value: "round", label: "Derrota de ronda" },
+			{ value: "match", label: "Derrota de partida" },
+			{ value: "individual", label: "Jugador individual" },
+			{ value: "team", label: "Equipo" }
+		  ]
+		},
+
+		{
+		  id: "scoreInputLabel",
+		  type: "text",
+		  label: "Texto del botón de captura",
+		  default: "Capturar puntos",
+		  visible_if: { playObjects: ["score_input"] }
+		},
+
+		{
+		  id: "scoreInputTarget",
+		  type: "select",
+		  label: "Qué captura la calculadora",
+		  default: "points",
+		  visible_if: { playObjects: ["score_input"] },
+		  options: [
+			{ value: "points", label: "Puntos" },
+			{ value: "wins", label: "Victorias" },
+			{ value: "lives", label: "Vidas" },
+			{ value: "coins", label: "Monedas" },
+			{ value: "resources", label: "Recursos" },
+			{ value: "custom", label: "Custom" }
+		  ]
+		},
+
+		{
+		  id: "scoreInputAllowNegative",
+		  type: "boolean",
+		  label: "Permitir negativos",
+		  default: false,
+		  visible_if: { playObjects: ["score_input"] }
+		},
+
+		{
+		  id: "scoreInputQuickValues",
+		  type: "list_text",
+		  label: "Valores rápidos (+1, +5, -1...)",
+		  default: [],
+		  visible_if: { playObjects: ["score_input"] }
+		},
+
+		{
+		  id: "counterSet",
+		  type: "list_text",
+		  label: "Contadores definidos (nombre|color)",
+		  default: [],
+		  visible_if: { playObjects: ["counter_set"] }
+		},
+
+		{
+		  id: "roundResolutionFields",
+		  type: "multi_select",
+		  label: "Campos del popup de resolución",
+		  default: [],
+		  visible_if: { playObjects: ["round_resolution_popup"] },
+		  options: [
+			{ value: "winner", label: "Ganador" },
+			{ value: "win_type", label: "Tipo de victoria" },
+			{ value: "shots_used", label: "Tiros usados" },
+			{ value: "round_points", label: "Puntos de ronda" },
+			{ value: "payout", label: "Pago / pozo" },
+			{ value: "notes", label: "Notas" }
+		  ]
+		},
+
+		{
+		  id: "objectControlScope",
+		  type: "select",
+		  label: "Quién puede usar los objetos",
+		  default: "host",
+		  options: [
+			{ value: "host", label: "Host" },
+			{ value: "player", label: "Jugador" },
+			{ value: "all", label: "Todos" }
+		  ]
+		}
+	  ]
+	}
+	
 
     // ──────────────────────────────────────────────────────────
     // 8. ROLES
@@ -932,6 +1097,64 @@ window.ENGINE_SCHEMA = {
         }
       ]
     },
+
+	// ----------------------------------------------------------
+	// 10.5 LA HISTORIA
+	// ----------------------------------------------------------
+	{
+	  id: "history",
+	  title: "Histórico",
+	  icon: "📚",
+	  color: "#4A90FF",
+	  fields: [
+		{
+		  id: "trackingLevel",
+		  type: "select",
+		  label: "Nivel de histórico",
+		  default: "normal",
+		  options: [
+			{ value: "minimal", label: "Mínimo" },
+			{ value: "normal", label: "Normal" },
+			{ value: "detailed", label: "Detallado" }
+		  ]
+		},
+
+		{
+		  id: "trackWinnerReason",
+		  type: "boolean",
+		  label: "Guardar cómo ganó",
+		  default: true
+		},
+
+		{
+		  id: "trackDefeatReason",
+		  type: "boolean",
+		  label: "Guardar cómo perdió",
+		  default: true
+		},
+
+		{
+		  id: "trackRoundHistory",
+		  type: "boolean",
+		  label: "Guardar historial por ronda",
+		  default: true
+		},
+
+		{
+		  id: "trackFinancials",
+		  type: "boolean",
+		  label: "Guardar entrada / salida / pagos",
+		  default: false
+		},
+
+		{
+		  id: "trackTimers",
+		  type: "boolean",
+		  label: "Guardar tiempos",
+		  default: false
+		}
+	  ]
+	}
 
     // ──────────────────────────────────────────────────────────
     // 10. FINALIZACIÓN
