@@ -1101,60 +1101,61 @@ window.ENGINE_SCHEMA = {
 	// ----------------------------------------------------------
 	// 10.5 LA HISTORIA
 	// ----------------------------------------------------------
-	{
-	  id: "history",
-	  title: "Histórico",
-	  icon: "📚",
-	  color: "#4A90FF",
-	  fields: [
-		{
-		  id: "trackingLevel",
-		  type: "select",
-		  label: "Nivel de histórico",
-		  default: "normal",
-		  options: [
-			{ value: "minimal", label: "Mínimo" },
-			{ value: "normal", label: "Normal" },
-			{ value: "detailed", label: "Detallado" }
-		  ]
-		},
+	  {
+      id: "history",
+      title: "Histórico",
+      icon: "📚",
+      color: "#4A90FF",
+      fields: [
+        {
+          id: "trackingLevel",
+          type: "select",
+          label: "Nivel de histórico",
+          default: "normal",
+          options: [
+            { value: "minimal", label: "Mínimo" },
+            { value: "normal", label: "Normal" },
+            { value: "detailed", label: "Detallado" }
+          ]
+        },
 
-		{
-		  id: "trackWinnerReason",
-		  type: "boolean",
-		  label: "Guardar cómo ganó",
-		  default: true
-		},
+        {
+          id: "trackWinnerReason",
+          type: "boolean",
+          label: "Guardar cómo ganó",
+          default: true
+        },
 
-		{
-		  id: "trackDefeatReason",
-		  type: "boolean",
-		  label: "Guardar cómo perdió",
-		  default: true
-		},
+        {
+          id: "trackDefeatReason",
+          type: "boolean",
+          label: "Guardar cómo perdió",
+          default: true
+        },
 
-		{
-		  id: "trackRoundHistory",
-		  type: "boolean",
-		  label: "Guardar historial por ronda",
-		  default: true
-		},
+        {
+          id: "trackRoundHistory",
+          type: "boolean",
+          label: "Guardar historial por ronda",
+          default: true
+        },
 
-		{
-		  id: "trackFinancials",
-		  type: "boolean",
-		  label: "Guardar entrada / salida / pagos",
-		  default: false
-		},
+        {
+          id: "trackFinancials",
+          type: "boolean",
+          label: "Guardar entrada / salida / pagos",
+          default: false
+        },
 
-		{
-		  id: "trackTimers",
-		  type: "boolean",
-		  label: "Guardar tiempos",
-		  default: false
-		}
-	  ]
-	}
+        {
+          id: "trackTimers",
+          type: "boolean",
+          label: "Guardar tiempos",
+          default: false
+        }
+      ]
+    },
+
 
     // ──────────────────────────────────────────────────────────
     // 10. FINALIZACIÓN
