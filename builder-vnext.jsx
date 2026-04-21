@@ -291,6 +291,154 @@ function ListTextField({ label, value, onChange, disabled }){
   );
 }
 
+
+function AnimatedFieldMount({ children, delay = 0 }){
+  const [entered, setEntered] = React.useState(false);
+  React.useEffect(()=>{
+    const t = setTimeout(()=>setEntered(true), delay);
+    return ()=>clearTimeout(t);
+  }, [delay]);
+
+  return (
+    <div style={{
+      opacity: entered ? 1 : 0,
+      transform: entered ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(.985)',
+      filter: entered ? 'blur(0px)' : 'blur(2px)',
+      transition: 'opacity 220ms ease, transform 320ms cubic-bezier(.22,.9,.3,1), filter 220ms ease'
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='var(--cyan)' }){
+  return (
+    <div style={{
+      opacity: disabled ? .55 : 1
+    }}>
+      <button
+        type="button"
+        onClick={disabled ? undefined : onToggle}
+        style={{
+          width:'100%',
+          border:'1px solid ' + (checked ? accent.replace('var(--cyan)', 'rgba(0,245,255,.55)').replace('var(--green)', 'rgba(0,255,157,.55)') : 'rgba(255,255,255,.10)'),
+          background: checked
+            ? 'linear-gradient(135deg, rgba(0,245,255,.10), rgba(255,255,255,.03))'
+            : 'linear-gradient(135deg, rgba(255,255,255,.035), rgba(255,255,255,.02))',
+          borderRadius:14,
+          padding:'12px 12px',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'space-between',
+          gap:12,
+          boxShadow: checked ? '0 0 0 1px rgba(0,245,255,.08) inset, 0 8px 22px rgba(0,245,255,.08)' : 'none',
+          transition:'all .24s ease'
+        }}
+      >
+        <div style={{textAlign:'left', minWidth:0}}>
+          <div style={{
+            fontFamily:'var(--font-label)',
+            fontSize:'var(--fs-xs)',
+            color: checked ? '#D9FCFF' : 'rgba(255,255,255,.82)',
+            letterSpacing:1
+          }}>
+            {label}
+          </div>
+          {sublabel && (
+            <div style={{
+              marginTop:4,
+              fontFamily:'var(--font-label)',
+              fontSize:'var(--fs-micro)',
+              color:'rgba(255,255,255,.42)',
+              lineHeight:1.35
+            }}>
+              {sublabel}
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          position:'relative',
+          width:74,
+          height:34,
+          flexShrink:0,
+          borderRadius:10,
+          overflow:'hidden',
+          transform:'skew(-10deg)',
+          background: checked ? 'linear-gradient(135deg, #00F5FF, #00FF9D)' : 'linear-gradient(135deg, #5a6170, #777)',
+          border:'1px solid ' + (checked ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.10)'),
+          boxShadow: checked ? '0 0 18px rgba(0,245,255,.28)' : 'none',
+          transition:'all .22s ease'
+        }}>
+          <div style={{
+            position:'absolute',
+            inset:0,
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'center',
+            fontFamily:'var(--font-ui)',
+            fontSize:'11px',
+            fontWeight:700,
+            color:'rgba(255,255,255,.92)',
+            letterSpacing:1.2,
+            textShadow:'0 1px 0 rgba(0,0,0,.28)'
+          }}>
+            <span style={{
+              position:'absolute',
+              left: checked ? '-100%' : '0%',
+              width:'100%',
+              textAlign:'center',
+              transform:'skew(10deg)',
+              transition:'left .22s ease'
+            }}>OFF</span>
+            <span style={{
+              position:'absolute',
+              left: checked ? '0%' : '100%',
+              width:'100%',
+              textAlign:'center',
+              transform:'skew(10deg)',
+              transition:'left .22s ease'
+            }}>ON</span>
+          </div>
+          <div style={{
+            position:'absolute',
+            top:3,
+            left: checked ? 39 : 3,
+            width:32,
+            height:26,
+            borderRadius:8,
+            background:'rgba(7,7,15,.26)',
+            boxShadow:'inset 0 1px 0 rgba(255,255,255,.12)',
+            transition:'left .24s cubic-bezier(.22,.9,.3,1)'
+          }}/>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function BuilderFXStyles(){
+  return (
+    <style>{`
+      @keyframes bgzToggleGlow {
+        0% { box-shadow: 0 0 0 rgba(0,245,255,0); }
+        45% { box-shadow: 0 0 0 6px rgba(0,245,255,.10); }
+        100% { box-shadow: 0 0 0 rgba(0,245,255,0); }
+      }
+      .bgz-children-reveal{
+        transform-origin: top center;
+        animation: bgzChildrenReveal 320ms cubic-bezier(.22,.9,.3,1);
+      }
+      @keyframes bgzChildrenReveal {
+        0% { opacity: 0; transform: translateY(-10px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
+  );
+}
+
+
 function FieldRenderer({ field, value, config, onChange }){
   const visible = window.SchemaUtils.isVisible(field, config);
   const disabled = !visible;
@@ -323,15 +471,31 @@ function FieldRenderer({ field, value, config, onChange }){
   if(field.type === 'boolean'){
     return (
       <div style={wrapStyle}>
-        <div
-          className={`check-row ${value ? 'active' : ''}`}
-          style={{marginBottom:0, cursor: disabled ? 'not-allowed' : 'pointer'}}
-          onClick={()=>set(!value)}
-        >
-          <div className="check-box">{value ? '✓' : ''}</div>
-          <div>
-            <div className="check-label">{field.label}</div>
-            {reason && <div className="check-sub">{reason}</div>}
+        <ArcadeToggle
+          checked={!!value}
+          disabled={disabled}
+          label={field.label}
+          sublabel={reason || (value ? 'Activo · mostrará opciones relacionadas debajo.' : 'Inactivo · al encenderlo aparecerán más opciones.')}
+          onToggle={()=>set(!value)}
+        />
+        <div style={{
+          maxHeight: value ? 14 : 0,
+          opacity: value ? 1 : 0,
+          overflow:'hidden',
+          transition:'max-height 240ms cubic-bezier(.22,.9,.3,1), opacity 180ms ease'
+        }}>
+          <div className="bgz-children-reveal" style={{
+            marginTop:8,
+            padding:'8px 10px',
+            borderRadius:10,
+            background:'linear-gradient(90deg, rgba(0,245,255,.08), rgba(255,255,255,.02))',
+            border:'1px solid rgba(0,245,255,.16)',
+            fontFamily:'var(--font-label)',
+            fontSize:'var(--fs-micro)',
+            color:'rgba(217,252,255,.72)',
+            letterSpacing:.6
+          }}>
+            Desplegando opciones relacionadas…
           </div>
         </div>
       </div>
@@ -720,14 +884,15 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             />
           )}
 
-          {visibleFields.map(field=>(
-            <FieldRenderer
-              key={field.id}
-              field={field}
-              value={config[field.id]}
-              config={config}
-              onChange={onChange}
-            />
+          {visibleFields.map((field, idx)=>(
+            <AnimatedFieldMount key={field.id} delay={Math.min(idx * 28, 140)}>
+              <FieldRenderer
+                field={field}
+                value={config[field.id]}
+                config={config}
+                onChange={onChange}
+              />
+            </AnimatedFieldMount>
           ))}
 
           {inactiveFields.length > 0 && (
@@ -775,14 +940,15 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                 transition:'max-height 300ms cubic-bezier(.22,.9,.3,1), opacity 180ms ease',
                 marginTop: showInactive ? 10 : 0
               }}>
-                {inactiveFields.map(field=>(
-                  <FieldRenderer
-                    key={field.id}
-                    field={field}
-                    value={config[field.id]}
-                    config={config}
-                    onChange={onChange}
-                  />
+                {inactiveFields.map((field, idx)=>(
+                  <AnimatedFieldMount key={field.id} delay={Math.min(idx * 24, 120)}>
+                    <FieldRenderer
+                      field={field}
+                      value={config[field.id]}
+                      config={config}
+                      onChange={onChange}
+                    />
+                  </AnimatedFieldMount>
                 ))}
               </div>
             </div>
@@ -921,6 +1087,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
       </div>
 
       <div className="os-page" style={{paddingTop:16}}>
+        <BuilderFXStyles />
         <HumanSummary config={config} />
 
         <div style={{marginBottom:16}}>
