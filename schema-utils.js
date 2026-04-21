@@ -50,7 +50,7 @@ window.SchemaUtils = (function(){
 
 function hasValue(field, value){
   if(field.type === 'boolean') return value === true || value === false;
-  if(field.type === 'multi_select' || field.type === 'list_text'){
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
     return Array.isArray(value) && value.length > 0;
   }
   if(field.type === 'number'){
@@ -130,6 +130,35 @@ function sectionState(section, config){
 	
     arrays.forEach(k=>{
       if(!Array.isArray(cfg[k])) cfg[k] = [];
+    });
+
+    cfg.scoreInputQuickValues = cfg.scoreInputQuickValues
+      .map(v => parseInt(v, 10))
+      .filter(v => Number.isFinite(v));
+
+    cfg.counterSet = cfg.counterSet.map((counter, index)=>{
+      const source = (typeof counter === 'string')
+        ? (()=>{
+            const parts = counter.split('|');
+            return { label: parts[0], color: parts[1] };
+          })()
+        : (counter || {});
+
+      const label = String(source.label || source.name || `Contador ${index + 1}`).trim();
+      const id = String(source.id || label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `counter_${index + 1}`);
+
+      return {
+        id,
+        label,
+        color: source.color || '#FFD447',
+        icon: source.icon || '🪙',
+        scope: source.scope || 'player',
+        initialValue: Number.isFinite(+source.initialValue) ? +source.initialValue : 0,
+        min: source.min === null || source.min === '' || source.min === undefined ? 0 : +source.min,
+        max: source.max === null || source.max === '' || source.max === undefined ? null : +source.max,
+        resetOn: source.resetOn || 'never',
+        visibleTo: source.visibleTo || 'all'
+      };
     });
 
     // Defaults inteligentes
@@ -233,6 +262,18 @@ function sectionState(section, config){
 	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('counter_set')){
 	  if(!Array.isArray(cfg.counterSet) || cfg.counterSet.length === 0){
 		warnings.push('Activaste contadores pero no definiste ninguno todavía.');
+	  } else {
+		cfg.counterSet.forEach((counter, index)=>{
+		  if(!counter.label || String(counter.label).trim().length < 2){
+			errors.push(`El contador ${index + 1} necesita nombre.`);
+		  }
+		  if(!counter.scope){
+			errors.push(`El contador ${index + 1} necesita alcance.`);
+		  }
+		  if(!Number.isFinite(+counter.initialValue)){
+			errors.push(`El contador ${index + 1} necesita valor inicial válido.`);
+		  }
+		});
 	  }
 	}
 
@@ -461,7 +502,15 @@ function sectionState(section, config){
       warnings: validation.warnings,
       summary: summarizeConfig(validation.sanitized),
       config: validation.sanitized,
-      grouped: groupConfigForStorage(validation.sanitized)
+      grouped: groupConfigForStorage(validation.sanitized),
+      runtime: {
+        ...(typeof interpret === 'function' ? interpret(validation.sanitized) : {}),
+        ...(window.RuntimeResolver ? window.RuntimeResolver.resolveRuntime(validation.sanitized) : {
+          registersResolved: [],
+          playObjectsResolved: [],
+          derivedRules: []
+        })
+      }
     };
   }
 
