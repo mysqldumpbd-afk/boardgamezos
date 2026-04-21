@@ -70,7 +70,7 @@ function interpret(config) {
     valueNature:    config.valueNature   || 'positive',
     accumulation:   config.accumulation  || 'global',
     modifiers:      config.modifiers     || [],
-    capturedBy:     config.capturedBy    || 'host',  // quien captura en el runtime
+    capturedBy:     config.capturedBy    || 'self',  // quien captura en el runtime
     scoreVisibility: config.scoreVisibility || 'all',
 
     // ── ELIMINACIÓN ────────────────────────────────────────────
@@ -131,6 +131,10 @@ function interpret(config) {
 
   // Toolbar de herramientas activas
   spec.toolbarItems = _toolbarItems(spec);
+
+  // ── DERIVADOS EXTRA: compatibilidad host + jugador ───────────
+  spec.hostIsAlsoPlayer = config.hostIsAlsoPlayer !== false;
+  spec.canPlayerSelfRegister = spec.capturedBy === 'self' || spec.capturedBy === 'all';
 
   // Legado: compatibilidad con runtime antiguo (generic.jsx)
   spec.legacy = {
