@@ -5,8 +5,76 @@ if(!window.SchemaUtils){
   console.error('SchemaUtils no está cargado');
 }
 
-function _sectionColor(section){
-  return section.color || 'var(--cyan)';
+const BUILDER_SECTION_PALETTE = [
+  '#9B5DE5', // morado
+  '#FFD447', // amarillo
+  '#FF3B5C', // rojo
+  '#00FF9D', // verde
+  '#FF4FA3', // rosa
+  '#B7FF3C', // verde limón
+  '#FF8A3D', // naranja
+  '#4A90FF'  // azul
+];
+
+function _sectionColor(section, index = 0){
+  return BUILDER_SECTION_PALETTE[index % BUILDER_SECTION_PALETTE.length];
+}
+
+function _withAlpha(hex, alpha){
+  if(!hex || typeof hex !== 'string') return `rgba(255,255,255,${alpha})`;
+  const clean = hex.replace('#','').trim();
+  const full = clean.length === 3 ? clean.split('').map(c=>c+c).join('') : clean;
+  if(full.length !== 6) return `rgba(255,255,255,${alpha})`;
+  const int = parseInt(full, 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function _gradientButtonStyle(color, opts = {}){
+  const compact = !!opts.compact;
+  return {
+    margin: 0,
+    padding: compact ? '10px 14px' : '12px 18px',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    transition: '0.28s',
+    backgroundSize: '200% auto',
+    color: '#fff',
+    borderRadius: compact ? 10 : 12,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    border: '0px',
+    fontWeight: 800,
+    letterSpacing: 1,
+    boxShadow: `0px 0px 14px -7px ${color}`,
+    backgroundImage: `linear-gradient(45deg, ${_withAlpha(color,.82)} 0%, ${color} 51%, ${_withAlpha(color,.82)} 100%)`,
+    cursor: 'pointer',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    touchAction: 'manipulation',
+    fontFamily: 'var(--font-label)',
+    fontSize: compact ? '12px' : '13px',
+    width: opts.full ? '100%' : 'auto'
+  };
+}
+
+function _softGhostButtonStyle(color, opts = {}){
+  return {
+    padding: opts.compact ? '9px 12px' : '11px 16px',
+    borderRadius: 12,
+    border: `1px solid ${_withAlpha(color,.32)}`,
+    background: `linear-gradient(135deg, ${_withAlpha(color,.10)}, rgba(255,255,255,.03))`,
+    color: color,
+    fontFamily: 'var(--font-label)',
+    fontSize: opts.compact ? '12px' : '13px',
+    fontWeight: 800,
+    letterSpacing: 1,
+    cursor: 'pointer'
+  };
 }
 
 function _badgeStyle(status, color){
@@ -122,7 +190,7 @@ function HumanSummary({ config }){
           <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--cyan)'}}>
             {summary.title}
           </div>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.45)'}}>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.45)'}}>
             {summary.players} · {summary.mode}
           </div>
         </div>
@@ -157,14 +225,14 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
   return (
     <div style={{
       marginBottom:12,
-      padding:'12px',
+      padding:'10px',
       borderRadius:12,
       border:'1px solid rgba(255,255,255,.07)',
       background:'rgba(255,255,255,.03)'
     }}>
       <div style={{
         fontFamily:'var(--font-label)',
-        fontSize:'var(--fs-xs)',
+        fontSize:'12px',
         color:'rgba(255,255,255,.55)',
         letterSpacing:1,
         marginBottom:8
@@ -174,8 +242,8 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
 
       <div style={{display:'flex',gap:10,alignItems:'stretch'}}>
         <div style={{
-          width:76,
-          minWidth:76,
+          width:72,
+          minWidth:72,
           display:'flex',
           alignItems:'center',
           justifyContent:'center',
@@ -186,12 +254,12 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
           gap:6,
           padding:'8px 6px'
         }}>
-          <div style={{fontSize:'1.5rem'}}>{emojiValue || '🎮'}</div>
+          <div style={{fontSize:'1.2rem'}}>{emojiValue || '🎮'}</div>
           <select
             className="os-select"
             value={emojiValue ?? '🎮'}
             onChange={e=>onChangeEmoji(e.target.value)}
-            style={{padding:'6px 8px', fontSize:'12px'}}
+            style={{padding:'6px 8px', fontSize:'11px', minHeight:34}}
           >
             {options.map(opt=>(
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -201,7 +269,7 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
 
         <input
           className="os-input"
-          style={{flex:1, marginBottom:0}}
+          style={{flex:1, marginBottom:0, minHeight:48, fontSize:'0.95rem', padding:'12px 14px'}}
           value={nameValue ?? ''}
           onChange={e=>onChangeName(e.target.value)}
           placeholder="Ej. Strike, Cubilete, Sushi..."
@@ -234,7 +302,7 @@ function ListTextField({ label, value, onChange, disabled }){
     <div style={{marginBottom:12, opacity: disabled ? .45 : 1}}>
       <div style={{
         fontFamily:'var(--font-label)',
-        fontSize:'var(--fs-xs)',
+        fontSize:nested ? '11px' : '12px',
         color:'rgba(255,255,255,.55)',
         letterSpacing:1,
         marginBottom:6
@@ -249,7 +317,10 @@ function ListTextField({ label, value, onChange, disabled }){
             padding:'8px 10px',
             borderRadius:10,
             background:'rgba(255,255,255,.04)',
-            border:'1px solid rgba(255,255,255,.08)'
+            border:'1px solid rgba(255,255,255,.08)',
+            fontFamily:'var(--font-body)',
+            fontSize:'13px',
+            color:'rgba(255,255,255,.82)'
           }}>
             {_safeItemText(item)}
           </div>
@@ -269,7 +340,7 @@ function ListTextField({ label, value, onChange, disabled }){
         <div style={{display:'flex',gap:8}}>
           <input
             className="os-input"
-            style={{marginBottom:0, flex:1}}
+            style={{marginBottom:0, flex:1, minHeight:42, fontSize:'0.92rem', padding:'10px 12px'}}
             value={draft}
             onChange={e=>setDraft(e.target.value)}
           />
@@ -311,37 +382,37 @@ function AnimatedFieldMount({ children, delay = 0 }){
   );
 }
 
-function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='var(--cyan)' }){
+function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='#00F5FF' }){
   return (
-    <div style={{
-      opacity: disabled ? .55 : 1
-    }}>
+    <div style={{ opacity: disabled ? .55 : 1 }}>
       <button
         type="button"
         onClick={disabled ? undefined : onToggle}
         style={{
           width:'100%',
-          border:'1px solid ' + (checked ? accent.replace('var(--cyan)', 'rgba(0,245,255,.55)').replace('var(--green)', 'rgba(0,255,157,.55)') : 'rgba(255,255,255,.10)'),
+          border:`1px solid ${checked ? _withAlpha(accent,.52) : 'rgba(255,255,255,.10)'}`,
           background: checked
-            ? 'linear-gradient(135deg, rgba(0,245,255,.10), rgba(255,255,255,.03))'
+            ? `linear-gradient(135deg, ${_withAlpha(accent,.14)}, rgba(255,255,255,.03))`
             : 'linear-gradient(135deg, rgba(255,255,255,.035), rgba(255,255,255,.02))',
           borderRadius:14,
-          padding:'12px 12px',
+          padding:'11px 12px',
           cursor: disabled ? 'not-allowed' : 'pointer',
           display:'flex',
           alignItems:'center',
           justifyContent:'space-between',
           gap:12,
-          boxShadow: checked ? '0 0 0 1px rgba(0,245,255,.08) inset, 0 8px 22px rgba(0,245,255,.08)' : 'none',
+          boxShadow: checked ? `0 0 0 1px ${_withAlpha(accent,.08)} inset, 0 8px 22px ${_withAlpha(accent,.12)}` : 'none',
           transition:'all .24s ease'
         }}
       >
-        <div style={{textAlign:'left', minWidth:0}}>
+        <div style={{ textAlign:'left', minWidth:0 }}>
           <div style={{
             fontFamily:'var(--font-label)',
-            fontSize:'var(--fs-xs)',
-            color: checked ? '#D9FCFF' : 'rgba(255,255,255,.82)',
-            letterSpacing:1
+            fontSize:'13px',
+            fontWeight:800,
+            color: checked ? '#F2FDFF' : 'rgba(255,255,255,.82)',
+            letterSpacing:.8,
+            textTransform:'uppercase'
           }}>
             {label}
           </div>
@@ -349,7 +420,7 @@ function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='va
             <div style={{
               marginTop:4,
               fontFamily:'var(--font-label)',
-              fontSize:'var(--fs-micro)',
+              fontSize:'11px',
               color:'rgba(255,255,255,.42)',
               lineHeight:1.35
             }}>
@@ -366,9 +437,11 @@ function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='va
           borderRadius:10,
           overflow:'hidden',
           transform:'skew(-10deg)',
-          background: checked ? 'linear-gradient(135deg, #00F5FF, #00FF9D)' : 'linear-gradient(135deg, #5a6170, #777)',
-          border:'1px solid ' + (checked ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.10)'),
-          boxShadow: checked ? '0 0 18px rgba(0,245,255,.28)' : 'none',
+          background: checked
+            ? `linear-gradient(135deg, ${_withAlpha(accent,.9)}, ${accent})`
+            : 'linear-gradient(135deg, #5a6170, #777)',
+          border:`1px solid ${checked ? _withAlpha(accent,.28) : 'rgba(255,255,255,.10)'}`,
+          boxShadow: checked ? `0 0 18px ${_withAlpha(accent,.28)}` : 'none',
           transition:'all .22s ease'
         }}>
           <div style={{
@@ -408,7 +481,7 @@ function ArcadeToggle({ checked, disabled, label, sublabel, onToggle, accent='va
             width:32,
             height:26,
             borderRadius:8,
-            background:'rgba(7,7,15,.26)',
+            background:'rgba(7,7,15,.24)',
             boxShadow:'inset 0 1px 0 rgba(255,255,255,.12)',
             transition:'left .24s cubic-bezier(.22,.9,.3,1)'
           }}/>
@@ -497,7 +570,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
 
   const labelStyle = {
     fontFamily:'var(--font-label)',
-    fontSize: nested ? 'var(--fs-micro)' : 'var(--fs-xs)',
+    fontSize: nested ? '11px' : '12px',
     color: nested ? 'rgba(255,255,255,.48)' : 'rgba(255,255,255,.55)',
     letterSpacing: nested ? .6 : 1,
     marginBottom:6
@@ -512,8 +585,9 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
           checked={!!value}
           disabled={disabled}
           label={field.label}
-          sublabel={reason || (value ? 'Activo · las opciones hijas aparecen debajo y con sangría.' : 'Inactivo · al encenderlo aparecerán más opciones.')}
+          sublabel={reason || (value ? 'Activo · mostrará opciones relacionadas debajo.' : 'Inactivo · al encenderlo aparecerán más opciones.')}
           onToggle={()=>set(!value)}
+          accent={config.__sectionColor || '#00F5FF'}
         />
       </div>
     );
@@ -532,7 +606,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
             if(field.type === 'number') set(parseInt(e.target.value || '0', 10) || 0);
             else set(e.target.value);
           }}
-          style={{marginBottom: reason ? 6 : 0}}
+          style={{marginBottom: reason ? 6 : 0, minHeight:nested ? 44 : 48, padding:nested ? '10px 12px' : '11px 13px', fontSize:nested ? '0.92rem' : '0.98rem', fontFamily:'var(--font-body)', fontWeight:600}}
         />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
@@ -548,7 +622,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
           disabled={disabled}
           value={value ?? ''}
           onChange={e=>set(e.target.value)}
-          style={{minHeight:88, resize:'vertical', marginBottom: reason ? 6 : 0}}
+          style={{minHeight:nested ? 82 : 96, resize:'vertical', marginBottom: reason ? 6 : 0, padding:'12px 13px', fontSize:nested ? '0.92rem' : '0.96rem', fontFamily:'var(--font-body)'}}
         />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
@@ -564,6 +638,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
           disabled={disabled}
           value={value ?? ''}
           onChange={e=>set(e.target.value)}
+          style={{minHeight:nested ? 44 : 48, padding:nested ? '10px 12px' : '11px 13px', fontSize:nested ? '0.92rem' : '0.98rem', fontFamily:'var(--font-body)', fontWeight:700}}
         >
           {(field.options || []).map(opt=>(
             <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
@@ -593,14 +668,14 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
                   else set([...current, opt.value]);
                 }}
                 style={{
-                  padding:'7px 11px',
+                  padding:'6px 10px',
                   borderRadius:10,
                   cursor: disabled ? 'not-allowed' : 'pointer',
                   border:`1px solid ${active ? 'rgba(0,245,255,.45)' : 'rgba(255,255,255,.12)'}`,
                   background:active ? 'rgba(0,245,255,.16)' : 'rgba(255,255,255,.04)',
                   color:active ? 'var(--cyan)' : 'rgba(255,255,255,.65)',
                   fontFamily:'var(--font-label)',
-                  fontSize:'var(--fs-xs)',
+                  fontSize:nested ? '11px' : '12px',
                   fontWeight:700,
                   opacity: disabled ? .55 : 1
                 }}
@@ -679,7 +754,7 @@ function _inactiveSectionSummary(section, config){
 
 
 function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onComplete, isLast }){
-  const color = _sectionColor(section);
+  const color = _sectionColor(section, index);
   const info = window.SchemaUtils.sectionState(section, config);
   const pct = _sectionPercent(section, config);
   const summary = _inactiveSectionSummary(section, config);
@@ -726,7 +801,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
       : `linear-gradient(135deg, ${color}1A, rgba(255,255,255,.03))`,
     border:`1px solid ${isOpen ? color + '66' : color + '40'}`,
     borderRadius:isOpen ? '18px 18px 0 0' : '18px',
-    padding:'14px',
+    padding:'13px 14px',
     cursor:'pointer',
     position:'relative',
     overflow:'hidden',
@@ -792,7 +867,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               {section.icon || '•'}
             </div>
             <div style={{minWidth:0}}>
-              <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+              <div style={{fontFamily:'var(--font-display)',fontSize:'0.98rem',letterSpacing:.8,color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                 {index + 1}. {section.title}
               </div>
               <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',letterSpacing:2,color:isOpen ? 'rgba(255,255,255,.56)' : 'rgba(255,255,255,.38)',marginTop:3, transition:'color .22s ease'}}>
@@ -877,7 +952,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             border:`1px solid ${color}28`,
             borderTop:'none',
             borderRadius:'0 0 18px 18px',
-            padding:'14px 12px 12px',
+            padding:'12px 11px 11px',
             background:'linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.018))',
             position:'relative'
           }}
@@ -906,7 +981,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
               <FieldRenderer
                 field={field}
                 value={config[field.id]}
-                config={config}
+                config={{...config, __sectionColor: color}}
                 onChange={onChange}
                 depth={_fieldDepth(field)}
               />
@@ -919,11 +994,12 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                 type="button"
                 className="btn btn-ghost"
                 style={{
+                  ..._softGhostButtonStyle(color),
                   width:'100%',
                   justifyContent:'center',
-                  borderColor: showInactive ? color + '55' : undefined,
-                  background: showInactive ? color + '14' : undefined,
-                  color: showInactive ? color : undefined
+                  borderColor: showInactive ? color + '55' : _withAlpha(color,.22),
+                  background: showInactive ? _withAlpha(color,.14) : _withAlpha(color,.08),
+                  color: color
                 }}
                 onClick={()=>setShowInactive(v=>!v)}
               >
@@ -963,7 +1039,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
                     <FieldRenderer
                       field={field}
                       value={config[field.id]}
-                      config={config}
+                      config={{...config, __sectionColor: color}}
                       onChange={onChange}
                       depth={_fieldDepth(field)}
                     />
@@ -997,7 +1073,7 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             <button
               type="button"
               className="btn btn-ghost"
-              style={{flex:1}}
+              style={{..._gradientButtonStyle(color,{full:true}) , flex:1}}
               onClick={onComplete}
             >
               {isLast ? '✔ Terminar sección' : '✔ Terminar y seguir'}
@@ -1046,6 +1122,16 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
   const [openSections, setOpenSections] = React.useState({});
   const [previewPayload, setPreviewPayload] = React.useState(null);
+  const sectionRefs = React.useRef({});
+
+  const presets = React.useMemo(()=>{
+    const p = window.OFFICIAL_PRESETS || {};
+    return [
+      { id:'strike', label:'Strike', emoji:'🎲', data:p.strike },
+      { id:'cubilete', label:'Cubilete', emoji:'🪙', data:p.cubilete },
+      { id:'sushi', label:'Sushi Go', emoji:'🍣', data:p.sushiGoScoreTracker || p.sushi }
+    ].filter(x=>x.data && x.data.config);
+  }, []);
 
   React.useEffect(()=>{
     if(!schema) return;
@@ -1079,6 +1165,36 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
       if(next) nextState[next.id] = true;
       return nextState;
     });
+
+    if(next){
+      setTimeout(()=>{
+        const node = sectionRefs.current[next.id];
+        if(node){
+          node.scrollIntoView({ behavior:'smooth', block:'start' });
+          if(window.anime){
+            window.anime.remove(node);
+            window.anime({ targets: node, translateY:[10,0], opacity:[.86,1], duration:360, easing:'easeOutQuad' });
+          }
+        }
+      }, 260);
+    }
+  }
+
+  function applyPreset(preset){
+    if(!preset?.config || !schema || !window.SchemaUtils) return;
+    const normalized = window.SchemaUtils.normalizeConfig(schema, preset.config);
+    setConfig(normalized);
+    setPreviewPayload(null);
+    const init = {};
+    (schema.sections || []).forEach((section, idx)=>{
+      init[section.id] = idx === 0;
+    });
+    setOpenSections(init);
+    setTimeout(()=>{
+      const first = (schema.sections || [])[0];
+      const node = first ? sectionRefs.current[first.id] : null;
+      if(node) node.scrollIntoView({ behavior:'smooth', block:'start' });
+    }, 120);
   }
 
   if(!schema){
@@ -1107,11 +1223,35 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
       <div className="os-page" style={{paddingTop:16}}>
         <BuilderFXStyles />
+
+        {presets.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:2,color:'rgba(255,255,255,.48)',marginBottom:8}}>
+              PRESETS OFICIALES
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {presets.map((preset, idx)=>{
+                const c = BUILDER_SECTION_PALETTE[idx % BUILDER_SECTION_PALETTE.length];
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={()=>applyPreset(preset.data)}
+                    style={_gradientButtonStyle(c,{compact:true})}
+                  >
+                    <span>{preset.emoji}</span>
+                    <span>{preset.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <HumanSummary config={config} />
 
         <div style={{marginBottom:16}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',color:'rgba(255,255,255,.55)',letterSpacing:1}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:nested ? '11px' : '12px',color:'rgba(255,255,255,.55)',letterSpacing:1}}>
               Avance total del motor
             </div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'0.95rem',color:'var(--cyan)'}}>
@@ -1133,8 +1273,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
         <GroupedPreview payload={previewPayload} />
 
         {sections.map((section, index)=>(
+          <div key={section.id} ref={el=>{ sectionRefs.current[section.id] = el; }}>
           <SectionBlock
-            key={section.id}
             section={section}
             index={index}
             config={config}
@@ -1144,6 +1284,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             onComplete={()=>completeAndAdvance(index)}
             isLast={index === sections.length - 1}
           />
+          </div>
         ))}
 
         <div className="g16" />
@@ -1151,7 +1292,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
         <div style={{display:'flex',gap:8}}>
           <button
             className="btn btn-ghost"
-            style={{flex:1}}
+            style={{..._softGhostButtonStyle('#4A90FF'), flex:1}}
             onClick={()=>{
               const payload = window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
@@ -1162,7 +1303,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
           <button
             className="btn btn-cyan"
-            style={{flex:1}}
+            style={{..._gradientButtonStyle('#00F5FF',{full:true}), flex:1}}
             onClick={()=>{
               const payload = window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
