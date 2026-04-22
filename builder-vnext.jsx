@@ -1113,6 +1113,217 @@ function GroupedPreview({ payload }){
   );
 }
 
+
+function _previewResolvedList(payload, key){
+  return Array.isArray(payload?.runtime?.[key]) ? payload.runtime[key] : [];
+}
+
+function _runtimeFlowSteps(payload){
+  const r = payload?.runtime || {};
+  const steps = [];
+  steps.push({ title:'Inicio de partida', desc:`${r.minPlayers || 2}-${r.maxPlayers || 8} jugadores · modo ${r.type || 'individual'}` });
+  if(r.hasRounds) steps.push({ title:'Inicio de ronda', desc:r.totalRounds ? `${r.totalRounds} rondas totales` : 'Rondas libres hasta cumplir la condición final' });
+  if(r.hasTurns) steps.push({ title:'Turnos', desc:`Orden ${r.turnOrder || 'fixed'}${r.canSkip ? ' · permite saltar turno' : ''}${r.hasExtraTurns ? ' · permite turnos extra' : ''}` });
+  else steps.push({ title:'Participación', desc:`Modo ${r.noTurnMode || 'simultaneous'}` });
+  if(r.hasTimer) steps.push({ title:'Timer', desc:`${r.timerScope || 'turn'} · ${r.timerSecs || 60}s · expira: ${r.timerExpire || 'nothing'}` });
+  const playerActions = _previewResolvedList(payload, 'playObjectsResolved');
+  if(playerActions.length) steps.push({ title:'Objetos de partida', desc:playerActions.map(x=>x.label || x.id).join(' · ') });
+  if(r.roundClose) steps.push({ title:'Cierre de ronda', desc:`${r.roundCloseWho || 'host'} cierra la ronda · modo ${r.roundClose}` });
+  if(r.primaryUnit) steps.push({ title:'Actualización de marcador', desc:`Se actualiza ${r.primaryUnit}${r.scoreCapture ? ` · captura ${r.scoreCapture}` : ''}` });
+  let endDesc = 'Se revisa condición final';
+  if(r.victoryMode === 'wins' && r.winsTarget) endDesc = `Fin al llegar a ${r.winsTarget} victorias`;
+  if(r.victoryMode === 'points' && r.targetScore) endDesc = `Fin al llegar a ${r.targetScore} puntos`;
+  if(r.victoryMode === 'elim') endDesc = 'Fin al quedar el último jugador/equipo';
+  steps.push({ title:'Fin o siguiente ronda', desc:endDesc });
+  return steps;
+}
+
+function _summaryLines(payload){
+  const r = payload?.runtime || {};
+  const playObjects = _previewResolvedList(payload, 'playObjectsResolved');
+  const registers = _previewResolvedList(payload, 'registersResolved');
+  const tools = Array.isArray(r.tools) ? r.tools : [];
+  return [
+    ['Modo', r.type || 'individual'],
+    ['Jugadores', `${r.minPlayers || 2} a ${r.maxPlayers || 8}`],
+    ['Victoria', r.victoryMode === 'wins' ? `Victorias a ${r.winsTarget || 3}` : (r.victoryMode === 'points' ? `Puntos${r.targetScore ? ' a ' + r.targetScore : ''}` : (r.victoryMode || 'manual'))],
+    ['Rondas', r.hasRounds ? (r.totalRounds ? String(r.totalRounds) : 'Libres') : 'No'],
+    ['Turnos', r.hasTurns ? (r.turnOrder || 'fixed') : (r.noTurnMode || 'simultaneous')],
+    ['Timer', r.hasTimer ? `${r.timerScope || 'turn'} · ${r.timerSecs || 60}s` : 'No'],
+    ['Registers', registers.length ? registers.map(x=>x.id).join(', ') : 'Ninguno'],
+    ['Objetos', playObjects.length ? playObjects.map(x=>x.label || x.id).join(', ') : 'Ninguno'],
+    ['Herramientas', tools.length ? tools.join(', ') : 'Sin herramientas']
+  ];
+}
+
+function PreviewTabButton({ active, onClick, label, color }){
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding:'8px 12px',
+        borderRadius:10,
+        border:`1px solid ${active ? color + '66' : 'rgba(255,255,255,.10)'}`,
+        background: active ? `linear-gradient(135deg, ${_withAlpha(color,.18)}, rgba(255,255,255,.04))` : 'rgba(255,255,255,.035)',
+        color: active ? color : 'rgba(255,255,255,.66)',
+        fontFamily:'var(--font-label)',
+        fontSize:'12px',
+        fontWeight:800,
+        letterSpacing:1,
+        cursor:'pointer'
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SummaryPreviewTab({ payload }){
+  const lines = _summaryLines(payload);
+  const warnings = payload?.warnings || [];
+  const derivedRules = _previewResolvedList(payload, 'derivedRules');
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:8}}>
+        {lines.map(([k,v])=>(
+          <div key={k} style={{padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)'}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1,color:'rgba(255,255,255,.45)',marginBottom:4,textTransform:'uppercase'}}>{k}</div>
+            <div style={{fontFamily:'var(--font-body)',fontSize:'13px',fontWeight:700,color:'rgba(255,255,255,.88)',lineHeight:1.35}}>{v}</div>
+          </div>
+        ))}
+      </div>
+      {(warnings.length > 0 || derivedRules.length > 0) && (
+        <div style={{marginTop:10,padding:'12px',borderRadius:12,background:'rgba(255,212,71,.08)',border:'1px solid rgba(255,212,71,.24)'}}>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'var(--gold)',marginBottom:6,textTransform:'uppercase'}}>Interpretación automática</div>
+          {warnings.map((w, i)=><div key={'w'+i} style={{fontSize:'13px',color:'rgba(255,255,255,.8)',marginBottom:4}}>• {w}</div>)}
+          {derivedRules.map((r, i)=><div key={'d'+i} style={{fontSize:'13px',color:'rgba(255,255,255,.8)',marginBottom:4}}>• Regla derivada: {r.id || r.type}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlowPreviewTab({ payload }){
+  const steps = _runtimeFlowSteps(payload);
+  return (
+    <div style={{display:'grid',gap:10}}>
+      {steps.map((step, idx)=>(
+        <div key={idx} style={{display:'grid',gridTemplateColumns:'34px 1fr',gap:10,alignItems:'start'}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <div style={{width:28,height:28,borderRadius:999,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,245,255,.14)',border:'1px solid rgba(0,245,255,.28)',fontFamily:'var(--font-display)',fontSize:'12px',color:'var(--cyan)'}}>{idx+1}</div>
+            {idx < steps.length - 1 && <div style={{width:2,flex:1,minHeight:26,background:'linear-gradient(180deg, rgba(0,245,255,.35), transparent)',marginTop:4}}/>}
+          </div>
+          <div style={{padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)'}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1,color:'rgba(255,255,255,.85)',textTransform:'uppercase',marginBottom:4}}>{step.title}</div>
+            <div style={{fontFamily:'var(--font-body)',fontSize:'13px',color:'rgba(255,255,255,.64)',lineHeight:1.4}}>{step.desc}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlayerPadPreview({ payload }){
+  const runtime = payload?.runtime || {};
+  const actions = Array.isArray(runtime.playerActions) ? runtime.playerActions : [];
+  const toolbar = Array.isArray(runtime.toolbarItems) ? runtime.toolbarItems : [];
+  const registers = _previewResolvedList(payload, 'registersResolved');
+  return (
+    <div style={{padding:'12px',borderRadius:16,background:'linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025))',border:'1px solid rgba(255,255,255,.08)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--cyan)'}}>Pad jugador</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.44)',letterSpacing:1}}>Vista generada a partir del runtime</div>
+        </div>
+        <div style={{padding:'6px 10px',borderRadius:999,background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.08)',fontSize:'11px',fontFamily:'var(--font-label)',color:'rgba(255,255,255,.62)'}}>{runtime.canPlayerSelfRegister ? 'Auto registro' : 'Registro por host'}</div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8,marginBottom:12}}>
+        {registers.map((reg)=> (
+          <div key={reg.id} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.07)'}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.46)',letterSpacing:1,textTransform:'uppercase'}}>{reg.id}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'#fff',marginTop:4}}>{reg.initialValue ?? 0}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Botones principales</div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>
+        {actions.length === 0 && <div style={{fontSize:'13px',color:'rgba(255,255,255,.48)'}}>Aún no hay acciones de jugador.</div>}
+        {actions.map((action)=> (
+          <div key={action.id} style={{padding:'10px 12px',borderRadius:12,background:`linear-gradient(135deg, ${_withAlpha(action.color || '#00F5FF', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(action.color || '#00F5FF', .32)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1}}>
+            <span style={{marginRight:6}}>{action.icon || '•'}</span>{action.label || action.id}
+          </div>
+        ))}
+      </div>
+
+      {toolbar.length > 0 && (
+        <>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Toolbar</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {toolbar.map((item)=>(
+              <div key={item.id} style={{padding:'9px 12px',borderRadius:999,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,color:'rgba(255,255,255,.8)'}}>
+                <span style={{marginRight:6}}>{item.icon || '•'}</span>{item.label || item.id}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HostPadPreview({ payload }){
+  const runtime = payload?.runtime || {};
+  const actions = Array.isArray(runtime.hostActions) ? runtime.hostActions : [];
+  return (
+    <div style={{padding:'12px',borderRadius:16,background:'linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025))',border:'1px solid rgba(255,255,255,.08)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--gold)'}}>Pad host</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.44)',letterSpacing:1}}>Control operativo de la ronda y la partida</div>
+        </div>
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+        {actions.length === 0 && <div style={{fontSize:'13px',color:'rgba(255,255,255,.48)'}}>Aún no hay acciones de host.</div>}
+        {actions.map((action)=>(
+          <div key={action.id} style={{padding:'10px 12px',borderRadius:12,background:`linear-gradient(135deg, ${_withAlpha(action.color || '#FFD447', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(action.color || '#FFD447', .32)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1}}>
+            <span style={{marginRight:6}}>{action.icon || '•'}</span>{action.label || action.id}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RuntimePreviewPanel({ payload }){
+  const [tab, setTab] = React.useState('summary');
+  if(!payload?.runtime) return null;
+  return (
+    <div style={{marginBottom:16,padding:'14px',borderRadius:18,background:'linear-gradient(135deg, rgba(74,144,255,.07), rgba(0,245,255,.05))',border:'1px solid rgba(255,255,255,.08)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
+        <div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--cyan)'}}>Vista previa del juego generado</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1,color:'rgba(255,255,255,.46)'}}>Resumen, flujo y pads generados con base en el runtime</div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <PreviewTabButton active={tab==='summary'} onClick={()=>setTab('summary')} label='Resumen' color='#00F5FF' />
+          <PreviewTabButton active={tab==='flow'} onClick={()=>setTab('flow')} label='Flujo' color='#4A90FF' />
+          <PreviewTabButton active={tab==='player'} onClick={()=>setTab('player')} label='Pad jugador' color='#00FF9D' />
+          <PreviewTabButton active={tab==='host'} onClick={()=>setTab('host')} label='Pad host' color='#FFD447' />
+        </div>
+      </div>
+
+      {tab === 'summary' && <SummaryPreviewTab payload={payload} />}
+      {tab === 'flow' && <FlowPreviewTab payload={payload} />}
+      {tab === 'player' && <PlayerPadPreview payload={payload} />}
+      {tab === 'host' && <HostPadPreview payload={payload} />}
+    </div>
+  );
+}
+
+
 function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema Builder V4' }){
   const schema = window.ENGINE_SCHEMA;
   const [config, setConfig] = React.useState(()=>{
@@ -1125,13 +1336,22 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
   const sectionRefs = React.useRef({});
 
   const presets = React.useMemo(()=>{
-    const p = window.OFFICIAL_PRESETS || {};
-    return [
-      { id:'strike', label:'Strike', emoji:'🎲', data:p.strike },
-      { id:'cubilete', label:'Cubilete', emoji:'🪙', data:p.cubilete },
-      { id:'sushi', label:'Sushi Go', emoji:'🍣', data:p.sushiGoScoreTracker || p.sushi }
-    ].filter(x=>x.data && x.data.config);
+    const map = window.OFFICIAL_PRESETS || {};
+    return Object.keys(map)
+      .map(key => ({ key, ...map[key] }))
+      .filter(x => x && x.config)
+      .sort((a, b) => (a.order || 999) - (b.order || 999));
   }, []);
+
+  const livePayload = React.useMemo(()=>{
+    if(!schema || !window.SchemaUtils) return null;
+    try{
+      return window.SchemaUtils.exportPayload(schema, config);
+    }catch(err){
+      console.error('No se pudo generar livePayload', err);
+      return null;
+    }
+  }, [schema, config]);
 
   React.useEffect(()=>{
     if(!schema) return;
@@ -1181,7 +1401,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
   }
 
   function applyPreset(preset){
-    if(!preset?.config || !schema || !window.SchemaUtils) return;
+    if(!preset || !preset.config || !schema || !window.SchemaUtils) return;
     const normalized = window.SchemaUtils.normalizeConfig(schema, preset.config);
     setConfig(normalized);
     setPreviewPayload(null);
@@ -1227,20 +1447,23 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
         {presets.length > 0 && (
           <div style={{marginBottom:14}}>
             <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:2,color:'rgba(255,255,255,.48)',marginBottom:8}}>
-              PRESETS OFICIALES
+              PRESETS DE VALIDACIÓN
             </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:8}}>
               {presets.map((preset, idx)=>{
-                const c = BUILDER_SECTION_PALETTE[idx % BUILDER_SECTION_PALETTE.length];
+                const c = preset.color || BUILDER_SECTION_PALETTE[idx % BUILDER_SECTION_PALETTE.length];
                 return (
                   <button
-                    key={preset.id}
+                    key={preset.id || preset.key}
                     type="button"
-                    onClick={()=>applyPreset(preset.data)}
-                    style={_gradientButtonStyle(c,{compact:true})}
+                    onClick={()=>applyPreset(preset)}
+                    style={{..._gradientButtonStyle(c,{compact:true, full:true}), justifyContent:'space-between', alignItems:'flex-start', textAlign:'left', minHeight:66, flexDirection:'column'}}
                   >
-                    <span>{preset.emoji}</span>
-                    <span>{preset.label}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span>{preset.emoji || '🎮'}</span>
+                      <span>{preset.name || preset.label || preset.key}</span>
+                    </div>
+                    <div style={{fontSize:'10px',opacity:.86,letterSpacing:.8,textTransform:'none',fontWeight:700}}>{preset.category || 'preset'} · {preset.complexity || 'medium'}</div>
                   </button>
                 );
               })}
@@ -1270,7 +1493,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
         </div>
 
         <ValidationPanel validation={validation} />
-        <GroupedPreview payload={previewPayload} />
+        <RuntimePreviewPanel payload={livePayload || previewPayload} />
+        <GroupedPreview payload={previewPayload || livePayload} />
 
         {sections.map((section, index)=>(
           <div key={section.id} ref={el=>{ sectionRefs.current[section.id] = el; }}>
@@ -1294,7 +1518,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             className="btn btn-ghost"
             style={{..._softGhostButtonStyle('#4A90FF'), flex:1}}
             onClick={()=>{
-              const payload = window.SchemaUtils.exportPayload(schema, config);
+              const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
             }}
           >
@@ -1305,7 +1529,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             className="btn btn-cyan"
             style={{..._gradientButtonStyle('#00F5FF',{full:true}), flex:1}}
             onClick={()=>{
-              const payload = window.SchemaUtils.exportPayload(schema, config);
+              const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
               if(onSave) onSave(payload);
             }}
