@@ -167,6 +167,7 @@ function ValidationPanel({ validation }){
 
 function HumanSummary({ config }){
   const summary = window.SchemaUtils.summarizeConfig(config);
+  const autoBehaviors = Array.isArray(config?.autoBehaviors) ? config.autoBehaviors : [];
 
   return (
     <div style={{
