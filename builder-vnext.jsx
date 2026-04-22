@@ -223,58 +223,46 @@ function HumanSummary({ config }){
 }
 
 function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }){
-  const options = (window.ENGINE_SCHEMA.sections || [])
-    .find(s => s.id === 'general')
-    ?.fields?.find(f => f.id === 'emoji')?.options || [];
-
   return (
     <div style={{
-      marginBottom:12,
-      padding:'10px',
+      marginBottom:10,
+      padding:'8px',
       borderRadius:12,
       border:'1px solid rgba(255,255,255,.07)',
       background:'rgba(255,255,255,.03)'
     }}>
       <div style={{
         fontFamily:'var(--font-label)',
-        fontSize:'12px',
+        fontSize:'11px',
         color:'rgba(255,255,255,.55)',
         letterSpacing:1,
-        marginBottom:8
+        marginBottom:7
       }}>
         Nombre del juego
       </div>
 
-      <div style={{display:'flex',gap:10,alignItems:'stretch'}}>
+      <div style={{display:'flex',gap:8,alignItems:'stretch'}}>
         <div style={{
-          width:72,
-          minWidth:72,
+          width:64,
+          minWidth:64,
           display:'flex',
           alignItems:'center',
           justifyContent:'center',
-          borderRadius:14,
+          borderRadius:12,
           border:'1px solid rgba(255,255,255,.10)',
           background:'rgba(255,255,255,.04)',
-          flexDirection:'column',
-          gap:6,
-          padding:'8px 6px'
+          padding:'6px'
         }}>
-          <div style={{fontSize:'1.2rem'}}>{emojiValue || '🎮'}</div>
-          <select
-            className="os-select"
-            value={emojiValue ?? '🎮'}
-            onChange={e=>onChangeEmoji(e.target.value)}
-            style={{padding:'6px 8px', fontSize:'11px', minHeight:34}}
-          >
-            {options.map(opt=>(
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <EmojiPickerField
+            value={emojiValue || '🎮'}
+            onChange={onChangeEmoji}
+            disabled={false}
+          />
         </div>
 
         <input
           className="os-input"
-          style={{flex:1, marginBottom:0, minHeight:42, fontSize:'0.9rem', padding:'9px 12px'}}
+          style={{flex:1, marginBottom:0, minHeight:42, fontSize:'0.9rem', padding:'10px 12px'}}
           value={nameValue ?? ''}
           onChange={e=>onChangeName(e.target.value)}
           placeholder="Ej. Strike, Cubilete, Sushi..."
@@ -374,7 +362,13 @@ function _splitCSV(text){
 }
 
 function _rowInputStyle(){
-  return { marginBottom:0, minHeight:38, padding:'8px 10px', fontSize:'0.88rem' };
+  return {
+    marginBottom:0,
+    minHeight:34,
+    padding:'6px 9px',
+    fontSize:'0.84rem',
+    borderRadius:10
+  };
 }
 
 const BUILDER_EMOJI_OPTIONS = [
@@ -463,53 +457,10 @@ function ContextHint({ title, lines = [] }){
 }
 
 function ColorPickerField({ value, onChange, disabled, accent='#00F5FF' }){
+  const [open, setOpen] = React.useState(false);
   const current = _normalizeHexColor(value || accent, accent);
   const swatches = ['#9B5DE5','#FFD447','#FF3B5C','#00FF9D','#FF4FA3','#B7FF3C','#FF8A3D','#4A90FF','#00F5FF','#FFFFFF'];
-  return (
-    <div>
-      <div style={{display:'grid',gridTemplateColumns:'56px 1fr',gap:8,marginBottom:6}}>
-        <label style={{
-          height:38,borderRadius:10,border:`1px solid ${_withAlpha(current,.40)}`,
-          background:current,cursor:disabled?'not-allowed':'pointer',display:'block',position:'relative',overflow:'hidden'
-        }}>
-          <input
-            type='color'
-            disabled={disabled}
-            value={current}
-            onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
-            style={{opacity:0,position:'absolute',inset:0,width:'100%',height:'100%',cursor:disabled?'not-allowed':'pointer'}}
-          />
-        </label>
-        <input
-          className='os-input'
-          style={_rowInputStyle()}
-          disabled={disabled}
-          value={current}
-          onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
-          placeholder='#00F5FF'
-        />
-      </div>
-      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-        {swatches.map(sw=>(
-          <button
-            key={sw}
-            type='button'
-            disabled={disabled}
-            onClick={()=>onChange(sw)}
-            style={{
-              width:18,height:18,borderRadius:999,border:`1px solid ${current===sw ? '#fff' : 'rgba(255,255,255,.16)'}`,
-              background:sw,cursor:disabled?'not-allowed':'pointer',padding:0
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function EmojiPickerField({ value, onChange, disabled }){
-  const [open, setOpen] = React.useState(false);
-  const current = value || '🎮';
   return (
     <div style={{position:'relative'}}>
       <button
@@ -518,23 +469,124 @@ function EmojiPickerField({ value, onChange, disabled }){
         onClick={()=>!disabled && setOpen(v=>!v)}
         style={{
           width:'100%',
-          minHeight:38,
-          borderRadius:10,
-          border:'1px solid rgba(255,255,255,.10)',
+          minHeight:34,
+          borderRadius:12,
+          border:`1px solid ${_withAlpha(current,.42)}`,
           background:'rgba(255,255,255,.04)',
           color:'#fff',
           cursor:disabled?'not-allowed':'pointer',
           display:'flex',
           alignItems:'center',
           justifyContent:'space-between',
-          padding:'8px 10px',
-          fontFamily:'var(--font-body)',
-          fontSize:'0.92rem'
+          gap:8,
+          padding:'6px 8px'
         }}
       >
-        <span style={{fontSize:'1rem'}}>{current}</span>
-        <span style={{fontSize:'10px',color:'rgba(255,255,255,.55)'}}>▼</span>
+        <span style={{
+          width:28,
+          height:28,
+          borderRadius:9,
+          background:current,
+          border:'1px solid rgba(255,255,255,.22)',
+          flexShrink:0
+        }}/>
+        <span style={{
+          fontFamily:'var(--font-label)',
+          fontSize:'12px',
+          color:'rgba(255,255,255,.72)',
+          letterSpacing:.6,
+          overflow:'hidden',
+          textOverflow:'ellipsis'
+        }}>
+          {current}
+        </span>
       </button>
+
+      {open && !disabled && (
+        <div style={{
+          position:'absolute',
+          zIndex:20,
+          top:'calc(100% + 6px)',
+          right:0,
+          width:180,
+          padding:8,
+          borderRadius:14,
+          border:'1px solid rgba(255,255,255,.12)',
+          background:'linear-gradient(180deg, rgba(9,12,22,.98), rgba(8,9,20,.98))',
+          boxShadow:'0 14px 30px rgba(0,0,0,.38)'
+        }}>
+          <div style={{display:'grid',gridTemplateColumns:'42px 1fr',gap:8,marginBottom:8}}>
+            <label style={{
+              height:34,borderRadius:10,border:`1px solid ${_withAlpha(current,.40)}`,
+              background:current,cursor:'pointer',display:'block',position:'relative',overflow:'hidden'
+            }}>
+              <input
+                type='color'
+                value={current}
+                onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
+                style={{opacity:0,position:'absolute',inset:0,width:'100%',height:'100%',cursor:'pointer'}}
+              />
+            </label>
+            <input
+              className='os-input'
+              style={_rowInputStyle()}
+              value={current}
+              onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
+              placeholder='#00F5FF'
+            />
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5, 1fr)',gap:7}}>
+            {swatches.map(sw=>(
+              <button
+                key={sw}
+                type='button'
+                onClick={()=>{ onChange(sw); setOpen(false); }}
+                style={{
+                  width:'100%',
+                  aspectRatio:'1 / 1',
+                  borderRadius:999,
+                  border:`2px solid ${current===sw ? '#fff' : 'rgba(255,255,255,.10)'}`,
+                  background:sw,
+                  cursor:'pointer',
+                  padding:0
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmojiPickerField({ value, onChange, disabled }){
+  const [open, setOpen] = React.useState(false);
+  const current = value || '🎮';
+
+  return (
+    <div style={{position:'relative'}}>
+      <button
+        type='button'
+        disabled={disabled}
+        onClick={()=>!disabled && setOpen(v=>!v)}
+        style={{
+          width:'100%',
+          minHeight:34,
+          borderRadius:12,
+          border:'1px solid rgba(255,255,255,.10)',
+          background:'rgba(255,255,255,.04)',
+          color:'#fff',
+          cursor:disabled?'not-allowed':'pointer',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          padding:'4px'
+        }}
+      >
+        <span style={{fontSize:'1.15rem', lineHeight:1}}>{current}</span>
+      </button>
+
       {open && !disabled && (
         <div style={{
           position:'absolute',
