@@ -167,7 +167,6 @@ function ValidationPanel({ validation }){
 
 function HumanSummary({ config }){
   const summary = window.SchemaUtils.summarizeConfig(config);
-  const autoBehaviors = Array.isArray(config?.autoBehaviors) ? config.autoBehaviors : [];
 
   return (
     <div style={{
@@ -377,52 +376,257 @@ function _rowInputStyle(){
   return { marginBottom:0, minHeight:38, padding:'8px 10px', fontSize:'0.88rem' };
 }
 
+const BUILDER_EMOJI_OPTIONS = [
+  '🎮','🎲','🃏','🪙','🏆','⚔️','💀','🛡️','⭐','🔥',
+  '🎯','👑','💌','🤠','👹','🧱','🍣','🐍','🎴','🟥',
+  '🟦','🟩','🟨','🟪','🟧','❤️','⚡','💎','🧠','👾',
+  '🚀','🌙','☀️','🌈','🍀','🎪','🎭','🎵','🔮','🗝️',
+  '📦','📜','🧪','🕹️','🎰','🏁','🏹','🪄','🥷','🐉',
+  '🦊','🐺','🐻','🐼','🐸','🦉','🦄','🐙','🦂','🦖',
+  '🥇','🥈','🥉','🎖️','🧭','🗺️','🏰','🌋','🌊','🌪️',
+  '🍎','🍇','🍉','🍄','🥕','🍔','🍕','🍪','☕','🧃',
+  '👀','❗','❓','✅','❌','➕','➖','✖️','🔁','⏱️',
+  '📈','📉','💥','💫','🌟','🔒','🔓','🎁','🪬','🫧'
+];
+
+function _normalizeHexColor(value, fallback = '#00F5FF'){
+  const raw = String(value || '').trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toUpperCase();
+  if(/^#[0-9a-fA-F]{3}$/.test(raw)){
+    return ('#' + raw.slice(1).split('').map(ch=>ch+ch).join('')).toUpperCase();
+  }
+  return fallback.toUpperCase();
+}
+
+function _cardEditorStyle(color){
+  return {
+    padding:'10px',
+    borderRadius:12,
+    background:'linear-gradient(135deg, rgba(255,255,255,.03), rgba(255,255,255,.018))',
+    border:`1px solid ${_withAlpha(color || '#00F5FF', .18)}`,
+    marginBottom:8
+  };
+}
+
+function MiniAddButton({ label, onClick, color='#00F5FF', disabled }){
+  return (
+    <button
+      type='button'
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={{
+        width:'auto',
+        minWidth:104,
+        padding:'8px 12px',
+        borderRadius:12,
+        border:`1px solid ${_withAlpha(color,.28)}`,
+        background:`linear-gradient(135deg, ${_withAlpha(color,.14)}, rgba(255,255,255,.03))`,
+        color:'#fff',
+        fontFamily:'var(--font-label)',
+        fontSize:'12px',
+        fontWeight:800,
+        letterSpacing:.8,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        boxShadow:`0 0 14px -8px ${color}`,
+        transition:'transform .18s ease, box-shadow .18s ease',
+        textTransform:'none'
+      }}
+      onMouseDown={e=>{ e.currentTarget.style.transform='scale(.97)'; }}
+      onMouseUp={e=>{ e.currentTarget.style.transform='scale(1)'; }}
+      onMouseLeave={e=>{ e.currentTarget.style.transform='scale(1)'; }}
+    >
+      ✚ {label}
+    </button>
+  );
+}
+
+function ContextHint({ title, lines = [] }){
+  return (
+    <div style={{
+      marginBottom:8,
+      padding:'9px 10px',
+      borderRadius:10,
+      background:'rgba(255,255,255,.025)',
+      border:'1px dashed rgba(255,255,255,.10)'
+    }}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:800,letterSpacing:1,color:'rgba(255,255,255,.64)',marginBottom:4}}>
+        {title}
+      </div>
+      {lines.map((line, i)=>(
+        <div key={i} style={{fontFamily:'var(--font-label)',fontSize:'11px',lineHeight:1.4,color:'rgba(255,255,255,.44)'}}>
+          • {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ColorPickerField({ value, onChange, disabled, accent='#00F5FF' }){
+  const current = _normalizeHexColor(value || accent, accent);
+  const swatches = ['#9B5DE5','#FFD447','#FF3B5C','#00FF9D','#FF4FA3','#B7FF3C','#FF8A3D','#4A90FF','#00F5FF','#FFFFFF'];
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'56px 1fr',gap:8,marginBottom:6}}>
+        <label style={{
+          height:38,borderRadius:10,border:`1px solid ${_withAlpha(current,.40)}`,
+          background:current,cursor:disabled?'not-allowed':'pointer',display:'block',position:'relative',overflow:'hidden'
+        }}>
+          <input
+            type='color'
+            disabled={disabled}
+            value={current}
+            onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
+            style={{opacity:0,position:'absolute',inset:0,width:'100%',height:'100%',cursor:disabled?'not-allowed':'pointer'}}
+          />
+        </label>
+        <input
+          className='os-input'
+          style={_rowInputStyle()}
+          disabled={disabled}
+          value={current}
+          onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
+          placeholder='#00F5FF'
+        />
+      </div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {swatches.map(sw=>(
+          <button
+            key={sw}
+            type='button'
+            disabled={disabled}
+            onClick={()=>onChange(sw)}
+            style={{
+              width:18,height:18,borderRadius:999,border:`1px solid ${current===sw ? '#fff' : 'rgba(255,255,255,.16)'}`,
+              background:sw,cursor:disabled?'not-allowed':'pointer',padding:0
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmojiPickerField({ value, onChange, disabled }){
+  const [open, setOpen] = React.useState(false);
+  const current = value || '🎮';
+  return (
+    <div style={{position:'relative'}}>
+      <button
+        type='button'
+        disabled={disabled}
+        onClick={()=>!disabled && setOpen(v=>!v)}
+        style={{
+          width:'100%',
+          minHeight:38,
+          borderRadius:10,
+          border:'1px solid rgba(255,255,255,.10)',
+          background:'rgba(255,255,255,.04)',
+          color:'#fff',
+          cursor:disabled?'not-allowed':'pointer',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'space-between',
+          padding:'8px 10px',
+          fontFamily:'var(--font-body)',
+          fontSize:'0.92rem'
+        }}
+      >
+        <span style={{fontSize:'1rem'}}>{current}</span>
+        <span style={{fontSize:'10px',color:'rgba(255,255,255,.55)'}}>▼</span>
+      </button>
+      {open && !disabled && (
+        <div style={{
+          position:'absolute',
+          zIndex:20,
+          top:'calc(100% + 6px)',
+          left:0,
+          width:300,
+          maxWidth:'min(300px, 78vw)',
+          padding:8,
+          borderRadius:14,
+          border:'1px solid rgba(255,255,255,.12)',
+          background:'linear-gradient(180deg, rgba(9,12,22,.98), rgba(8,9,20,.98))',
+          boxShadow:'0 14px 30px rgba(0,0,0,.38)'
+        }}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(10, 1fr)',gap:6,maxHeight:210,overflowY:'auto'}}>
+            {BUILDER_EMOJI_OPTIONS.map(emoji=>(
+              <button
+                key={emoji}
+                type='button'
+                onClick={()=>{ onChange(emoji); setOpen(false); }}
+                style={{
+                  width:'100%',
+                  aspectRatio:'1 / 1',
+                  borderRadius:9,
+                  border:`1px solid ${emoji===current ? 'rgba(0,245,255,.55)' : 'rgba(255,255,255,.08)'}`,
+                  background:emoji===current ? 'rgba(0,245,255,.12)' : 'rgba(255,255,255,.03)',
+                  cursor:'pointer',
+                  fontSize:'1rem'
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CounterSetEditor({ value = [], onChange, disabled }){
   const items = Array.isArray(value) ? value : [];
   function add(){ onChange([...(items||[]), { id:`counter_${Date.now()}`, label:'Contador', color:'#FFD447', icon:'🪙', scope:'player', initialValue:0, min:0, max:null, resetOn:'never', visibleTo:'all' }]); }
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Contadores visibles</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Contador</button>}</div>
-    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
-      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🪙' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Vidas / Energía' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#FFD447' /></div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.initialValue ?? 0} onChange={e=>update(idx,{initialValue:e.target.value})} placeholder='Inicial' /><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select></div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    <ContextHint title='¿Qué son?' lines={['Contadores persistentes visibles para todos o ciertos roles.', 'Úsalos para vidas, energía, monedas o cualquier recurso continuo.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Contadores visibles</div>
+      {!disabled && <MiniAddButton label='Contador' color='#FFD447' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#FFD447')}>
+      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+        <EmojiPickerField disabled={disabled} value={item.icon||'🪙'} onChange={emoji=>update(idx,{icon:emoji})} />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Vidas / Energía' />
+        <ColorPickerField disabled={disabled} value={item.color||'#FFD447'} onChange={color=>update(idx,{color})} accent='#FFD447' />
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select>
+        <input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.initialValue ?? 0} onChange={e=>update(idx,{initialValue:e.target.value})} placeholder='Inicial' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select>
+      </div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
 
 function ResultActionsEditor({ value = [], onChange, disabled }){
   const items = Array.isArray(value) ? value : [];
-  function add(){
-    onChange([...(items||[]), { id:`result_${Date.now()}`, label:'Resultado', icon:'🏁', color:'#00FF9D', scope:'round', target:'self', effect:'record_only', visibleTo:'all', isPrimary:true, prompt:'' }]);
-  }
+  function add(){ onChange([...(items||[]), { id:`result_${Date.now()}`, label:'Resultado', icon:'🏁', color:'#00FF9D', scope:'round', target:'self', effect:'record_only', visibleTo:'all', isPrimary:true, prompt:'' }]); }
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
-  return (
-    <div style={{opacity: disabled ? .45 : 1}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-        <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Botones/resultados personalizados</div>
-        {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Acción</button>}
-      </div>
-      {items.map((item, idx)=>(
-        <div key={item.id || idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
-          <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}>
-            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🎯' />
-            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fuera / Gané / Eliminar' />
-            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#00FF9D' />
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
-            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'round'} onChange={e=>update(idx,{scope:e.target.value})}><option value='round'>Ronda</option><option value='turn'>Turno</option><option value='match'>Partida</option></select>
-            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.effect||'record_only'} onChange={e=>update(idx,{effect:e.target.value})}><option value='mark_victory'>Marca victoria</option><option value='mark_defeat'>Marca derrota</option><option value='mark_out'>Fuera</option><option value='survive'>Sobrevive</option><option value='record_only'>Solo registro</option></select>
-            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='all'>Todos</option></select>
-          </div>
-          <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.prompt||''} onChange={e=>update(idx,{prompt:e.target.value})} placeholder='Texto/pregunta opcional al usar esta acción' />
-          {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
-        </div>
-      ))}
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <ContextHint title='¿Cuál es la diferencia?' lines={['Esto crea botones de resultado visibles en el pad del jugador.', 'Úsalos para Fuera, Ganó ronda, Eliminar, Sobrevive o Solo registro.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Botones/resultados personalizados</div>
+      {!disabled && <MiniAddButton label='Acción' color='#00FF9D' onClick={add} />}
     </div>
-  );
+    {items.map((item, idx)=><div key={item.id || idx} style={_cardEditorStyle(item.color || '#00FF9D')}>
+      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+        <EmojiPickerField disabled={disabled} value={item.icon||'🏁'} onChange={emoji=>update(idx,{icon:emoji})} />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fuera / Gané / Eliminar' />
+        <ColorPickerField disabled={disabled} value={item.color||'#00FF9D'} onChange={color=>update(idx,{color})} accent='#00FF9D' />
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'round'} onChange={e=>update(idx,{scope:e.target.value})}><option value='round'>Ronda</option><option value='turn'>Turno</option><option value='match'>Partida</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.effect||'record_only'} onChange={e=>update(idx,{effect:e.target.value})}><option value='mark_victory'>Marca victoria</option><option value='mark_defeat'>Marca derrota</option><option value='mark_out'>Fuera</option><option value='survive'>Sobrevive</option><option value='record_only'>Solo registro</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='all'>Todos</option></select>
+      </div>
+      <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.prompt||''} onChange={e=>update(idx,{prompt:e.target.value})} placeholder='Pregunta opcional: ¿Con cuántos dados quedó?' />
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
 }
 
 function CaptureActionsEditor({ value = [], onChange, disabled }){
@@ -431,12 +635,16 @@ function CaptureActionsEditor({ value = [], onChange, disabled }){
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Capturas opcionales</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Captura</button>}</div>
-    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
-      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}>
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='📝' />
+    <ContextHint title='¿Para qué sirven?' lines={['Piden datos extra como dados restantes, tiradas usadas o posición final.', 'Úsalas cuando quieras guardar un valor, no solo marcar un resultado.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Capturas opcionales</div>
+      {!disabled && <MiniAddButton label='Captura' color='#FFD447' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#FFD447')}>
+      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+        <EmojiPickerField disabled={disabled} value={item.icon||'📝'} onChange={emoji=>update(idx,{icon:emoji})} />
         <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Dados restantes / Tiradas' />
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#FFD447' />
+        <ColorPickerField disabled={disabled} value={item.color||'#FFD447'} onChange={color=>update(idx,{color})} accent='#FFD447' />
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.captureType||'number'} onChange={e=>update(idx,{captureType:e.target.value})}><option value='number'>Número</option><option value='select'>Selector</option><option value='text'>Texto</option></select>
@@ -444,9 +652,8 @@ function CaptureActionsEditor({ value = [], onChange, disabled }){
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.askAt||'manual'} onChange={e=>update(idx,{askAt:e.target.value})}><option value='manual'>Manual</option><option value='round_end'>Fin ronda</option><option value='match_end'>Fin partida</option></select>
       </div>
       {item.captureType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
-      {item.captureType === 'number' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.quickValues||[]).join(', ')} onChange={e=>update(idx,{quickValues:_splitCSV(e.target.value).map(v=>Number(v)).filter(v=>!Number.isNaN(v))})} placeholder='Valores rápidos: 1,2,3' />}
-      {item.captureType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: Full, Póker, Corrida' />}
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {item.captureType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: 1,2,3 o Full,Póker,Corrida' />}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -457,11 +664,23 @@ function StatusIndicatorsEditor({ value = [], onChange, disabled }){
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Indicadores visibles</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Indicador</button>}</div>
-    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
-      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🛡️' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Protegido / Sheriff' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#4A90FF' /></div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibility||'all'} onChange={e=>update(idx,{visibility:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='private'>Privado</option></select><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.durationMode||'manual'} onChange={e=>update(idx,{durationMode:e.target.value})}><option value='manual'>Manual</option><option value='turn'>Hasta fin turno</option><option value='round'>Hasta fin ronda</option></select></div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    <ContextHint title='¿Qué muestran?' lines={['Son estados ON/OFF visibles en el marcador en vivo.', 'Úsalos para Protegido, Sheriff, Maid, Bloqueado o cualquier estado temporal.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Indicadores visibles</div>
+      {!disabled && <MiniAddButton label='Indicador' color='#4A90FF' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#4A90FF')}>
+      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+        <EmojiPickerField disabled={disabled} value={item.icon||'🛡️'} onChange={emoji=>update(idx,{icon:emoji})} />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Protegido / Sheriff' />
+        <ColorPickerField disabled={disabled} value={item.color||'#4A90FF'} onChange={color=>update(idx,{color})} accent='#4A90FF' />
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibility||'all'} onChange={e=>update(idx,{visibility:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='private'>Privado</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.durationMode||'manual'} onChange={e=>update(idx,{durationMode:e.target.value})}><option value='manual'>Manual</option><option value='turn'>Hasta fin turno</option><option value='round'>Hasta fin ronda</option></select>
+      </div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -472,13 +691,17 @@ function RoundQuestionsEditor({ value = [], onChange, disabled }){
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Preguntas al cierre de ronda</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Pregunta</button>}</div>
-    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+    <ContextHint title='¿Cuándo aparecen?' lines={['Estas preguntas salen al cierre de ronda o partida.', 'Úsalas para tipo de jugada, tiradas usadas, dados restantes o notas importantes.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Preguntas al cierre de ronda</div>
+      {!disabled && <MiniAddButton label='Pregunta' color='#00F5FF' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#00F5FF')}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 130px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='¿Con cuántas tiradas lo logró?' /><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.inputType||'select'} onChange={e=>update(idx,{inputType:e.target.value})}><option value='select'>Selector</option><option value='number'>Número</option><option value='text'>Texto</option></select></div>
       <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={item.saveAs||''} onChange={e=>update(idx,{saveAs:e.target.value})} placeholder='Clave guardada: throwsUsed' />
       {item.inputType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: 1,2,3 o Full,Póker,Corrida' />}
       {item.inputType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -489,10 +712,14 @@ function AutoBehaviorsEditor({ value = [], onChange, disabled }){
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Automatizaciones sugeridas</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Regla</button>}</div>
-    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+    <ContextHint title='¿Qué automatizan?' lines={['Son reglas sugeridas para evitar pasos manuales repetidos.', 'Ejemplo: si solo queda uno vivo, declarar ganador de ronda automáticamente.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Automatizaciones sugeridas</div>
+      {!disabled && <MiniAddButton label='Regla' color='#FF8A3D' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#FF8A3D')}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.trigger||''} onChange={e=>update(idx,{trigger:e.target.value})} placeholder='player_eliminated' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.condition||''} onChange={e=>update(idx,{condition:e.target.value})} placeholder='only_one_active_remains' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.effect||''} onChange={e=>update(idx,{effect:e.target.value})} placeholder='declare_round_winner' /></div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
