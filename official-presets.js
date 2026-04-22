@@ -72,6 +72,97 @@ window.OFFICIAL_PRESETS = {
     valueAdd:['Hoja de puntaje','Totales claros','Rondas por categoría'],
     config:{ name:'Yahtzee', emoji:'🎯', type:'individual', minPlayers:1, maxPlayers:6, useRounds:true, rounds:13, roundClose:'manual', useTurns:true, turnOrder:'rotative', victoryMode:'points', pointsWinMode:'most', pointsValidation:'round_end', registers:['points'], captureType:'manual', accumulation:'global', playMode:'enhanced', playObjects:['score_input','round_resolution_popup'], scoreInputLabel:'Capturar categoría', scoreInputTarget:'points', roundResolutionFields:['round_points','notes'], objectControlScope:'self', useTools:true, tools:['dice'], toolsMode:'informal' }
   },
+
+familyFeudMx: {
+  id: 'family_feud_mx',
+  order: 12,
+  name: '100 Mexicanos Dijeron',
+  emoji: '💯',
+  color: '#FF8A3D',
+  category: 'party_points',
+  complexity: 'easy',
+
+  validates: [
+    'points',
+    'manual_capture',
+    'round_closure'
+  ],
+
+  valueAdd: [
+    'Captura de puntos por respuesta',
+    'Cierre claro de ronda',
+    'Resumen rápido de equipos'
+  ],
+
+  config: {
+    name: '100 Mexicanos Dijeron',
+    emoji: '💯',
+
+    type: 'teams',
+    numTeams: 2,
+    minPlayers: 2,
+    maxPlayers: 10,
+
+    useRounds: true,
+    rounds: 'libre',
+    roundClose: 'manual',
+
+    useTurns: false,
+    noTurnMode: 'mixed',
+
+    victoryMode: 'points',
+    pointsWinMode: 'most',
+
+    pointsValidation: 'round_end',
+
+    registers: ['points'],
+
+    captureType: 'manual',
+    accumulation: 'global',
+    capturedBy: 'host',
+
+    playMode: 'minimal',
+    playObjects: [
+      'score_input',
+      'round_resolution_popup'
+    ],
+
+    scoreInputLabel: 'Sumar puntos',
+    scoreInputTarget: 'points',
+
+    objectControlScope: 'host',
+
+    useRoundResolution: true,
+    roundResolutionMode: 'guided',
+
+    roundQuestions: [
+      {
+        id: 'answer_points',
+        label: 'Puntos logrados en la respuesta',
+        inputType: 'number',
+        required: true,
+        saveAs: 'answerPoints',
+        visibleTo: 'host',
+        min: 0,
+        max: 100
+      },
+      {
+        id: 'board_clean',
+        label: '¿Se limpió el tablero?',
+        inputType: 'select',
+        options: ['Sí', 'No'],
+        required: false,
+        saveAs: 'boardClean',
+        visibleTo: 'host'
+      }
+    ],
+
+    trackRoundHistory: true,
+    trackWinnerReason: true
+  }
+},
+
+
   blackjack: {
     id:'blackjack', order:13, name:'Blackjack', emoji:'🂡', color:'#4A90FF', category:'dealer_flow', complexity:'medium',
     validates:['dealer_control','manual_points','round_winner'],

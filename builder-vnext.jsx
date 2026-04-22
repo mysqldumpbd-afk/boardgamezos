@@ -243,8 +243,8 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
 
       <div style={{display:'flex',gap:8,alignItems:'stretch'}}>
         <div style={{
-          width:64,
-          minWidth:64,
+          width:56,
+          minWidth:56,
           display:'flex',
           alignItems:'center',
           justifyContent:'center',
@@ -262,7 +262,7 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
 
         <input
           className="os-input"
-          style={{flex:1, marginBottom:0, minHeight:42, fontSize:'0.9rem', padding:'10px 12px'}}
+          style={{flex:1, marginBottom:0, minHeight:38, fontSize:'0.88rem', padding:'8px 10px'}}
           value={nameValue ?? ''}
           onChange={e=>onChangeName(e.target.value)}
           placeholder="Ej. Strike, Cubilete, Sushi..."
@@ -364,9 +364,9 @@ function _splitCSV(text){
 function _rowInputStyle(){
   return {
     marginBottom:0,
-    minHeight:34,
-    padding:'6px 9px',
-    fontSize:'0.84rem',
+    minHeight:30,
+    padding:'4px 8px',
+    fontSize:'0.8rem',
     borderRadius:10
   };
 }
@@ -469,37 +469,26 @@ function ColorPickerField({ value, onChange, disabled, accent='#00F5FF' }){
         onClick={()=>!disabled && setOpen(v=>!v)}
         style={{
           width:'100%',
-          minHeight:34,
+          minHeight:30,
           borderRadius:12,
           border:`1px solid ${_withAlpha(current,.42)}`,
           background:'rgba(255,255,255,.04)',
-          color:'#fff',
           cursor:disabled?'not-allowed':'pointer',
           display:'flex',
           alignItems:'center',
-          justifyContent:'space-between',
-          gap:8,
-          padding:'6px 8px'
+          justifyContent:'center',
+          padding:'3px'
         }}
+        aria-label='Elegir color'
       >
         <span style={{
-          width:28,
-          height:28,
-          borderRadius:9,
+          width:24,
+          height:24,
+          borderRadius:8,
           background:current,
           border:'1px solid rgba(255,255,255,.22)',
-          flexShrink:0
+          display:'block'
         }}/>
-        <span style={{
-          fontFamily:'var(--font-label)',
-          fontSize:'12px',
-          color:'rgba(255,255,255,.72)',
-          letterSpacing:.6,
-          overflow:'hidden',
-          textOverflow:'ellipsis'
-        }}>
-          {current}
-        </span>
       </button>
 
       {open && !disabled && (
@@ -508,33 +497,24 @@ function ColorPickerField({ value, onChange, disabled, accent='#00F5FF' }){
           zIndex:20,
           top:'calc(100% + 6px)',
           right:0,
-          width:180,
+          width:150,
           padding:8,
           borderRadius:14,
           border:'1px solid rgba(255,255,255,.12)',
           background:'linear-gradient(180deg, rgba(9,12,22,.98), rgba(8,9,20,.98))',
           boxShadow:'0 14px 30px rgba(0,0,0,.38)'
         }}>
-          <div style={{display:'grid',gridTemplateColumns:'42px 1fr',gap:8,marginBottom:8}}>
-            <label style={{
-              height:34,borderRadius:10,border:`1px solid ${_withAlpha(current,.40)}`,
-              background:current,cursor:'pointer',display:'block',position:'relative',overflow:'hidden'
-            }}>
-              <input
-                type='color'
-                value={current}
-                onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
-                style={{opacity:0,position:'absolute',inset:0,width:'100%',height:'100%',cursor:'pointer'}}
-              />
-            </label>
+          <label style={{
+            height:30,borderRadius:10,border:`1px solid ${_withAlpha(current,.40)}`,
+            background:current,cursor:'pointer',display:'block',position:'relative',overflow:'hidden',marginBottom:8
+          }}>
             <input
-              className='os-input'
-              style={_rowInputStyle()}
+              type='color'
               value={current}
               onChange={e=>onChange(_normalizeHexColor(e.target.value, accent))}
-              placeholder='#00F5FF'
+              style={{opacity:0,position:'absolute',inset:0,width:'100%',height:'100%',cursor:'pointer'}}
             />
-          </div>
+          </label>
 
           <div style={{display:'grid',gridTemplateColumns:'repeat(5, 1fr)',gap:7}}>
             {swatches.map(sw=>(
@@ -572,7 +552,7 @@ function EmojiPickerField({ value, onChange, disabled }){
         onClick={()=>!disabled && setOpen(v=>!v)}
         style={{
           width:'100%',
-          minHeight:34,
+          minHeight:30,
           borderRadius:12,
           border:'1px solid rgba(255,255,255,.10)',
           background:'rgba(255,255,255,.04)',
@@ -581,10 +561,11 @@ function EmojiPickerField({ value, onChange, disabled }){
           display:'flex',
           alignItems:'center',
           justifyContent:'center',
-          padding:'4px'
+          padding:'2px'
         }}
+        aria-label='Elegir emoji'
       >
-        <span style={{fontSize:'1.15rem', lineHeight:1}}>{current}</span>
+        <span style={{fontSize:'1rem', lineHeight:1}}>{current}</span>
       </button>
 
       {open && !disabled && (
@@ -614,7 +595,7 @@ function EmojiPickerField({ value, onChange, disabled }){
                   border:`1px solid ${emoji===current ? 'rgba(0,245,255,.55)' : 'rgba(255,255,255,.08)'}`,
                   background:emoji===current ? 'rgba(0,245,255,.12)' : 'rgba(255,255,255,.03)',
                   cursor:'pointer',
-                  fontSize:'1rem'
+                  fontSize:'0.95rem'
                 }}
               >
                 {emoji}
@@ -639,17 +620,17 @@ function CounterSetEditor({ value = [], onChange, disabled }){
       {!disabled && <MiniAddButton label='Contador' color='#FFD447' onClick={add} />}
     </div>
     {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#FFD447')}>
-      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'46px 46px 1fr',gap:8,marginBottom:8}}>
         <EmojiPickerField disabled={disabled} value={item.icon||'🪙'} onChange={emoji=>update(idx,{icon:emoji})} />
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Vidas / Energía' />
         <ColorPickerField disabled={disabled} value={item.color||'#FFD447'} onChange={color=>update(idx,{color})} accent='#FFD447' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Vidas / Energía' />
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select>
         <input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.initialValue ?? 0} onChange={e=>update(idx,{initialValue:e.target.value})} placeholder='Inicial' />
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select>
       </div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -666,10 +647,10 @@ function ResultActionsEditor({ value = [], onChange, disabled }){
       {!disabled && <MiniAddButton label='Acción' color='#00FF9D' onClick={add} />}
     </div>
     {items.map((item, idx)=><div key={item.id || idx} style={_cardEditorStyle(item.color || '#00FF9D')}>
-      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'46px 46px 1fr',gap:8,marginBottom:8}}>
         <EmojiPickerField disabled={disabled} value={item.icon||'🏁'} onChange={emoji=>update(idx,{icon:emoji})} />
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fuera / Gané / Eliminar' />
         <ColorPickerField disabled={disabled} value={item.color||'#00FF9D'} onChange={color=>update(idx,{color})} accent='#00FF9D' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fuera / Gané / Eliminar' />
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'round'} onChange={e=>update(idx,{scope:e.target.value})}><option value='round'>Ronda</option><option value='turn'>Turno</option><option value='match'>Partida</option></select>
@@ -677,7 +658,7 @@ function ResultActionsEditor({ value = [], onChange, disabled }){
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='all'>Todos</option></select>
       </div>
       <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.prompt||''} onChange={e=>update(idx,{prompt:e.target.value})} placeholder='Pregunta opcional: ¿Con cuántos dados quedó?' />
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -694,10 +675,10 @@ function CaptureActionsEditor({ value = [], onChange, disabled }){
       {!disabled && <MiniAddButton label='Captura' color='#FFD447' onClick={add} />}
     </div>
     {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#FFD447')}>
-      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'46px 46px 1fr',gap:8,marginBottom:8}}>
         <EmojiPickerField disabled={disabled} value={item.icon||'📝'} onChange={emoji=>update(idx,{icon:emoji})} />
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Dados restantes / Tiradas' />
         <ColorPickerField disabled={disabled} value={item.color||'#FFD447'} onChange={color=>update(idx,{color})} accent='#FFD447' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Dados restantes / Tiradas' />
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.captureType||'number'} onChange={e=>update(idx,{captureType:e.target.value})}><option value='number'>Número</option><option value='select'>Selector</option><option value='text'>Texto</option></select>
@@ -706,7 +687,7 @@ function CaptureActionsEditor({ value = [], onChange, disabled }){
       </div>
       {item.captureType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
       {item.captureType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: 1,2,3 o Full,Póker,Corrida' />}
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -717,23 +698,22 @@ function StatusIndicatorsEditor({ value = [], onChange, disabled }){
   function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
   function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
   return <div style={{opacity: disabled ? .45 : 1}}>
-    <ContextHint title='¿Qué muestran?' lines={['Son estados ON/OFF visibles en el marcador en vivo.', 'Úsalos para Protegido, Sheriff, Maid, Bloqueado o cualquier estado temporal.']} />
+    <ContextHint title='¿Qué muestran?' lines={['Son estados ON/OFF visibles en el marcador en vivo.', 'Aquí asumimos que todos los verán; úsalos para Protegido, Sheriff, Maid o Bloqueado.']} />
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
       <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Indicadores visibles</div>
       {!disabled && <MiniAddButton label='Indicador' color='#4A90FF' onClick={add} />}
     </div>
     {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle(item.color || '#4A90FF')}>
-      <div style={{display:'grid',gridTemplateColumns:'82px 1fr 130px',gap:8,marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'46px 46px 1fr',gap:8,marginBottom:8}}>
         <EmojiPickerField disabled={disabled} value={item.icon||'🛡️'} onChange={emoji=>update(idx,{icon:emoji})} />
-        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Protegido / Sheriff' />
         <ColorPickerField disabled={disabled} value={item.color||'#4A90FF'} onChange={color=>update(idx,{color})} accent='#4A90FF' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Protegido / Sheriff' />
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select>
-        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibility||'all'} onChange={e=>update(idx,{visibility:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='private'>Privado</option></select>
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.durationMode||'manual'} onChange={e=>update(idx,{durationMode:e.target.value})}><option value='manual'>Manual</option><option value='turn'>Hasta fin turno</option><option value='round'>Hasta fin ronda</option></select>
       </div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -754,7 +734,7 @@ function RoundQuestionsEditor({ value = [], onChange, disabled }){
       <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={item.saveAs||''} onChange={e=>update(idx,{saveAs:e.target.value})} placeholder='Clave guardada: throwsUsed' />
       {item.inputType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: 1,2,3 o Full,Póker,Corrida' />}
       {item.inputType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -772,7 +752,7 @@ function AutoBehaviorsEditor({ value = [], onChange, disabled }){
     </div>
     {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#FF8A3D')}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.trigger||''} onChange={e=>update(idx,{trigger:e.target.value})} placeholder='player_eliminated' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.condition||''} onChange={e=>update(idx,{condition:e.target.value})} placeholder='only_one_active_remains' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.effect||''} onChange={e=>update(idx,{effect:e.target.value})} placeholder='declare_round_winner' /></div>
-      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'8px 10px', fontSize:'12px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
 }
@@ -920,6 +900,17 @@ function BuilderFXStyles(){
       @keyframes bgzChildrenReveal {
         0% { opacity: 0; transform: translateY(-10px); }
         100% { opacity: 1; transform: translateY(0); }
+      }
+      .os-page .os-input,
+      .os-page .os-select{
+        min-height:40px !important;
+        padding:9px 11px !important;
+        font-size:.9rem !important;
+        border-radius:14px !important;
+      }
+      .os-page textarea.os-input{
+        min-height:78px !important;
+        padding:10px 11px !important;
       }
     `}</style>
   );
