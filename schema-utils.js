@@ -50,7 +50,7 @@ window.SchemaUtils = (function(){
 
 function hasValue(field, value){
   if(field.type === 'boolean') return value === true || value === false;
-  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor' || field.type === 'result_actions_editor' || field.type === 'capture_actions_editor' || field.type === 'status_indicators_editor' || field.type === 'round_questions_editor' || field.type === 'auto_behaviors_editor'){
     return Array.isArray(value) && value.length > 0;
   }
   if(field.type === 'number'){
@@ -125,7 +125,12 @@ function sectionState(section, config){
 	  'playObjects',
 	  'scoreInputQuickValues',
 	  'counterSet',
-	  'roundResolutionFields'
+	  'roundResolutionFields',
+	  'roundQuestions',
+	  'resultActions',
+	  'captureActions',
+	  'statusIndicators',
+	  'autoBehaviors'
 	];
 	
     arrays.forEach(k=>{
@@ -168,7 +173,14 @@ function sectionState(section, config){
 	if(cfg.trackDefeatReason === undefined) cfg.trackDefeatReason = true;
 	if(cfg.trackRoundHistory === undefined) cfg.trackRoundHistory = true;
 	if(cfg.trackFinancials === undefined) cfg.trackFinancials = false;
-	if(cfg.trackTimers === undefined) cfg.trackTimers = false;
+	if(!cfg.difficulty) cfg.difficulty = 'medium';
+	if(!cfg.roundResolutionMode) cfg.roundResolutionMode = 'manual';
+	if(cfg.useRoundResolution === undefined) cfg.useRoundResolution = false;
+
+	function normalizeId(str, fallback){
+	  const base = String(str || fallback || 'item').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+	  return base || fallback || 'item';
+	}
 
 	cfg.counterSet = (cfg.counterSet || []).map((c, i) => {
 	  if(typeof c === 'string'){
@@ -200,6 +212,69 @@ function sectionState(section, config){
 		visibleTo: c?.visibleTo || 'all'
 	  };
 	});
+
+	cfg.resultActions = (cfg.resultActions || []).map((a, i) => ({
+	  id: a?.id || normalizeId(a?.label, `result_${i+1}`),
+	  label: String(a?.label || 'Resultado').trim(),
+	  icon: String(a?.icon || '🏁').trim(),
+	  color: String(a?.color || '#00FF9D').trim(),
+	  scope: a?.scope || 'round',
+	  target: a?.target || 'self',
+	  effect: a?.effect || 'record_only',
+	  visibleTo: a?.visibleTo || 'all',
+	  isPrimary: a?.isPrimary !== false,
+	  prompt: String(a?.prompt || '').trim()
+	}));
+
+	cfg.captureActions = (cfg.captureActions || []).map((a, i) => ({
+	  id: a?.id || normalizeId(a?.label, `capture_${i+1}`),
+	  label: String(a?.label || 'Captura').trim(),
+	  icon: String(a?.icon || '📝').trim(),
+	  color: String(a?.color || '#FFD447').trim(),
+	  captureType: a?.captureType || 'number',
+	  targetRegister: a?.targetRegister || 'points',
+	  min: a?.min === undefined || a?.min === null || a?.min === '' ? 0 : (+a.min || 0),
+	  max: a?.max === undefined || a?.max === null || a?.max === '' ? null : (+a.max || 0),
+	  quickValues: Array.isArray(a?.quickValues) ? a.quickValues.map(v=>+v).filter(v=>!Number.isNaN(v)) : [],
+	  visibleTo: a?.visibleTo || 'host',
+	  askAt: a?.askAt || 'manual',
+	  options: Array.isArray(a?.options) ? a.options.map(x=>String(x)) : []
+	}));
+
+	cfg.statusIndicators = (cfg.statusIndicators || []).map((s, i) => ({
+	  id: s?.id || normalizeId(s?.label, `status_${i+1}`),
+	  label: String(s?.label || 'Estado').trim(),
+	  icon: String(s?.icon || '✨').trim(),
+	  color: String(s?.color || '#4A90FF').trim(),
+	  scope: s?.scope || 'player',
+	  visibility: s?.visibility || 'all',
+	  mode: s?.mode || 'toggle',
+	  defaultValue: !!s?.defaultValue,
+	  durationMode: s?.durationMode || 'manual',
+	  clearOn: s?.clearOn || 'none'
+	}));
+
+	cfg.roundQuestions = (cfg.roundQuestions || []).map((q, i) => ({
+	  id: q?.id || normalizeId(q?.label, `question_${i+1}`),
+	  label: String(q?.label || 'Pregunta').trim(),
+	  inputType: q?.inputType || 'select',
+	  options: Array.isArray(q?.options) ? q.options.map(x=>String(x)) : [],
+	  required: q?.required !== false,
+	  saveAs: String(q?.saveAs || normalizeId(q?.label, `answer_${i+1}`)).trim(),
+	  visibleTo: q?.visibleTo || 'host',
+	  min: q?.min === undefined || q?.min === null || q?.min === '' ? 0 : (+q.min || 0),
+	  max: q?.max === undefined || q?.max === null || q?.max === '' ? null : (+q.max || 0)
+	}));
+
+	cfg.autoBehaviors = (cfg.autoBehaviors || []).map((b, i) => ({
+	  id: b?.id || normalizeId(b?.label || b?.effect, `behavior_${i+1}`),
+	  trigger: b?.trigger || 'manual',
+	  condition: b?.condition || 'always',
+	  effect: b?.effect || 'record_only',
+	  enabled: b?.enabled !== false,
+	  clearAfter: !!b?.clearAfter,
+	  label: String(b?.label || '').trim()
+	}));
 	//-------
 
     return cfg;
@@ -283,6 +358,26 @@ function validateConfig(schema, incoming){
     warnings.push('Quieres guardar pagos/saldos, pero no activaste el popup de resolución de ronda.');
   }
 
+  if(cfg.useRoundResolution && (!Array.isArray(cfg.roundQuestions) || cfg.roundQuestions.length === 0) && !playObjects.includes('round_resolution_popup')){
+    warnings.push('Activaste cierre de ronda guiado pero no definiste preguntas ni popup de resolución.');
+  }
+
+  (cfg.resultActions || []).forEach((action, idx)=>{
+    if(!action.label || String(action.label).trim().length < 2) errors.push(`La acción de resultado ${idx + 1} necesita nombre.`);
+  });
+
+  (cfg.captureActions || []).forEach((action, idx)=>{
+    if(!action.label || String(action.label).trim().length < 2) errors.push(`La acción de captura ${idx + 1} necesita nombre.`);
+  });
+
+  (cfg.statusIndicators || []).forEach((status, idx)=>{
+    if(!status.label || String(status.label).trim().length < 2) errors.push(`El indicador ${idx + 1} necesita nombre.`);
+  });
+
+  (cfg.roundQuestions || []).forEach((question, idx)=>{
+    if(!question.label || String(question.label).trim().length < 2) errors.push(`La pregunta de ronda ${idx + 1} necesita texto.`);
+  });
+
   return {
     valid: errors.length === 0,
     errors,
@@ -302,6 +397,7 @@ function validateConfig(schema, incoming){
 		title: cfg.name || 'Sin nombre',
 		emoji: cfg.emoji || '🎮',
 		players: `${cfg.minPlayers || 1}-${cfg.maxPlayers || 1} jugadores`,
+		difficulty: cfg.difficulty || 'medium',
 		mode: cfg.type === 'teams'
 		  ? `Equipos (${cfg.numTeams || 2})`
 		  : cfg.type === 'cooperative'
@@ -316,7 +412,8 @@ function validateConfig(schema, incoming){
 		play:
 		  playObjects.length > 0
 			? `${playObjects.length} objetos activos`
-			: 'Sin objetos de partida'
+			: 'Sin objetos de partida',
+		interactions: `${(cfg.resultActions||[]).length} resultado · ${(cfg.captureActions||[]).length} captura · ${(cfg.statusIndicators||[]).length} estado`
 	  };
 	}
 
@@ -333,6 +430,8 @@ function validateConfig(schema, incoming){
 		  type: cfg.type,
 		  numTeams: cfg.numTeams,
 		  roomAccess: cfg.roomAccess,
+		  difficulty: cfg.difficulty,
+		  difficultyNote: cfg.difficultyNote,
 		  minPlayers: cfg.minPlayers,
 		  maxPlayers: cfg.maxPlayers
 		},
@@ -450,6 +549,13 @@ function validateConfig(schema, incoming){
 
 		  counterSet: cfg.counterSet,
 		  roundResolutionFields: cfg.roundResolutionFields,
+		  useRoundResolution: cfg.useRoundResolution,
+		  roundResolutionMode: cfg.roundResolutionMode,
+		  roundQuestions: cfg.roundQuestions,
+		  resultActions: cfg.resultActions,
+		  captureActions: cfg.captureActions,
+		  statusIndicators: cfg.statusIndicators,
+		  autoBehaviors: cfg.autoBehaviors,
 		  objectControlScope: cfg.objectControlScope
 		},
 

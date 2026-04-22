@@ -35,6 +35,28 @@ window.ENGINE_SCHEMA = {
         { id: "description", type: "textarea", label: "Descripción", default: "" },
 
         {
+          id: "difficulty",
+          type: "select",
+          label: "Dificultad del juego",
+          default: "medium",
+          options: [
+            { value: "easy", label: "Fácil" },
+            { value: "medium", label: "Media" },
+            { value: "hard", label: "Avanzada" },
+            { value: "expert", label: "Experta" },
+            { value: "custom", label: "Personalizada" }
+          ]
+        },
+
+        {
+          id: "difficultyNote",
+          type: "text",
+          label: "Nota de dificultad",
+          default: "",
+          visible_if: { difficulty: "custom" }
+        },
+
+        {
           id: "type",
           type: "select",
           label: "Tipo de partida",
@@ -938,6 +960,62 @@ window.ENGINE_SCHEMA = {
 			{ value: "payout", label: "Pago / pozo" },
 			{ value: "notes", label: "Notas" }
 		  ]
+		},
+
+		{
+		  id: "useRoundResolution",
+		  type: "boolean",
+		  label: "Usar cierre de ronda guiado",
+		  default: false
+		},
+
+		{
+		  id: "roundResolutionMode",
+		  type: "select",
+		  label: "Modo de cierre de ronda",
+		  default: "manual",
+		  visible_if: { useRoundResolution: true },
+		  options: [
+			{ value: "manual", label: "Manual" },
+			{ value: "guided", label: "Guiado" },
+			{ value: "auto_then_confirm", label: "Auto + confirmación" }
+		  ]
+		},
+
+		{
+		  id: "roundQuestions",
+		  type: "round_questions_editor",
+		  label: "Preguntas al cerrar ronda",
+		  default: [],
+		  visible_if: { useRoundResolution: true }
+		},
+
+		{
+		  id: "resultActions",
+		  type: "result_actions_editor",
+		  label: "Acciones de resultado",
+		  default: []
+		},
+
+		{
+		  id: "captureActions",
+		  type: "capture_actions_editor",
+		  label: "Acciones de captura",
+		  default: []
+		},
+
+		{
+		  id: "statusIndicators",
+		  type: "status_indicators_editor",
+		  label: "Indicadores visibles",
+		  default: []
+		},
+
+		{
+		  id: "autoBehaviors",
+		  type: "auto_behaviors_editor",
+		  label: "Comportamientos automáticos",
+		  default: []
 		},
 
 		{

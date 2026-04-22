@@ -213,6 +213,10 @@ function HumanSummary({ config }){
           </div>
         ))}
       </div>
+      {autoBehaviors.length > 0 && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Automatizaciones</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>{autoBehaviors.map((rule)=><div key={rule.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>{rule.label || rule.effect}</div>)}</div>
+      </>}
     </div>
   );
 }
@@ -269,7 +273,7 @@ function EmojiInlineField({ nameValue, emojiValue, onChangeName, onChangeEmoji }
 
         <input
           className="os-input"
-          style={{flex:1, marginBottom:0, minHeight:48, fontSize:'0.95rem', padding:'12px 14px'}}
+          style={{flex:1, marginBottom:0, minHeight:42, fontSize:'0.9rem', padding:'9px 12px'}}
           value={nameValue ?? ''}
           onChange={e=>onChangeName(e.target.value)}
           placeholder="Ej. Strike, Cubilete, Sushi..."
@@ -362,6 +366,135 @@ function ListTextField({ label, value, onChange, disabled }){
   );
 }
 
+
+
+function _splitCSV(text){
+  return String(text || '').split(',').map(x=>x.trim()).filter(Boolean);
+}
+
+function _rowInputStyle(){
+  return { marginBottom:0, minHeight:38, padding:'8px 10px', fontSize:'0.88rem' };
+}
+
+function CounterSetEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`counter_${Date.now()}`, label:'Contador', color:'#FFD447', icon:'🪙', scope:'player', initialValue:0, min:0, max:null, resetOn:'never', visibleTo:'all' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Contadores visibles</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Contador</button>}</div>
+    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🪙' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Vidas / Energía' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#FFD447' /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.initialValue ?? 0} onChange={e=>update(idx,{initialValue:e.target.value})} placeholder='Inicial' /><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select></div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function ResultActionsEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){
+    onChange([...(items||[]), { id:`result_${Date.now()}`, label:'Resultado', icon:'🏁', color:'#00FF9D', scope:'round', target:'self', effect:'record_only', visibleTo:'all', isPrimary:true, prompt:'' }]);
+  }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return (
+    <div style={{opacity: disabled ? .45 : 1}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Botones/resultados personalizados</div>
+        {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Acción</button>}
+      </div>
+      {items.map((item, idx)=>(
+        <div key={item.id || idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}>
+            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🎯' />
+            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fuera / Gané / Eliminar' />
+            <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#00FF9D' />
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'round'} onChange={e=>update(idx,{scope:e.target.value})}><option value='round'>Ronda</option><option value='turn'>Turno</option><option value='match'>Partida</option></select>
+            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.effect||'record_only'} onChange={e=>update(idx,{effect:e.target.value})}><option value='mark_victory'>Marca victoria</option><option value='mark_defeat'>Marca derrota</option><option value='mark_out'>Fuera</option><option value='survive'>Sobrevive</option><option value='record_only'>Solo registro</option></select>
+            <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='all'>Todos</option></select>
+          </div>
+          <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.prompt||''} onChange={e=>update(idx,{prompt:e.target.value})} placeholder='Texto/pregunta opcional al usar esta acción' />
+          {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CaptureActionsEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`capture_${Date.now()}`, label:'Captura', icon:'📝', color:'#FFD447', captureType:'number', targetRegister:'points', min:0, max:null, quickValues:[], visibleTo:'host', askAt:'manual', options:[] }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Capturas opcionales</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Captura</button>}</div>
+    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}>
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='📝' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Dados restantes / Tiradas' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#FFD447' />
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.captureType||'number'} onChange={e=>update(idx,{captureType:e.target.value})}><option value='number'>Número</option><option value='select'>Selector</option><option value='text'>Texto</option></select>
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.targetRegister||''} onChange={e=>update(idx,{targetRegister:e.target.value})} placeholder='points / wins / custom' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.askAt||'manual'} onChange={e=>update(idx,{askAt:e.target.value})}><option value='manual'>Manual</option><option value='round_end'>Fin ronda</option><option value='match_end'>Fin partida</option></select>
+      </div>
+      {item.captureType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
+      {item.captureType === 'number' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.quickValues||[]).join(', ')} onChange={e=>update(idx,{quickValues:_splitCSV(e.target.value).map(v=>Number(v)).filter(v=>!Number.isNaN(v))})} placeholder='Valores rápidos: 1,2,3' />}
+      {item.captureType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: Full, Póker, Corrida' />}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function StatusIndicatorsEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`status_${Date.now()}`, label:'Protegido', icon:'🛡️', color:'#4A90FF', scope:'player', visibility:'all', mode:'toggle', defaultValue:false, durationMode:'manual', clearOn:'none' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Indicadores visibles</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Indicador</button>}</div>
+    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'70px 1fr 100px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.icon||''} onChange={e=>update(idx,{icon:e.target.value})} placeholder='🛡️' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Protegido / Sheriff' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.color||''} onChange={e=>update(idx,{color:e.target.value})} placeholder='#4A90FF' /></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'player'} onChange={e=>update(idx,{scope:e.target.value})}><option value='player'>Jugador</option><option value='team'>Equipo</option><option value='global'>Global</option></select><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibility||'all'} onChange={e=>update(idx,{visibility:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='private'>Privado</option></select><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.durationMode||'manual'} onChange={e=>update(idx,{durationMode:e.target.value})}><option value='manual'>Manual</option><option value='turn'>Hasta fin turno</option><option value='round'>Hasta fin ronda</option></select></div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function RoundQuestionsEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`question_${Date.now()}`, label:'Tipo de jugada', inputType:'select', options:['Full','Póker','Corrida'], required:true, saveAs:'handType', visibleTo:'host', min:0, max:null }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Preguntas al cierre de ronda</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Pregunta</button>}</div>
+    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 130px',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='¿Con cuántas tiradas lo logró?' /><select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.inputType||'select'} onChange={e=>update(idx,{inputType:e.target.value})}><option value='select'>Selector</option><option value='number'>Número</option><option value='text'>Texto</option></select></div>
+      <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={item.saveAs||''} onChange={e=>update(idx,{saveAs:e.target.value})} placeholder='Clave guardada: throwsUsed' />
+      {item.inputType === 'select' && <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={(item.options||[]).join(', ')} onChange={e=>update(idx,{options:_splitCSV(e.target.value)})} placeholder='Opciones: 1,2,3 o Full,Póker,Corrida' />}
+      {item.inputType === 'number' && <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.min ?? 0} onChange={e=>update(idx,{min:e.target.value})} placeholder='Min' /><input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.max ?? ''} onChange={e=>update(idx,{max:e.target.value})} placeholder='Max' /></div>}
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function AutoBehaviorsEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`behavior_${Date.now()}`, trigger:'player_eliminated', condition:'only_one_active_remains', effect:'declare_round_winner', enabled:true, clearAfter:false, label:'' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Automatizaciones sugeridas</div>{!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto'}} onClick={add}>+ Regla</button>}</div>
+    {items.map((item, idx)=><div key={item.id||idx} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',marginBottom:8}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.trigger||''} onChange={e=>update(idx,{trigger:e.target.value})} placeholder='player_eliminated' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.condition||''} onChange={e=>update(idx,{condition:e.target.value})} placeholder='only_one_active_remains' /><input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.effect||''} onChange={e=>update(idx,{effect:e.target.value})} placeholder='declare_round_winner' /></div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', color:'var(--red)'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
 
 function AnimatedFieldMount({ children, delay = 0 }){
   const [entered, setEntered] = React.useState(false);
@@ -606,7 +739,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
             if(field.type === 'number') set(parseInt(e.target.value || '0', 10) || 0);
             else set(e.target.value);
           }}
-          style={{marginBottom: reason ? 6 : 0, minHeight:nested ? 44 : 48, padding:nested ? '10px 12px' : '11px 13px', fontSize:nested ? '0.92rem' : '0.98rem', fontFamily:'var(--font-body)', fontWeight:600}}
+          style={{marginBottom: reason ? 6 : 0, minHeight:nested ? 40 : 42, padding:nested ? '8px 10px' : '9px 11px', fontSize:nested ? '0.9rem' : '0.92rem', fontFamily:'var(--font-body)', fontWeight:600}}
         />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
@@ -622,7 +755,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
           disabled={disabled}
           value={value ?? ''}
           onChange={e=>set(e.target.value)}
-          style={{minHeight:nested ? 82 : 96, resize:'vertical', marginBottom: reason ? 6 : 0, padding:'12px 13px', fontSize:nested ? '0.92rem' : '0.96rem', fontFamily:'var(--font-body)'}}
+          style={{minHeight:nested ? 72 : 80, resize:'vertical', marginBottom: reason ? 6 : 0, padding:'10px 12px', fontSize:nested ? '0.9rem' : '0.92rem', fontFamily:'var(--font-body)'}}
         />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
@@ -638,7 +771,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
           disabled={disabled}
           value={value ?? ''}
           onChange={e=>set(e.target.value)}
-          style={{minHeight:nested ? 44 : 48, padding:nested ? '10px 12px' : '11px 13px', fontSize:nested ? '0.92rem' : '0.98rem', fontFamily:'var(--font-body)', fontWeight:700}}
+          style={{minHeight:nested ? 40 : 42, padding:nested ? '8px 10px' : '9px 11px', fontSize:nested ? '0.9rem' : '0.92rem', fontFamily:'var(--font-body)', fontWeight:700}}
         >
           {(field.options || []).map(opt=>(
             <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
@@ -690,6 +823,10 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
     );
   }
 
+  if(field.type === 'counter_set_editor'){
+    return <div style={wrapStyle}><CounterSetEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
   if(field.type === 'list_text'){
     return (
       <div style={wrapStyle}>
@@ -697,6 +834,26 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
     );
+  }
+
+  if(field.type === 'result_actions_editor'){
+    return <div style={wrapStyle}><ResultActionsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'capture_actions_editor'){
+    return <div style={wrapStyle}><CaptureActionsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'status_indicators_editor'){
+    return <div style={wrapStyle}><StatusIndicatorsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'round_questions_editor'){
+    return <div style={wrapStyle}><RoundQuestionsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'auto_behaviors_editor'){
+    return <div style={wrapStyle}><AutoBehaviorsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
   }
 
   return null;
@@ -1131,6 +1288,12 @@ function _runtimeFlowSteps(payload){
   if(r.hasTimer) steps.push({ title:'Timer', desc:`${r.timerScope || 'turn'} · ${r.timerSecs || 60}s · expira: ${r.timerExpire || 'nothing'}` });
   const playerActions = _previewResolvedList(payload, 'playObjectsResolved');
   if(playerActions.length) steps.push({ title:'Objetos de partida', desc:playerActions.map(x=>x.label || x.id).join(' · ') });
+  const questions = _previewResolvedList(payload, 'roundQuestionsResolved');
+  if(questions.length) steps.push({ title:'Cierre guiado', desc:questions.map(q=>q.label).join(' · ') });
+  const statuses = _previewResolvedList(payload, 'statusIndicatorsResolved');
+  if(statuses.length) steps.push({ title:'Indicadores visibles', desc:statuses.map(s=>s.label).join(' · ') });
+  const autos = _previewResolvedList(payload, 'autoBehaviorsResolved');
+  if(autos.length) steps.push({ title:'Automatizaciones', desc:autos.map(a=>a.label || a.effect).join(' · ') });
   if(r.roundClose) steps.push({ title:'Cierre de ronda', desc:`${r.roundCloseWho || 'host'} cierra la ronda · modo ${r.roundClose}` });
   if(r.primaryUnit) steps.push({ title:'Actualización de marcador', desc:`Se actualiza ${r.primaryUnit}${r.scoreCapture ? ` · captura ${r.scoreCapture}` : ''}` });
   let endDesc = 'Se revisa condición final';
@@ -1146,15 +1309,22 @@ function _summaryLines(payload){
   const playObjects = _previewResolvedList(payload, 'playObjectsResolved');
   const registers = _previewResolvedList(payload, 'registersResolved');
   const tools = Array.isArray(r.tools) ? r.tools : [];
+  const resultActions = _previewResolvedList(payload, 'resultActionsResolved');
+  const captureActions = _previewResolvedList(payload, 'captureActionsResolved');
+  const statusIndicators = _previewResolvedList(payload, 'statusIndicatorsResolved');
   return [
     ['Modo', r.type || 'individual'],
     ['Jugadores', `${r.minPlayers || 2} a ${r.maxPlayers || 8}`],
+    ['Dificultad', payload?.summary?.difficulty || payload?.config?.difficulty || 'media'],
     ['Victoria', r.victoryMode === 'wins' ? `Victorias a ${r.winsTarget || 3}` : (r.victoryMode === 'points' ? `Puntos${r.targetScore ? ' a ' + r.targetScore : ''}` : (r.victoryMode || 'manual'))],
     ['Rondas', r.hasRounds ? (r.totalRounds ? String(r.totalRounds) : 'Libres') : 'No'],
     ['Turnos', r.hasTurns ? (r.turnOrder || 'fixed') : (r.noTurnMode || 'simultaneous')],
     ['Timer', r.hasTimer ? `${r.timerScope || 'turn'} · ${r.timerSecs || 60}s` : 'No'],
     ['Registers', registers.length ? registers.map(x=>x.id).join(', ') : 'Ninguno'],
     ['Objetos', playObjects.length ? playObjects.map(x=>x.label || x.id).join(', ') : 'Ninguno'],
+    ['Resultado', resultActions.length ? resultActions.map(x=>x.label).join(', ') : 'Sin acciones custom'],
+    ['Capturas', captureActions.length ? captureActions.map(x=>x.label).join(', ') : 'Sin capturas custom'],
+    ['Estados', statusIndicators.length ? statusIndicators.map(x=>x.label).join(', ') : 'Sin indicadores'],
     ['Herramientas', tools.length ? tools.join(', ') : 'Sin herramientas']
   ];
 }
@@ -1232,6 +1402,10 @@ function PlayerPadPreview({ payload }){
   const actions = Array.isArray(runtime.playerActions) ? runtime.playerActions : [];
   const toolbar = Array.isArray(runtime.toolbarItems) ? runtime.toolbarItems : [];
   const registers = _previewResolvedList(payload, 'registersResolved');
+  const resultActions = _previewResolvedList(payload, 'resultActionsResolved');
+  const captureActions = _previewResolvedList(payload, 'captureActionsResolved');
+  const statusIndicators = _previewResolvedList(payload, 'statusIndicatorsResolved');
+  const roundQuestions = _previewResolvedList(payload, 'roundQuestionsResolved');
   return (
     <div style={{padding:'12px',borderRadius:16,background:'linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025))',border:'1px solid rgba(255,255,255,.08)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
@@ -1245,7 +1419,7 @@ function PlayerPadPreview({ payload }){
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8,marginBottom:12}}>
         {registers.map((reg)=> (
           <div key={reg.id} style={{padding:'10px',borderRadius:12,background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.07)'}}>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.46)',letterSpacing:1,textTransform:'uppercase'}}>{reg.id}</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.46)',letterSpacing:1,textTransform:'uppercase'}}>{reg.label || reg.id}</div>
             <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'#fff',marginTop:4}}>{reg.initialValue ?? 0}</div>
           </div>
         ))}
@@ -1260,6 +1434,24 @@ function PlayerPadPreview({ payload }){
           </div>
         ))}
       </div>
+
+      {resultActions.length > 0 && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Botones de resultado</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>{resultActions.map((action)=><div key={action.id} style={{padding:'9px 12px',borderRadius:12,background:`linear-gradient(135deg, ${_withAlpha(action.color || '#00FF9D', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(action.color || '#00FF9D', .32)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1}}><span style={{marginRight:6}}>{action.icon || '•'}</span>{action.label}</div>)}</div>
+      </>}
+
+      {(captureActions.length > 0 || roundQuestions.length > 0) && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Capturas y preguntas</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>
+          {captureActions.map((action)=><div key={action.id} style={{padding:'9px 12px',borderRadius:12,background:`linear-gradient(135deg, ${_withAlpha(action.color || '#FFD447', .14)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(action.color || '#FFD447', .28)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1}}><span style={{marginRight:6}}>{action.icon || '•'}</span>{action.label}</div>)}
+          {roundQuestions.map((q)=><div key={q.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700}}>❓ {q.label}</div>)}
+        </div>
+      </>}
+
+      {statusIndicators.length > 0 && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Indicadores visibles</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>{statusIndicators.map((item)=><div key={item.id} style={{padding:'8px 12px',borderRadius:999,background:`linear-gradient(135deg, ${_withAlpha(item.color || '#4A90FF', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(item.color || '#4A90FF', .28)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700}}><span style={{marginRight:6}}>{item.icon || '•'}</span>{item.label}</div>)}</div>
+      </>}
 
       {toolbar.length > 0 && (
         <>
@@ -1280,6 +1472,7 @@ function PlayerPadPreview({ payload }){
 function HostPadPreview({ payload }){
   const runtime = payload?.runtime || {};
   const actions = Array.isArray(runtime.hostActions) ? runtime.hostActions : [];
+  const autoBehaviors = _previewResolvedList(payload, 'autoBehaviorsResolved');
   return (
     <div style={{padding:'12px',borderRadius:16,background:'linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025))',border:'1px solid rgba(255,255,255,.08)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
@@ -1288,7 +1481,7 @@ function HostPadPreview({ payload }){
           <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.44)',letterSpacing:1}}>Control operativo de la ronda y la partida</div>
         </div>
       </div>
-      <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:autoBehaviors.length ? 12 : 0}}>
         {actions.length === 0 && <div style={{fontSize:'13px',color:'rgba(255,255,255,.48)'}}>Aún no hay acciones de host.</div>}
         {actions.map((action)=>(
           <div key={action.id} style={{padding:'10px 12px',borderRadius:12,background:`linear-gradient(135deg, ${_withAlpha(action.color || '#FFD447', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(action.color || '#FFD447', .32)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:800,letterSpacing:1}}>
@@ -1296,6 +1489,10 @@ function HostPadPreview({ payload }){
           </div>
         ))}
       </div>
+      {autoBehaviors.length > 0 && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Automatizaciones</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8}}>{autoBehaviors.map((rule)=><div key={rule.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>{rule.label || rule.effect}</div>)}</div>
+      </>}
     </div>
   );
 }

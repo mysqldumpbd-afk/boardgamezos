@@ -128,6 +128,87 @@ window.RuntimeResolver = (function(){
     return out;
   }
 
+
+  function resolveResultActions(config){
+    const visibleTo = config?.objectControlScope || 'host';
+    return (Array.isArray(config?.resultActions) ? config.resultActions : []).map(action => ({
+      id: action.id,
+      kind: 'result_action',
+      label: action.label,
+      icon: action.icon,
+      color: action.color,
+      scope: action.scope || 'round',
+      target: action.target || 'self',
+      effect: action.effect || 'record_only',
+      visibleTo: action.visibleTo || visibleTo,
+      isPrimary: action.isPrimary !== false,
+      prompt: action.prompt || ''
+    }));
+  }
+
+  function resolveCaptureActions(config){
+    const visibleTo = config?.objectControlScope || 'host';
+    return (Array.isArray(config?.captureActions) ? config.captureActions : []).map(action => ({
+      id: action.id,
+      kind: 'capture_action',
+      label: action.label,
+      icon: action.icon,
+      color: action.color,
+      captureType: action.captureType || 'number',
+      targetRegister: action.targetRegister || 'points',
+      min: action.min ?? 0,
+      max: action.max ?? null,
+      quickValues: Array.isArray(action.quickValues) ? action.quickValues : [],
+      visibleTo: action.visibleTo || visibleTo,
+      askAt: action.askAt || 'manual',
+      options: Array.isArray(action.options) ? action.options : []
+    }));
+  }
+
+  function resolveStatusIndicators(config){
+    return (Array.isArray(config?.statusIndicators) ? config.statusIndicators : []).map(status => ({
+      id: status.id,
+      kind: 'status_indicator',
+      label: status.label,
+      icon: status.icon,
+      color: status.color,
+      scope: status.scope || 'player',
+      visibility: status.visibility || 'all',
+      mode: status.mode || 'toggle',
+      defaultValue: !!status.defaultValue,
+      durationMode: status.durationMode || 'manual',
+      clearOn: status.clearOn || 'none'
+    }));
+  }
+
+  function resolveRoundQuestions(config){
+    return (Array.isArray(config?.roundQuestions) ? config.roundQuestions : []).map(question => ({
+      id: question.id,
+      kind: 'round_question',
+      label: question.label,
+      inputType: question.inputType || 'select',
+      options: Array.isArray(question.options) ? question.options : [],
+      required: question.required !== false,
+      saveAs: question.saveAs || question.id,
+      visibleTo: question.visibleTo || 'host',
+      min: question.min ?? 0,
+      max: question.max ?? null
+    }));
+  }
+
+  function resolveAutoBehaviors(config){
+    return (Array.isArray(config?.autoBehaviors) ? config.autoBehaviors : []).filter(x => x?.enabled !== false).map(behavior => ({
+      id: behavior.id,
+      kind: 'auto_behavior',
+      trigger: behavior.trigger || 'manual',
+      condition: behavior.condition || 'always',
+      effect: behavior.effect || 'record_only',
+      enabled: behavior.enabled !== false,
+      clearAfter: !!behavior.clearAfter,
+      label: behavior.label || ''
+    }));
+  }
+
   function resolveDerivedRules(config){
     const rules = [];
     const playObjects = _playObjects(config);
@@ -146,6 +227,10 @@ window.RuntimeResolver = (function(){
       });
     }
 
+    if(config?.useRoundResolution && !(Array.isArray(config?.roundQuestions) && config.roundQuestions.length) && !_playObjects(config).includes('round_resolution_popup')){
+      rules.push({ type: 'warning_rule', id: 'round_resolution_missing_questions' });
+    }
+
     return rules;
   }
 
@@ -153,6 +238,11 @@ window.RuntimeResolver = (function(){
     return {
       registersResolved: resolveRegisters(config),
       playObjectsResolved: resolvePlayObjects(config),
+      resultActionsResolved: resolveResultActions(config),
+      captureActionsResolved: resolveCaptureActions(config),
+      statusIndicatorsResolved: resolveStatusIndicators(config),
+      roundQuestionsResolved: resolveRoundQuestions(config),
+      autoBehaviorsResolved: resolveAutoBehaviors(config),
       derivedRules: resolveDerivedRules(config)
     };
   }
@@ -160,6 +250,11 @@ window.RuntimeResolver = (function(){
   return {
     resolveRegisters,
     resolvePlayObjects,
+    resolveResultActions,
+    resolveCaptureActions,
+    resolveStatusIndicators,
+    resolveRoundQuestions,
+    resolveAutoBehaviors,
     resolveDerivedRules,
     resolveRuntime
   };
