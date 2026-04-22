@@ -1085,8 +1085,11 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
   );
 }
 
-function GroupedPreview({ payload }){
+function GroupedPreview({ payload, forceOpen = false }){
   const [open, setOpen] = React.useState(false);
+  React.useEffect(()=>{
+    if(forceOpen) setOpen(true);
+  }, [forceOpen]);
   if(!payload || !payload.grouped) return null;
 
   return (
@@ -1333,6 +1336,9 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
   const [openSections, setOpenSections] = React.useState({});
   const [previewPayload, setPreviewPayload] = React.useState(null);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [groupedOpen, setGroupedOpen] = React.useState(false);
+  const previewRef = React.useRef(null);
   const sectionRefs = React.useRef({});
 
   const presets = React.useMemo(()=>{
@@ -1405,6 +1411,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
     const normalized = window.SchemaUtils.normalizeConfig(schema, preset.config);
     setConfig(normalized);
     setPreviewPayload(null);
+    setPreviewOpen(false);
+    setGroupedOpen(false);
     const init = {};
     (schema.sections || []).forEach((section, idx)=>{
       init[section.id] = idx === 0;
@@ -1493,8 +1501,12 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
         </div>
 
         <ValidationPanel validation={validation} />
-        <RuntimePreviewPanel payload={livePayload || previewPayload} />
-        <GroupedPreview payload={previewPayload || livePayload} />
+        {previewOpen && (
+          <div ref={previewRef}>
+            <RuntimePreviewPanel payload={previewPayload || livePayload} />
+            <GroupedPreview payload={previewPayload || livePayload} forceOpen={groupedOpen} />
+          </div>
+        )}
 
         {sections.map((section, index)=>(
           <div key={section.id} ref={el=>{ sectionRefs.current[section.id] = el; }}>
@@ -1520,6 +1532,24 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             onClick={()=>{
               const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
+              setPreviewOpen(true);
+              setGroupedOpen(true);
+              setTimeout(()=>{
+                const node = previewRef.current;
+                if(node){
+                  node.scrollIntoView({ behavior:'smooth', block:'start' });
+                  if(window.anime){
+                    window.anime.remove(node);
+                    window.anime({
+                      targets: node,
+                      opacity:[.72,1],
+                      translateY:[10,0],
+                      duration:320,
+                      easing:'easeOutQuad'
+                    });
+                  }
+                }
+              }, 40);
             }}
           >
             👁️ Previsualizar
@@ -1531,6 +1561,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             onClick={()=>{
               const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
               setPreviewPayload(payload);
+              setPreviewOpen(true);
+              setGroupedOpen(false);
               if(onSave) onSave(payload);
             }}
           >
