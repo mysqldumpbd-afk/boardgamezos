@@ -2,17 +2,22 @@
 // Simple network-first for CDN, cache-first for local JSX files.
 // No addAll on install — avoids crashing on CDN failures.
 
-const VERSION = 'bgos-v3';
+const VERSION = 'bgos-v4';
 const LOCAL_FILES = [
   '/boardgamezos/styles.css',
   '/boardgamezos/app.js',
   '/boardgamezos/config-interpreter.js',
+  '/boardgamezos/engine-schema.js',
+  '/boardgamezos/schema-utils.js',
+  '/boardgamezos/runtime-resolver.js',
+  '/boardgamezos/official-presets.js',
   '/boardgamezos/tools.jsx',
   '/boardgamezos/strike.jsx',
   '/boardgamezos/generic.jsx',
   '/boardgamezos/runtime.jsx',
   '/boardgamezos/components.jsx',
   '/boardgamezos/builder.jsx',
+  '/boardgamezos/builder-vnext.jsx',
 ];
 
 // Install: open cache only, don't pre-fetch (avoids addAll failures)

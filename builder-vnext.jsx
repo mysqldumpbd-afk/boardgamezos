@@ -2202,4 +2202,14 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
   );
 }
 
+window.BGOS_VNEXT = window.BGOS_VNEXT || {};
+window.BGOS_VNEXT.components = Object.assign({}, window.BGOS_VNEXT.components, {
+  SchemaDrivenBuilderVNext: SchemaDrivenBuilder
+});
+window.BGOS_VNEXT.render = function renderBuilderVNext(container, props = {}){
+  if(!container) return null;
+  const root = ReactDOM.createRoot(container);
+  root.render(React.createElement(SchemaDrivenBuilder, props));
+  return root;
+};
 window.SchemaDrivenBuilder = SchemaDrivenBuilder;
