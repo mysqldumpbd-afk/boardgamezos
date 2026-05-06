@@ -58,8 +58,7 @@ window.RuntimeResolver = (function(){
     });
 
     const target = config?.scoreInputTarget;
-    const playObjects = _playObjects(config);
-    if(playObjects.includes('score_input') && target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
+    if(target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
       pushRegister({
         id: target,
         label: String(target).toUpperCase(),
@@ -216,41 +215,139 @@ window.RuntimeResolver = (function(){
   }
 
 
-  function resolveGamePhases(config){
-    return (Array.isArray(config?.gamePhases) ? config.gamePhases : []).map((item, idx)=>({
-      id: item.id || `phase_${idx+1}`,
-      label: item.label || item.name || `Fase ${idx+1}`,
-      order: Number.isFinite(+item.order) ? +item.order : idx + 1,
-      scope: item.scope || 'round',
-      owner: item.owner || 'host',
-      trigger: item.trigger || 'manual',
-      description: item.description || ''
-    })).sort((a,b)=>(a.order||0)-(b.order||0));
+  function resolvePhaseLifecycle(config){
+    const phases = Array.isArray(config?.gamePhases) ? config.gamePhases : [];
+    const explicit = Array.isArray(config?.phaseLifecycle) ? config.phaseLifecycle : [];
+    const byPhase = new Map();
+
+    explicit.forEach((item, idx)=>{
+      const id = item.phaseId || item.id || `phase_${idx+1}`;
+      byPhase.set(id, {
+        id: item.id || `lifecycle_${idx+1}`,
+        phaseId: id,
+        label: item.label || id,
+        visibleDuring: Array.isArray(item.visibleDuring) ? item.visibleDuring : [],
+        reset: item.reset || 'none',
+        autoEnter: !!item.autoEnter,
+        autoExit: !!item.autoExit,
+        blocksAdvance: !!item.blocksAdvance,
+        persistUntil: item.persistUntil || ''
+      });
+    });
+
+    phases.forEach((phase, idx)=>{
+      if(!byPhase.has(phase.id)){
+        byPhase.set(phase.id, {
+          id: `lifecycle_${phase.id || idx+1}`,
+          phaseId: phase.id,
+          label: phase.label || phase.id || `Fase ${idx+1}`,
+          visibleDuring: [phase.id],
+          reset: phase.scope === 'turn' ? 'turn' : (phase.scope === 'round' ? 'round' : 'none'),
+          autoEnter: phase.trigger !== 'manual',
+          autoExit: false,
+          blocksAdvance: false,
+          persistUntil: ''
+        });
+      }
+    });
+
+    return Array.from(byPhase.values());
   }
 
-  function resolvePhaseChecklist(config){
-    return (Array.isArray(config?.phaseChecklist) ? config.phaseChecklist : []).map((item, idx)=>({
-      id: item.id || `check_${idx+1}`,
-      label: item.label || `Recordatorio ${idx+1}`,
-      phaseId: item.phaseId || '',
-      visibleTo: item.visibleTo || 'host',
-      required: item.required !== false,
-      defaultDone: !!item.defaultDone,
-      autoReset: item.autoReset || 'round'
-    }));
+  function buildRuntimeTimeline(config, resolved){
+    const timeline = [];
+    const phases = resolved.gamePhasesResolved || [];
+    const checklist = resolved.phaseChecklistResolved || [];
+    const entities = resolved.externalEntitiesResolved || [];
+    const playObjects = resolved.playObjectsResolved || [];
+    const captures = resolved.captureActionsResolved || [];
+    const results = resolved.resultActionsResolved || [];
+    const autos = resolved.autoBehaviorsResolved || [];
+
+    timeline.push({ id:'game_start', type:'system', label:'Inicio de partida', phaseId:'setup', order:0, visibleTo:'all', lifecycle:{ reset:'game', autoEnter:true, autoExit:true } });
+
+    phases.forEach((phase, idx)=>{
+      timeline.push({
+        id:`phase_${phase.id || idx+1}`, type:'phase', label:phase.label, phaseId:phase.id,
+        order:phase.order ?? idx+1, scope:phase.scope || 'round', owner:phase.owner || 'host',
+        trigger:phase.trigger || 'manual', visibleTo:phase.owner === 'player' ? 'all' : 'host',
+        description:phase.description || '',
+        lifecycle:{ reset:phase.scope === 'turn' ? 'turn' : (phase.scope === 'round' ? 'round' : 'none'), autoEnter:phase.trigger !== 'manual', autoExit:false }
+      });
+    });
+
+    checklist.forEach((item, idx)=>{
+      timeline.push({
+        id:`check_${item.id || idx+1}`, type:'checklist', label:item.label, phaseId:item.phaseId || 'manual',
+        order:100+idx, visibleTo:item.visibleTo || 'host', required:item.required !== false,
+        lifecycle:{ reset:item.autoReset || 'round', autoEnter:false, autoExit:false, blocksAdvance:item.required === true }
+      });
+    });
+
+    entities.forEach((item, idx)=>{
+      timeline.push({
+        id:`entity_${item.id || idx+1}`, type:'entity', label:item.label, phaseId:'persistent',
+        order:200+idx, visibleTo:item.visibleTo || 'all', entityType:item.entityType || 'global',
+        stateType:item.stateType || 'status', defaultState:item.defaultState ?? '',
+        lifecycle:{ reset:'none', persistUntil:'game_end' }
+      });
+    });
+
+    playObjects.forEach((item, idx)=>{
+      timeline.push({
+        id:`object_${item.id || idx+1}`, type:'play_object', label:item.label || item.id,
+        phaseId:item.kind === 'numeric_input' ? 'score_capture' : 'manual',
+        order:300+idx, visibleTo:item.visibleTo || 'host', kind:item.kind, lifecycle:{ reset:'none' }
+      });
+    });
+
+    captures.forEach((item, idx)=>{
+      timeline.push({
+        id:`capture_${item.id || idx+1}`, type:'capture', label:item.label,
+        phaseId:item.askAt === 'round_end' ? 'round_end' : 'manual',
+        order:400+idx, visibleTo:item.visibleTo || 'host', captureType:item.captureType || 'number',
+        targetRegister:item.targetRegister || '', lifecycle:{ reset:item.askAt === 'round_end' ? 'round' : 'none' }
+      });
+    });
+
+    results.forEach((item, idx)=>{
+      timeline.push({
+        id:`result_${item.id || idx+1}`, type:'result', label:item.label,
+        phaseId:item.scope || 'manual', order:500+idx, visibleTo:item.visibleTo || 'all',
+        effect:item.effect || 'record_only', lifecycle:{ reset:item.scope === 'round' ? 'round' : 'none' }
+      });
+    });
+
+    autos.forEach((item, idx)=>{
+      timeline.push({
+        id:`auto_${item.id || idx+1}`, type:'automation', label:item.label || item.effect || `Regla ${idx+1}`,
+        phaseId:item.trigger || 'event', order:600+idx, visibleTo:'host',
+        trigger:item.trigger || '', condition:item.condition || '', effect:item.effect || '',
+        lifecycle:{ reset:item.clearAfter ? 'after_trigger' : 'none' }
+      });
+    });
+
+    timeline.push({ id:'game_end_check', type:'system', label:'Revisar condición final', phaseId:'end_check', order:999, visibleTo:'host', lifecycle:{ reset:'none' } });
+    return timeline.sort((a,b)=>(a.order||0)-(b.order||0));
   }
 
-  function resolveExternalEntities(config){
-    return (Array.isArray(config?.externalEntities) ? config.externalEntities : []).map((item, idx)=>({
-      id: item.id || `entity_${idx+1}`,
-      label: item.label || item.name || `Entidad ${idx+1}`,
-      icon: item.icon || '📦',
-      entityType: item.entityType || item.type || 'global',
-      stateType: item.stateType || 'status',
-      defaultState: item.defaultState ?? '',
-      visibleTo: item.visibleTo || 'all',
-      description: item.description || ''
-    }));
+  function buildInitialGameState(config, resolved){
+    const phases = resolved.gamePhasesResolved || [];
+    const checklist = resolved.phaseChecklistResolved || [];
+    const entities = resolved.externalEntitiesResolved || [];
+    const firstPhase = phases[0]?.id || 'setup';
+
+    const checklistState = {};
+    checklist.forEach(item=>{
+      checklistState[item.id] = { done:!!item.defaultDone, required:item.required !== false, phaseId:item.phaseId || '', reset:item.autoReset || 'round' };
+    });
+
+    const entityState = {};
+    entities.forEach(item=>{
+      entityState[item.id] = { label:item.label, type:item.entityType || 'global', stateType:item.stateType || 'status', value:item.defaultState ?? '', visibleTo:item.visibleTo || 'all' };
+    });
+
+    return { currentRound:1, currentTurn:1, currentPhase:firstPhase, activePlayerId:null, firstPlayerId:null, checklist:checklistState, entities:entityState, status:{}, scores:{}, eliminations:{}, history:[] };
   }
 
   function resolveDerivedRules(config){
@@ -318,16 +415,16 @@ window.RuntimeResolver = (function(){
       statusIndicatorsResolved: resolveStatusIndicators(config),
       roundQuestionsResolved: resolveRoundQuestions(config),
       autoBehaviorsResolved: resolveAutoBehaviors(config),
-      gamePhasesResolved: resolveGamePhases(config),
-      phaseChecklistResolved: resolvePhaseChecklist(config),
-      externalEntitiesResolved: resolveExternalEntities(config),
       derivedRules: resolveDerivedRules(config)
     };
 
-    return {
+    const withRuntime = {
       ...base,
       optimization: resolveOptimization(config, base)
     };
+    withRuntime.timeline = buildRuntimeTimeline(config, withRuntime);
+    withRuntime.gameState = buildInitialGameState(config, withRuntime);
+    return withRuntime;
   }
 
   return {
@@ -338,9 +435,6 @@ window.RuntimeResolver = (function(){
     resolveStatusIndicators,
     resolveRoundQuestions,
     resolveAutoBehaviors,
-    resolveGamePhases,
-    resolvePhaseChecklist,
-    resolveExternalEntities,
     resolveDerivedRules,
     resolveRuntime
   };

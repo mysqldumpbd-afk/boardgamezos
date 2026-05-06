@@ -50,7 +50,7 @@ window.SchemaUtils = (function(){
 
 function hasValue(field, value){
   if(field.type === 'boolean') return value === true || value === false;
-  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor' || field.type === 'result_actions_editor' || field.type === 'capture_actions_editor' || field.type === 'status_indicators_editor' || field.type === 'round_questions_editor' || field.type === 'auto_behaviors_editor' || field.type === 'phases_editor' || field.type === 'checklist_editor' || field.type === 'entities_editor'){
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor' || field.type === 'result_actions_editor' || field.type === 'capture_actions_editor' || field.type === 'status_indicators_editor' || field.type === 'round_questions_editor' || field.type === 'auto_behaviors_editor'){
     return Array.isArray(value) && value.length > 0;
   }
   if(field.type === 'number'){
@@ -130,10 +130,7 @@ function sectionState(section, config){
 	  'resultActions',
 	  'captureActions',
 	  'statusIndicators',
-	  'autoBehaviors',
-	  'gamePhases',
-	  'phaseChecklist',
-	  'externalEntities'
+	  'autoBehaviors'
 	];
 	
     arrays.forEach(k=>{
@@ -177,11 +174,7 @@ function sectionState(section, config){
 	if(!cfg.defeatButtonScope) cfg.defeatButtonScope = 'round';
 
 	if(!cfg.scoreInputLabel) cfg.scoreInputLabel = 'Capturar';
-	if(Array.isArray(cfg.playObjects) && cfg.playObjects.includes('score_input')){
-	  if(!cfg.scoreInputTarget) cfg.scoreInputTarget = 'points';
-	}else{
-	  cfg.scoreInputTarget = cfg.scoreInputTarget || '';
-	}
+	if(!cfg.scoreInputTarget) cfg.scoreInputTarget = 'points';
 	if(cfg.scoreInputAllowNegative === undefined) cfg.scoreInputAllowNegative = false;
 
 	if(!cfg.trackingLevel) cfg.trackingLevel = 'normal';
@@ -292,45 +285,17 @@ function sectionState(section, config){
 	  label: String(b?.label || '').trim()
 	}));
 	//-------
-	cfg.autoBehaviors = (cfg.autoBehaviors || []).map((a, i) => ({
-	  id: a?.id || normalizeId(a?.label || a?.effect, `behavior_${i+1}`),
-	  trigger: String(a?.trigger || '').trim(),
-	  condition: String(a?.condition || '').trim(),
-	  effect: String(a?.effect || '').trim(),
-	  enabled: a?.enabled !== false,
-	  clearAfter: !!a?.clearAfter,
-	  label: String(a?.label || a?.effect || 'Regla automática').trim()
-	}));
 
-	cfg.gamePhases = (cfg.gamePhases || []).map((p, i) => ({
-	  id: p?.id || normalizeId(p?.label || p?.name, `phase_${i+1}`),
-	  label: String(p?.label || p?.name || `Fase ${i+1}`).trim(),
-	  order: Number.isFinite(+p?.order) ? +p.order : i + 1,
-	  scope: p?.scope || 'round',
-	  owner: p?.owner || 'host',
-	  trigger: p?.trigger || 'manual',
-	  description: String(p?.description || '').trim()
-	}));
-
-	cfg.phaseChecklist = (cfg.phaseChecklist || []).map((c, i) => ({
-	  id: c?.id || normalizeId(c?.label, `check_${i+1}`),
-	  label: String(c?.label || `Recordatorio ${i+1}`).trim(),
-	  phaseId: c?.phaseId || '',
-	  visibleTo: c?.visibleTo || 'host',
-	  required: c?.required !== false,
-	  defaultDone: !!c?.defaultDone,
-	  autoReset: c?.autoReset || 'round'
-	}));
-
-	cfg.externalEntities = (cfg.externalEntities || []).map((e, i) => ({
-	  id: e?.id || normalizeId(e?.label || e?.name, `entity_${i+1}`),
-	  label: String(e?.label || e?.name || `Entidad ${i+1}`).trim(),
-	  icon: String(e?.icon || '📦').trim(),
-	  entityType: e?.entityType || e?.type || 'global',
-	  stateType: e?.stateType || 'status',
-	  defaultState: e?.defaultState ?? '',
-	  visibleTo: e?.visibleTo || 'all',
-	  description: String(e?.description || '').trim()
+	cfg.phaseLifecycle = (cfg.phaseLifecycle || []).map((l, i) => ({
+	  id: l?.id || normalizeId(l?.phaseId || l?.label, `lifecycle_${i+1}`),
+	  phaseId: String(l?.phaseId || '').trim(),
+	  label: String(l?.label || l?.phaseId || `Lifecycle ${i+1}`).trim(),
+	  visibleDuring: Array.isArray(l?.visibleDuring) ? l.visibleDuring : [],
+	  reset: l?.reset || 'none',
+	  autoEnter: !!l?.autoEnter,
+	  autoExit: !!l?.autoExit,
+	  blocksAdvance: !!l?.blocksAdvance,
+	  persistUntil: l?.persistUntil || ''
 	}));
 
     return cfg;

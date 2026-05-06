@@ -778,7 +778,11 @@ function safeEval(expr){
     const r = Function('return (' + clean + ')')();
     return Number.isFinite(r) ? Math.round(r * 100) / 100 : null;
   }catch(e){
-    return null;
+    if(field.type === 'lifecycle_editor'){
+    return <div style={wrapStyle}><LifecycleEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  return null;
   }
 }
 
@@ -955,6 +959,35 @@ function ExternalEntitiesEditor({ value = [], onChange, disabled }){
         <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select>
       </div>
       <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.description||''} onChange={e=>update(idx,{description:e.target.value})} placeholder='Descripción breve' />
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+
+
+function LifecycleEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`lifecycle_${Date.now()}`, phaseId:'', label:'Lifecycle', reset:'round', autoEnter:false, autoExit:false, blocksAdvance:false, persistUntil:'' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <ContextHint title='Lifecycle' lines={['Define cuándo se muestra, resetea o bloquea el avance una fase.', 'Si lo dejas vacío, el runtime genera defaults.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Lifecycle de fases</div>
+      {!disabled && <MiniAddButton label='Lifecycle' color='#9B5DE5' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#9B5DE5')}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 110px',gap:8,marginBottom:8}}>
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.phaseId||''} onChange={e=>update(idx,{phaseId:e.target.value})} placeholder='phaseId' />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Etiqueta' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.reset||'round'} onChange={e=>update(idx,{reset:e.target.value})}><option value='none'>No reset</option><option value='turn'>Turno</option><option value='round'>Ronda</option><option value='game'>Partida</option><option value='after_trigger'>Al dispararse</option></select>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.autoEnter?'yes':'no'} onChange={e=>update(idx,{autoEnter:e.target.value==='yes'})}><option value='no'>Entrada manual</option><option value='yes'>Auto entrar</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.autoExit?'yes':'no'} onChange={e=>update(idx,{autoExit:e.target.value==='yes'})}><option value='no'>Salida manual</option><option value='yes'>Auto salir</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.blocksAdvance?'yes':'no'} onChange={e=>update(idx,{blocksAdvance:e.target.value==='yes'})}><option value='no'>No bloquea</option><option value='yes'>Bloquea avance</option></select>
+      </div>
       {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
     </div>)}
   </div>;
