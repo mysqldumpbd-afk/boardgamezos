@@ -2102,6 +2102,219 @@ function HostPadPreview({ payload }){
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// RUNTIME SIMULATOR — ejecuta el timeline paso a paso offline
+// ═══════════════════════════════════════════════════════════════
+function RuntimeSimulator({ payload }){
+  const config  = payload?.config || {};
+  const runtime = payload?.runtime || {};
+  const timeline = (runtime.timeline || []).filter(t => t.type !== 'system' || t.id === 'game_start');
+  const spec = React.useMemo(()=> typeof interpret === 'function' ? interpret(config) : {}, [config]);
+
+  const MOCK_PLAYERS = ['🐉 Jugador 1','🦊 Jugador 2','🐺 Jugador 3'].slice(0, Math.max(2, config.minPlayers||2));
+
+  const [players, setPlayers] = React.useState(()=>
+    MOCK_PLAYERS.map((name,i)=>({
+      id:'p'+i, name, emoji:name.split(' ')[0],
+      points:0, wins:0, lives: spec.playerInit?.lives||3,
+      eliminated:false, hasFirstPlayerToken:i===0
+    }))
+  );
+  const [round,  setRound]  = React.useState(1);
+  const [turn,   setTurn]   = React.useState(0); // index into players
+  const [phase,  setPhase]  = React.useState(0); // index into timeline
+  const [log,    setLog]    = React.useState([]);
+  const [done,   setDone]   = React.useState(false);
+  const [scoreInputs, setScoreInputs] = React.useState({});
+  const logRef = React.useRef(null);
+
+  function addLog(msg, color='var(--cyan)'){
+    setLog(prev=>[...prev,{msg,color,ts:Date.now()}]);
+    setTimeout(()=>{ if(logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; },50);
+  }
+
+  function reset(){
+    setPlayers(MOCK_PLAYERS.map((name,i)=>({
+      id:'p'+i, name, emoji:name.split(' ')[0],
+      points:0, wins:0, lives:spec.playerInit?.lives||3,
+      eliminated:false, hasFirstPlayerToken:i===0
+    })));
+    setRound(1); setTurn(0); setPhase(0); setLog([]); setDone(false); setScoreInputs({});
+    addLog('▶ Partida reiniciada','var(--green)');
+  }
+
+  function nextTurn(){
+    const active = players.filter(p=>!p.eliminated);
+    if(!active.length){ setDone(true); return; }
+    const nextIdx = (turn+1) % players.length;
+    setTurn(nextIdx);
+    const p = players[nextIdx];
+    addLog(`↩ Turno de ${p.name}${ p.eliminated ? ' (eliminado — se salta)' : '' }`, p.eliminated?'rgba(255,255,255,.3)':'var(--gold)');
+  }
+
+  function closeRound(){
+    // Check victoria al cerrar ronda
+    const active = players.filter(p=>!p.eliminated);
+    if(spec.victoryMode==='wins'){
+      const winner = active.find(p=>p.wins>=(spec.winsTarget||3));
+      if(winner){ addLog(`🏆 ¡${winner.name} gana la partida! (${winner.wins} victorias)`, 'var(--gold)'); setDone(true); return; }
+    }
+    if(spec.victoryMode==='points' && spec.pointsWinMode==='reach_x' && spec.targetScore){
+      const winner = active.find(p=>p.points>=spec.targetScore);
+      if(winner){ addLog(`🏆 ¡${winner.name} llega a ${spec.targetScore} puntos!`,'var(--gold)'); setDone(true); return; }
+    }
+    if(active.length===1 && players.length>1){ addLog(`🏆 ¡${active[0].name} es el último en pie!`,'var(--gold)'); setDone(true); return; }
+    const newRound = round+1;
+    const maxRounds = spec.totalRounds;
+    if(maxRounds && newRound > maxRounds){
+      const sorted=[...active].sort((a,b)=>(b.points||0)-(a.points||0));
+      addLog(`🏁 Fin de partida — Ronda ${round}. Ganador: ${sorted[0].name}`,'var(--orange)');
+      setDone(true); return;
+    }
+    setRound(newRound);
+    addLog(`📋 Ronda ${round} cerrada → Ronda ${newRound}`, 'var(--purple)');
+  }
+
+  function applyPoints(pid, val){
+    setPlayers(prev=>prev.map(p=>p.id===pid?{...p,points:(p.points||0)+val}:p));
+    const pname = players.find(p=>p.id===pid)?.name||pid;
+    addLog(`${val>=0?'+':''}${val} pts → ${pname}`, val>=0?'var(--green)':'var(--red)');
+  }
+
+  function addWin(pid){
+    setPlayers(prev=>prev.map(p=>p.id===pid?{...p,wins:(p.wins||0)+1}:p));
+    const pname = players.find(p=>p.id===pid)?.name||pid;
+    addLog(`🏆 Victoria de ronda → ${pname}`, 'var(--gold)');
+  }
+
+  function eliminate(pid){
+    setPlayers(prev=>prev.map(p=>p.id===pid?{...p,eliminated:true}:p));
+    const pname = players.find(p=>p.id===pid)?.name||pid;
+    addLog(`💀 ${pname} eliminado`, 'var(--red)');
+    setTimeout(()=>{
+      const active = players.filter(p=>!p.eliminated && p.id!==pid);
+      if(active.length===1){ addLog(`🏆 ¡${active[0].name} gana!`,'var(--gold)'); setDone(true); }
+    }, 100);
+  }
+
+  function loseLife(pid){
+    setPlayers(prev=>prev.map(p=>{ if(p.id!==pid) return p; const l=Math.max(0,(p.lives||0)-1); return {...p,lives:l}; }));
+    const p = players.find(x=>x.id===pid);
+    addLog(`❤️ ${p?.name} pierde una vida (${Math.max(0,(p?.lives||1)-1)} restantes)`, 'var(--red)');
+  }
+
+  const currentPlayer = players[turn % players.length];
+  const active = players.filter(p=>!p.eliminated);
+  const sortedPlayers = [...players].sort((a,b)=>{
+    if(!a.eliminated&&b.eliminated) return -1;
+    if(a.eliminated&&!b.eliminated) return 1;
+    if(spec.victoryMode==='wins') return (b.wins||0)-(a.wins||0);
+    return (b.points||0)-(a.points||0);
+  });
+
+  const cellStyle = {background:'rgba(255,255,255,.04)',borderRadius:10,padding:'10px 12px',border:'1px solid rgba(255,255,255,.07)'};
+  const btnBase = {borderRadius:8,border:'none',cursor:'pointer',fontFamily:'var(--font-label)',fontWeight:700,fontSize:'11px',letterSpacing:.8,padding:'7px 10px'};
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      {/* STATUS BAR */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {[
+          {label:'RONDA', val:spec.totalRounds?`${round}/${spec.totalRounds}`:round, color:'var(--cyan)'},
+          {label:'ACTIVOS', val:active.length+'/'+players.length, color:'var(--green)'},
+          {label:'TURNO', val:currentPlayer?.name?.split(' ')[0]||'—', color:'var(--gold)'},
+          {label:'MODO', val:(spec.victoryMode||'points').toUpperCase(), color:'var(--purple)'},
+        ].map(s=>(
+          <div key={s.label} style={{flex:1,minWidth:60,...cellStyle,textAlign:'center'}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:2}}>{s.label}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'.9rem',color:s.color}}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* SCOREBOARD */}
+      <div style={cellStyle}>
+        <div style={{fontFamily:'var(--font-ui)',fontSize:'9px',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:8}}>MARCADOR</div>
+        {sortedPlayers.map((p,i)=>(
+          <div key={p.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:i<sortedPlayers.length-1?'1px solid rgba(255,255,255,.05)':'none',opacity:p.eliminated?.4:1}}>
+            <div style={{width:22,height:22,borderRadius:6,background:`rgba(0,245,255,.${i===0?'2':'07'})`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--font-display)',fontSize:'11px',color:i===0?'var(--cyan)':'rgba(255,255,255,.4)'}}>{i+1}</div>
+            <div style={{fontSize:'1.1rem'}}>{p.emoji}</div>
+            <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'13px',fontWeight:700,color:p.eliminated?'rgba(255,255,255,.3)':'#fff'}}>{p.name.split(' ').slice(1).join(' ')}{p.eliminated?' 💀':''}</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',color:'var(--gold)',minWidth:32,textAlign:'right'}}>
+              {spec.victoryMode==='wins'?p.wins:spec.victoryMode==='lives'||spec.primaryUnit==='lives'?p.lives:p.points}
+            </div>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',color:'rgba(255,255,255,.25)'}}>
+              {spec.victoryMode==='wins'?'🏆':spec.victoryMode==='lives'||spec.primaryUnit==='lives'?'❤️':'pts'}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* PLAYER ACTIONS */}
+      {!done && (
+        <div style={cellStyle}>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'9px',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:8}}>ACCIONES POR JUGADOR</div>
+          {players.filter(p=>!p.eliminated).map(p=>(
+            <div key={p.id} style={{marginBottom:10,padding:'8px 10px',borderRadius:8,background:p.id===currentPlayer?.id?'rgba(0,245,255,.05)':'rgba(255,255,255,.02)',border:`1px solid ${p.id===currentPlayer?.id?'rgba(0,245,255,.2)':'rgba(255,255,255,.05)'}`}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,marginBottom:6,color:p.id===currentPlayer?.id?'var(--cyan)':'rgba(255,255,255,.7)'}}>
+                {p.emoji} {p.name.split(' ').slice(1).join(' ')} {p.id===currentPlayer?.id?'← turno actual':''}
+              </div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {(spec.victoryMode!=='lives'&&spec.primaryUnit!=='lives')&&[5,10,25].map(v=>(
+                  <button key={v} style={{...btnBase,background:'rgba(0,255,157,.12)',color:'var(--green)'}} onClick={()=>applyPoints(p.id,v)}>+{v}</button>
+                ))}
+                {(spec.victoryMode!=='lives'&&spec.primaryUnit!=='lives')&&spec.modifiers?.includes('penalty')&&(
+                  <button style={{...btnBase,background:'rgba(255,59,92,.12)',color:'var(--red)'}} onClick={()=>applyPoints(p.id,-5)}>-5</button>
+                )}
+                {(spec.victoryMode==='wins'||spec.winsTarget)&&(
+                  <button style={{...btnBase,background:'rgba(255,212,71,.12)',color:'var(--gold)'}} onClick={()=>addWin(p.id)}>🏆 Ganar ronda</button>
+                )}
+                {(spec.primaryUnit==='lives'||spec.victoryMode==='lives')&&(
+                  <button style={{...btnBase,background:'rgba(255,59,92,.12)',color:'var(--red)'}} onClick={()=>loseLife(p.id)}>❤️ Perder vida</button>
+                )}
+                {spec.hasElimination&&(
+                  <button style={{...btnBase,background:'rgba(255,59,92,.15)',color:'var(--red)',border:'1px solid rgba(255,59,92,.3)'}} onClick={()=>eliminate(p.id)}>💀 Eliminar</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* HOST CONTROLS */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {!done&&spec.hasTurns&&<button style={{...btnBase,background:'rgba(255,212,71,.12)',color:'var(--gold)',flex:1}} onClick={nextTurn}>↩ Sig. turno</button>}
+        {!done&&spec.hasRounds&&<button style={{...btnBase,background:'rgba(155,93,229,.12)',color:'var(--purple)',flex:1}} onClick={closeRound}>📋 Cerrar ronda</button>}
+        {!done&&!spec.hasRounds&&<button style={{...btnBase,background:'rgba(255,107,53,.15)',color:'var(--orange)',flex:1}} onClick={()=>{setDone(true);addLog('🏁 Partida terminada manualmente','var(--orange)');}}>🏁 Terminar</button>}
+        <button style={{...btnBase,background:'rgba(0,245,255,.08)',color:'var(--cyan)',flex:.6}} onClick={reset}>↺ Reset</button>
+      </div>
+
+      {/* DONE STATE */}
+      {done&&(
+        <div style={{textAlign:'center',padding:'20px 16px',borderRadius:12,background:'linear-gradient(135deg,rgba(255,212,71,.08),rgba(0,255,157,.05))',border:'1px solid rgba(255,212,71,.2)'}}>
+          <div style={{fontSize:'2rem',marginBottom:8}}>🏆</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:2,color:'var(--gold)',marginBottom:4}}>PARTIDA SIMULADA</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.45)'}}>Config validada. ¡Esta configuración funciona!</div>
+          <button style={{...btnBase,background:'rgba(0,245,255,.1)',color:'var(--cyan)',marginTop:12}} onClick={reset}>↺ Simular otra vez</button>
+        </div>
+      )}
+
+      {/* ACTIVITY LOG */}
+      <div style={cellStyle}>
+        <div style={{fontFamily:'var(--font-ui)',fontSize:'9px',letterSpacing:2,color:'rgba(255,255,255,.3)',marginBottom:6}}>LOG DE EVENTOS</div>
+        <div ref={logRef} style={{maxHeight:140,overflowY:'auto',display:'flex',flexDirection:'column',gap:3}}>
+          {log.length===0&&<div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.25)'}}>Sin eventos aún. Interactúa con los controles.</div>}
+          {log.map((l,i)=>(
+            <div key={i} style={{fontFamily:'var(--font-label)',fontSize:'11px',color:l.color||'rgba(255,255,255,.6)',padding:'2px 0',borderBottom:'1px solid rgba(255,255,255,.03)'}}>
+              <span style={{color:'rgba(255,255,255,.2)',marginRight:8}}>{String(i+1).padStart(2,'0')}</span>{l.msg}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RuntimePreviewPanel({ payload }){
   const [tab, setTab] = React.useState('summary');
   if(!payload?.runtime) return null;
@@ -2110,151 +2323,311 @@ function RuntimePreviewPanel({ payload }){
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:12,flexWrap:'wrap'}}>
         <div>
           <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color:'var(--cyan)'}}>Vista previa del juego generado</div>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1,color:'rgba(255,255,255,.46)'}}>Resumen, flujo y pads generados con base en el runtime</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1,color:'rgba(255,255,255,.46)'}}>Resumen, flujo, pads y simulador</div>
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
           <PreviewTabButton active={tab==='summary'} onClick={()=>setTab('summary')} label='Resumen' color='#00F5FF' />
           <PreviewTabButton active={tab==='flow'} onClick={()=>setTab('flow')} label='Flujo' color='#4A90FF' />
           <PreviewTabButton active={tab==='player'} onClick={()=>setTab('player')} label='Pad jugador' color='#00FF9D' />
           <PreviewTabButton active={tab==='host'} onClick={()=>setTab('host')} label='Pad host' color='#FFD447' />
+          <PreviewTabButton active={tab==='simulate'} onClick={()=>setTab('simulate')} label='🎮 Simular' color='#FF6B35' />
         </div>
       </div>
 
-      {tab === 'summary' && <SummaryPreviewTab payload={payload} />}
-      {tab === 'flow' && <FlowPreviewTab payload={payload} />}
-      {tab === 'player' && <PlayerPadPreview payload={payload} />}
-      {tab === 'host' && <HostPadPreview payload={payload} />}
+      {tab === 'summary'  && <SummaryPreviewTab payload={payload} />}
+      {tab === 'flow'     && <FlowPreviewTab payload={payload} />}
+      {tab === 'player'   && <PlayerPadPreview payload={payload} />}
+      {tab === 'host'     && <HostPadPreview payload={payload} />}
+      {tab === 'simulate' && <RuntimeSimulator payload={payload} />}
     </div>
   );
 }
 
 
-function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema Builder V4' }){
+// ═══════════════════════════════════════════════════════════════
+// MY GAMES SCREEN — lista de juegos guardados (vnext)
+// Visual del legacy + estructura del nuevo schema
+// ═══════════════════════════════════════════════════════════════
+function MyGamesScreenVNext({ user, onBack, onBuildNew, onEditTemplate, onPlayTemplate, onSignOut }){
+  const [templates, setTemplates] = React.useState([]);
+  const [loading,   setLoading]   = React.useState(true);
+  const [deleting,  setDeleting]  = React.useState(null);
+
+  React.useEffect(()=>{
+    if(!user) return;
+    seedPresetTemplates(user.uid).catch(()=>{});
+    loadGameTemplates(user.uid).then(t=>{ setTemplates(t); setLoading(false); }).catch(()=>setLoading(false));
+  },[user?.uid]);
+
+  async function handleDelete(t){
+    if(!window.confirm(`¿Borrar "${t.name}"?`)) return;
+    if(typeof snd === 'function') snd('delete');
+    setDeleting(t.id);
+    await deleteGameTemplate(user.uid, t.id);
+    setTemplates(prev=>prev.filter(x=>x.id!==t.id));
+    setDeleting(null);
+  }
+
+  // Color por modo victoria — lee del grouped.victory o del config plano
+  function modeColor(t){
+    const vm = t.grouped?.victory?.victoryMode || t.config?.victoryMode || 'points';
+    return vm==='points'?'var(--gold)':vm==='wins'?'var(--cyan)':vm==='elimination'?'var(--red)':'var(--purple)';
+  }
+  function modeLabel(t){
+    const vm = t.grouped?.victory?.victoryMode || t.config?.victoryMode || 'points';
+    return vm==='points'?'Puntos':vm==='wins'?'Victorias':vm==='elimination'?'Eliminación':'Manual';
+  }
+  function modeEmoji(t){
+    const vm = t.grouped?.victory?.victoryMode || t.config?.victoryMode || 'points';
+    return vm==='points'?'🏅':vm==='wins'?'🏆':vm==='elimination'?'💀':'🎯';
+  }
+
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack}>← Home</button>
+        <div className="os-logo" style={{fontSize:'1.1rem'}}>MIS <span>JUEGOS</span></div>
+        {user&&(
+          <button className="btn btn-ghost btn-sm" style={{width:'auto',fontSize:'var(--fs-micro)'}} onClick={onSignOut}>
+            {user.photoURL?<img src={user.photoURL} style={{width:22,height:22,borderRadius:'50%'}} alt=""/>:'👤'}
+          </button>
+        )}
+      </div>
+
+      <div className="os-page" style={{paddingTop:16}}>
+        {/* User chip */}
+        <div style={{display:'flex',alignItems:'center',gap:10,background:'rgba(155,93,229,.06)',border:'1px solid rgba(155,93,229,.2)',borderRadius:12,padding:'10px 14px',marginBottom:16}}>
+          <div style={{fontSize:'1.4rem'}}>{user?.photoURL?<img src={user.photoURL} style={{width:28,height:28,borderRadius:'50%'}} alt=""/>:'👤'}</div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)',color:'var(--purple)'}}>{user?.displayName||user?.email||'Usuario'}</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',letterSpacing:1,marginTop:1}}>
+              {templates.length} juego{templates.length!==1?'s':''} · Schema v2
+            </div>
+          </div>
+          <div style={{background:'rgba(0,245,255,.08)',border:'1px solid rgba(0,245,255,.2)',borderRadius:8,padding:'3px 8px',fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,color:'var(--cyan)'}}>VNEXT</div>
+        </div>
+
+        <button className="btn btn-purple" style={{marginBottom:20}} onClick={()=>{ if(typeof snd==='function')snd('tap'); onBuildNew(); }}>
+          + Crear nuevo juego
+        </button>
+
+        {loading&&<div style={{textAlign:'center',padding:'40px 0'}}><div className="os-spin" style={{marginBottom:12}}/><div style={{fontFamily:'var(--font-label)',color:'rgba(255,255,255,.35)',letterSpacing:2}}>CARGANDO...</div></div>}
+
+        {!loading&&templates.length===0&&(
+          <div className="os-empty">
+            <div style={{fontSize:'3rem',marginBottom:12}}>🎮</div>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,marginBottom:6}}>Sin juegos aún</div>
+            <div style={{fontSize:'var(--fs-sm)'}}>Crea tu primer juego con el builder</div>
+          </div>
+        )}
+
+        {!loading&&templates.map((t,i)=>{
+          const color = modeColor(t);
+          // Leer datos del nuevo formato grouped, con fallback al config plano legacy
+          const vm   = t.grouped?.victory?.victoryMode || t.config?.victoryMode;
+          const hasRounds = t.grouped?.structure?.useRounds ?? t.config?.useRounds;
+          const rounds    = t.grouped?.structure?.rounds ?? t.config?.rounds;
+          const hasTurns  = t.grouped?.structure?.useTurns ?? t.config?.useTurns;
+          const hasToken  = t.grouped?.structure?.useFirstPlayerToken ?? t.config?.useFirstPlayerToken;
+          const hasTimer  = t.grouped?.structure?.useTimer ?? t.config?.useTimer;
+          const toolsLen  = (t.grouped?.tools?.tools ?? t.config?.tools ?? []).length;
+          const isNew     = !!t.schemaVersion; // marcador: guardado con vnext
+
+          return(
+            <div key={t.id} className="anim-fade" style={{background:'var(--surface)',border:`1px solid ${color}44`,borderRadius:16,padding:'14px 15px',marginBottom:10,animationDelay:i*.05+'s',position:'relative'}}>
+              {isNew&&<div style={{position:'absolute',top:10,right:12,background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.25)',borderRadius:6,padding:'2px 7px',fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,color:'var(--cyan)'}}>v2</div>}
+              <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                <div style={{fontSize:'2rem',width:50,height:50,borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',background:`${color}18`,border:`1px solid ${color}33`,flexShrink:0}}>{t.emoji||'🎮'}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,color:'#fff'}}>{t.name}</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{t.description||t.summary||''}</div>
+                </div>
+              </div>
+              <div className="os-tags" style={{marginBottom:12}}>
+                <div className="os-tag" style={{background:`${color}18`,borderColor:`${color}44`,color}}>{modeEmoji(t)} {modeLabel(t)}</div>
+                {hasRounds&&<div className="os-tag">{rounds==='libre'?'∞ Libre':`${rounds} rondas`}</div>}
+                {hasTurns&&<div className="os-tag purple">↕️ Turnos</div>}
+                {hasToken&&<div className="os-tag gold">👑 Token</div>}
+                {hasTimer&&<div className="os-tag orange">⏱ Timer</div>}
+                {toolsLen>0&&<div className="os-tag purple">🎲 {toolsLen} herr.</div>}
+                <div className="os-tag" style={{fontSize:'.6rem',color:'rgba(255,255,255,.25)'}}>{typeof fmtShortDate==='function'?fmtShortDate(t.updatedAt||t.createdAt):''}</div>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn btn-cyan btn-sm" style={{flex:1,marginBottom:0}} onClick={()=>{ if(typeof snd==='function')snd('tap'); onPlayTemplate(t); }}>▶ Jugar</button>
+                <button className="btn btn-ghost btn-sm" style={{flex:.6,marginBottom:0}} onClick={()=>{ if(typeof snd==='function')snd('tap'); onEditTemplate(t); }}>✏️ Editar</button>
+                <button style={{marginBottom:0,background:'rgba(255,59,92,.1)',border:'1px solid rgba(255,59,92,.25)',color:'var(--red)',borderRadius:9,padding:'9px 12px',cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'var(--fs-xs)',opacity:deleting===t.id?.5:1}} onClick={()=>handleDelete(t)}>{deleting===t.id?'...':'🗑'}</button>
+              </div>
+            </div>
+          );
+        })}
+        <div className="g16"/>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCHEMA DRIVEN BUILDER — v2 con Firebase + simulador
+// ═══════════════════════════════════════════════════════════════
+function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game Builder', user, editingTemplate }){
   const schema = window.ENGINE_SCHEMA;
   const [config, setConfig] = React.useState(()=>{
     if(!schema || !window.SchemaUtils) return {};
-    return window.SchemaUtils.normalizeConfig(schema, initialConfig || {});
+    const base = editingTemplate?.config || initialConfig || {};
+    return window.SchemaUtils.normalizeConfig(schema, base);
   });
 
-  const [openSections, setOpenSections] = React.useState({});
-  const [previewPayload, setPreviewPayload] = React.useState(null);
-  const [previewOpen, setPreviewOpen] = React.useState(false);
-  const [groupedOpen, setGroupedOpen] = React.useState(false);
-  const previewRef = React.useRef(null);
+  const [openSections,  setOpenSections]  = React.useState({});
+  const [previewPayload,setPreviewPayload] = React.useState(null);
+  const [previewOpen,   setPreviewOpen]    = React.useState(false);
+  const [groupedOpen,   setGroupedOpen]    = React.useState(false);
+  const [saving,        setSaving]         = React.useState(false);
+  const [saved,         setSaved]          = React.useState(false);
+  const [saveError,     setSaveError]      = React.useState('');
+  const previewRef  = React.useRef(null);
   const sectionRefs = React.useRef({});
 
   const presets = React.useMemo(()=>{
     const map = window.OFFICIAL_PRESETS || {};
-    return Object.keys(map)
-      .map(key => ({ key, ...map[key] }))
-      .filter(x => x && x.config)
-      .sort((a, b) => (a.order || 999) - (b.order || 999));
-  }, []);
+    return Object.keys(map).map(key=>({key,...map[key]})).filter(x=>x&&x.config).sort((a,b)=>(a.order||999)-(b.order||999));
+  },[]);
 
   const [selectedPresetKey, setSelectedPresetKey] = React.useState('');
-
   const selectedPreset = React.useMemo(()=>{
     if(!presets.length) return null;
-    return presets.find(p => String(p.key || p.id) === String(selectedPresetKey)) || presets[0];
-  }, [presets, selectedPresetKey]);
+    return presets.find(p=>String(p.key||p.id)===String(selectedPresetKey))||presets[0];
+  },[presets,selectedPresetKey]);
 
   const livePayload = React.useMemo(()=>{
-    if(!schema || !window.SchemaUtils) return null;
+    if(!schema||!window.SchemaUtils) return null;
     try{
-      return window.SchemaUtils.exportPayload(schema, config);
-    }catch(err){
-      console.error('No se pudo generar livePayload', err);
-      return null;
-    }
-  }, [schema, config]);
+      // Enriquecer payload con runtime unificado
+      const base = window.SchemaUtils.exportPayload(schema, config);
+      if(typeof resolveRuntime === 'function'){
+        base.runtime = { ...base.runtime, ...resolveRuntime(config) };
+      }
+      return base;
+    }catch(err){ console.error('livePayload error',err); return null; }
+  },[schema,config]);
 
   React.useEffect(()=>{
     if(!schema) return;
-    const init = {};
-    (schema.sections || []).forEach(section=>{
-      init[section.id] = false;
-    });
+    const init={};
+    (schema.sections||[]).forEach((s,i)=>{ init[s.id]=i===0; });
     setOpenSections(init);
-  }, [schema]);
+  },[schema]);
 
   const validation = React.useMemo(()=>{
-    if(!schema || !window.SchemaUtils) return null;
-    return window.SchemaUtils.validateConfig(schema, config);
-  }, [schema, config]);
+    if(!schema||!window.SchemaUtils) return null;
+    return window.SchemaUtils.validateConfig(schema,config);
+  },[schema,config]);
 
-  function updateField(id, value){
-    setConfig(prev => ({ ...prev, [id]: value }));
-  }
+  function updateField(id,value){ setConfig(prev=>({...prev,[id]:value})); }
 
-  function toggleSection(id){
-    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }));
-  }
+  function toggleSection(id){ setOpenSections(prev=>({...prev,[id]:!prev[id]})); }
 
   function completeAndAdvance(index){
-    const sections = schema.sections || [];
-    const current = sections[index];
-    const next = sections[index + 1];
-
-    setOpenSections(prev => {
-      const nextState = { ...prev, [current.id]: false };
-      if(next) nextState[next.id] = true;
-      return nextState;
-    });
-
-    if(next){
-      setTimeout(()=>{
-        const node = sectionRefs.current[next.id];
-        if(node){
-          node.scrollIntoView({ behavior:'smooth', block:'start' });
-          if(window.anime){
-            window.anime.remove(node);
-            window.anime({ targets: node, translateY:[10,0], opacity:[.86,1], duration:360, easing:'easeOutQuad' });
-          }
-        }
-      }, 260);
-    }
+    const sections=schema.sections||[];
+    const current=sections[index]; const next=sections[index+1];
+    setOpenSections(prev=>{ const n={...prev,[current.id]:false}; if(next)n[next.id]=true; return n; });
+    if(next) setTimeout(()=>{ const node=sectionRefs.current[next.id]; if(node){ node.scrollIntoView({behavior:'smooth',block:'start'}); if(window.anime){window.anime.remove(node);window.anime({targets:node,translateY:[10,0],opacity:[.86,1],duration:360,easing:'easeOutQuad'});} } },260);
   }
 
   function applyPreset(preset){
-    if(!preset || !preset.config || !schema || !window.SchemaUtils) return;
-    const normalized = window.SchemaUtils.normalizeConfig(schema, preset.config);
-    setConfig(normalized);
-    setPreviewPayload(null);
-    setPreviewOpen(false);
-    setGroupedOpen(false);
-    const init = {};
-    (schema.sections || []).forEach((section, idx)=>{
-      init[section.id] = idx === 0;
-    });
-    setOpenSections(init);
-    setTimeout(()=>{
-      const first = (schema.sections || [])[0];
-      const node = first ? sectionRefs.current[first.id] : null;
-      if(node) node.scrollIntoView({ behavior:'smooth', block:'start' });
-    }, 120);
+    if(!preset||!preset.config||!schema||!window.SchemaUtils) return;
+    const normalized=window.SchemaUtils.normalizeConfig(schema,preset.config);
+    setConfig(normalized); setPreviewPayload(null); setPreviewOpen(false); setGroupedOpen(false);
+    const init={}; (schema.sections||[]).forEach((s,i)=>{ init[s.id]=i===0; }); setOpenSections(init);
+    setTimeout(()=>{ const first=(schema.sections||[])[0]; const node=first?sectionRefs.current[first.id]:null; if(node)node.scrollIntoView({behavior:'smooth',block:'start'}); },120);
+  }
+
+  // ── GUARDAR EN FIREBASE ────────────────────────────────────────
+  async function handleSave(){
+    if(!config.name||!String(config.name).trim()){ alert('El juego necesita un nombre'); return; }
+    setSaving(true); setSaveError(''); setSaved(false);
+    if(typeof snd==='function') snd('save');
+    try{
+      const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
+      // Enriquecer runtime si está disponible
+      if(typeof resolveRuntime==='function' && payload.runtime){
+        Object.assign(payload.runtime, resolveRuntime(config));
+      }
+
+      // Estructura nueva (vnext) + campo config plano para compatibilidad legacy
+      const templateData = {
+        id: editingTemplate?.id || undefined,
+        name: String(config.name||'').trim(),
+        emoji: config.emoji || '🎮',
+        description: payload.summary || '',
+        summary: payload.summary || '',
+        schemaVersion: '2.0',
+        exportedAt: payload.exportedAt,
+        // Nuevo: config plano + agrupado + runtime
+        config: payload.config,          // plano — compatible con legacy runtime
+        grouped: payload.grouped,        // por secciones — nuevo
+        runtime: payload.runtime || {},  // spec + timeline + gameState
+        // Metadatos de validación
+        valid: payload.valid,
+        warnings: payload.warnings || [],
+      };
+
+      let saved;
+      if(user){
+        saved = await saveGameTemplate(user.uid, templateData);
+      } else {
+        // Sin auth — guardar en localStorage como demo
+        const id = templateData.id || ('local_'+Date.now());
+        const data = {...templateData, id, updatedAt:Date.now(), createdAt:editingTemplate?.createdAt||Date.now()};
+        const key = 'bgos_local_templates';
+        const existing = JSON.parse(localStorage.getItem(key)||'[]');
+        const idx = existing.findIndex(x=>x.id===id);
+        if(idx>=0) existing[idx]=data; else existing.push(data);
+        localStorage.setItem(key, JSON.stringify(existing));
+        saved = data;
+      }
+
+      setSaving(false); setSaved(true);
+      if(typeof snd==='function') setTimeout(()=>snd('win'),200);
+      if(onSave) setTimeout(()=>onSave(saved), 1200);
+    } catch(e){
+      console.error('Save error:',e);
+      setSaving(false);
+      setSaveError('Error al guardar: '+(e.message||'intenta de nuevo'));
+    }
   }
 
   if(!schema){
-    return (
+    return(<div className="os-wrap"><div className="os-page" style={{paddingTop:80,textAlign:'center'}}><div className="os-alert alert-red">ENGINE_SCHEMA no está cargado</div></div></div>);
+  }
+
+  if(saved){
+    return(
       <div className="os-wrap">
         <div className="os-page" style={{paddingTop:80,textAlign:'center'}}>
-          <div className="os-alert alert-red">ENGINE_SCHEMA no está cargado</div>
+          <div style={{fontSize:'4rem',marginBottom:16}}>💾</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',letterSpacing:2,background:'linear-gradient(135deg,var(--purple),var(--cyan))',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:8}}>¡GUARDADO!</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:600,color:'rgba(255,255,255,.4)',letterSpacing:1}}>"{config.name}" listo para jugar</div>
+          {user&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(0,245,255,.5)',letterSpacing:2,marginTop:8}}>GUARDADO EN LA NUBE ☁️</div>}
+          {!user&&<div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,212,71,.5)',letterSpacing:2,marginTop:8}}>GUARDADO LOCAL — Inicia sesión para sincronizar</div>}
         </div>
       </div>
     );
   }
 
-  const sections = schema.sections || [];
-  const completedCount = sections.filter(s => window.SchemaUtils.sectionState(s, config).status === 'complete').length;
-  const progressPct = Math.round((completedCount / Math.max(sections.length, 1)) * 100);
+  const sections = schema.sections||[];
+  const completedCount = sections.filter(s=>window.SchemaUtils.sectionState(s,config).status==='complete').length;
+  const progressPct = Math.round((completedCount/Math.max(sections.length,1))*100);
 
   return (
     <div className="os-wrap">
       <div className="os-header">
         <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onBack || (()=>history.back())}>← Atrás</button>
-        <div className="os-logo" style={{fontSize:'1rem'}}>{title}</div>
-        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.45)',letterSpacing:2}}>
-          {completedCount}/{sections.length}
+        <div className="os-logo" style={{fontSize:'1rem'}}>{editingTemplate?`✏️ ${editingTemplate.name}`:title}</div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          {user&&<div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,color:'rgba(0,245,255,.5)'}}>☁️</div>}
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.45)',letterSpacing:2}}>
+            {completedCount}/{sections.length}
+          </div>
         </div>
       </div>
 
@@ -2415,6 +2788,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
         <div className="g16" />
 
+        {saveError&&<div style={{background:'rgba(255,59,92,.1)',border:'1px solid rgba(255,59,92,.3)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontFamily:'var(--font-label)',fontSize:'12px',color:'var(--red)'}}>{saveError}</div>}
+
         <div style={{display:'flex',gap:8}}>
           <button
             className="btn btn-ghost"
@@ -2426,19 +2801,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
               setGroupedOpen(true);
               setTimeout(()=>{
                 const node = previewRef.current;
-                if(node){
-                  node.scrollIntoView({ behavior:'smooth', block:'start' });
-                  if(window.anime){
-                    window.anime.remove(node);
-                    window.anime({
-                      targets: node,
-                      opacity:[.72,1],
-                      translateY:[10,0],
-                      duration:320,
-                      easing:'easeOutQuad'
-                    });
-                  }
-                }
+                if(node){ node.scrollIntoView({behavior:'smooth',block:'start'}); if(window.anime){window.anime.remove(node);window.anime({targets:node,opacity:[.72,1],translateY:[10,0],duration:320,easing:'easeOutQuad'});} }
               }, 40);
             }}
           >
@@ -2447,18 +2810,19 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
           <button
             className="btn btn-cyan"
-            style={{..._gradientButtonStyle('#00F5FF',{full:true}), flex:1}}
-            onClick={()=>{
-              const payload = livePayload || window.SchemaUtils.exportPayload(schema, config);
-              setPreviewPayload(payload);
-              setPreviewOpen(true);
-              setGroupedOpen(false);
-              if(onSave) onSave(payload);
-            }}
+            style={{..._gradientButtonStyle('#00F5FF',{full:true}), flex:1, opacity:saving?.6:1}}
+            disabled={saving}
+            onClick={handleSave}
           >
-            💾 Guardar config
+            {saving ? '⏳ Guardando...' : user ? '☁️ Guardar' : '💾 Guardar local'}
           </button>
         </div>
+
+        {!user&&(
+          <div style={{marginTop:10,padding:'8px 12px',borderRadius:8,background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.18)',fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,212,71,.7)',textAlign:'center'}}>
+            💡 Inicia sesión en Mis Juegos para guardar en la nube y sincronizar entre dispositivos
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2466,7 +2830,8 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
 
 window.BGOS_VNEXT = window.BGOS_VNEXT || {};
 window.BGOS_VNEXT.components = Object.assign({}, window.BGOS_VNEXT.components, {
-  SchemaDrivenBuilderVNext: SchemaDrivenBuilder
+  SchemaDrivenBuilderVNext: SchemaDrivenBuilder,
+  MyGamesScreenVNext: MyGamesScreenVNext,
 });
 window.BGOS_VNEXT.render = function renderBuilderVNext(container, props = {}){
   if(!container) return null;
@@ -2475,3 +2840,4 @@ window.BGOS_VNEXT.render = function renderBuilderVNext(container, props = {}){
   return root;
 };
 window.SchemaDrivenBuilder = SchemaDrivenBuilder;
+window.MyGamesScreenVNext  = MyGamesScreenVNext;

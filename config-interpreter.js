@@ -1,16 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// config-interpreter.js — BOARDGAMEZ OS v1.5
-// Traduce el config del builder a una especificación de runtime.
-// El runtime solo lee el output de este intérprete.
+// config-interpreter.js — BOARDGAMEZ OS v2.0 UNIFIED
+// Pipeline único: config → spec → timeline → gameState
+// Absorbe runtime-resolver.js — ya no es necesario ese archivo.
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * interpret(config) → RuntimeSpec
- *
- * RuntimeSpec define exactamente qué mostrar, qué botones,
- * qué automático, qué validar — sin que el runtime sepa nada
- * del motor interno.
- */
 function interpret(config) {
   if (!config) return _defaultSpec();
 
@@ -897,3 +890,223 @@ function buildInitialPlayers(rawPlayers, spec) {
     hasFirstPlayerToken: spec.hasFirstPlayerToken && rawPlayers.indexOf(p) === 0,
   }));
 }
+
+// ═══════════════════════════════════════════════════════════════
+// RESOLVER UNIFICADO — absorbido de runtime-resolver.js
+// Estas funciones antes vivían en window.RuntimeResolver
+// Ahora son parte del mismo pipeline de interpret()
+// ═══════════════════════════════════════════════════════════════
+
+function _resolvePlayObjects(config){
+  return Array.isArray(config?.playObjects) ? config.playObjects : [];
+}
+
+function _normalizedVM(config){
+  return config?.victoryMode === 'elim' ? 'elimination' : (config?.victoryMode || 'points');
+}
+
+function resolveRegisters(config){
+  const out = []; const seen = new Set();
+  const victoryMode = _normalizedVM(config);
+  function push(reg){ if(!reg||!reg.id||seen.has(reg.id)) return; seen.add(reg.id); out.push(reg); }
+
+  let registers = Array.isArray(config?.registers) ? [...config.registers] : [];
+  if(victoryMode === 'elimination') registers = registers.filter(id => id !== 'points' && id !== 'wins');
+
+  registers.forEach(id=> push({ id, label:String(id).toUpperCase(), kind:'core_register', scope:'player', initialValue:0 }));
+
+  (Array.isArray(config?.counterSet) ? config.counterSet : []).forEach(c=> push({
+    id:c.id, label:c.label, icon:c.icon, color:c.color, kind:'counter',
+    scope:c.scope||'player', initialValue:c.initialValue??0, min:c.min??0,
+    max:c.max??null, resetOn:c.resetOn||'never', visibleTo:c.visibleTo||'all'
+  }));
+
+  const target = config?.scoreInputTarget;
+  const playObjs = _resolvePlayObjects(config);
+  if(playObjs.includes('score_input') && target && target!=='custom' && !seen.has(target) && victoryMode!=='elimination'){
+    push({ id:target, label:String(target).toUpperCase(), kind:'derived_register', scope:'player', initialValue:0 });
+  }
+  return out;
+}
+
+function resolvePlayObjects(config){
+  const playObjects = _resolvePlayObjects(config);
+  const visibleTo = config?.objectControlScope || 'host';
+  const out = [];
+  if(playObjects.includes('victory_button')) out.push({ id:'victory_button', kind:'action_button', label:config?.victoryButtonLabel||'Gané', scope:config?.victoryButtonScope||'round', visibleTo, action:'mark_victory' });
+  if(playObjects.includes('defeat_button'))  out.push({ id:'defeat_button',  kind:'action_button', label:config?.defeatButtonLabel||'Perdí', scope:config?.defeatButtonScope||'round', visibleTo, action:'mark_defeat' });
+  if(playObjects.includes('score_input'))    out.push({ id:'score_input', kind:'numeric_input', label:config?.scoreInputLabel||'Capturar', target:config?.scoreInputTarget||'points', allowNegative:!!config?.scoreInputAllowNegative, quickValues:Array.isArray(config?.scoreInputQuickValues)?config.scoreInputQuickValues:[], visibleTo });
+  if(playObjects.includes('counter_set'))    out.push({ id:'counter_set', kind:'counter_panel', counters:Array.isArray(config?.counterSet)?config.counterSet:[], visibleTo });
+  if(playObjects.includes('round_resolution_popup')) out.push({ id:'round_resolution_popup', kind:'resolution_popup', fields:Array.isArray(config?.roundResolutionFields)?config.roundResolutionFields:[], visibleTo });
+  ['first_player_token','coin_tool','dice_tool','wheel_tool','timer_match','timer_round','timer_turn'].forEach(id=>{ if(playObjects.includes(id)) out.push({ id, kind:'utility', visibleTo }); });
+  return out;
+}
+
+function resolveResultActions(config){
+  return (Array.isArray(config?.resultActions)?config.resultActions:[]).map((item,idx)=>({
+    id:item.id||`result_${idx+1}`, label:item.label||`Resultado ${idx+1}`, icon:item.icon||'🏁',
+    color:item.color||'#00FF9D', scope:item.scope||'round', target:item.target||'self',
+    effect:item.effect||'record_only', visibleTo:item.visibleTo||'all', prompt:item.prompt||''
+  }));
+}
+
+function resolveCaptureActions(config){
+  return (Array.isArray(config?.captureActions)?config.captureActions:[]).map((item,idx)=>({
+    id:item.id||`capture_${idx+1}`, label:item.label||`Captura ${idx+1}`, icon:item.icon||'📝',
+    color:item.color||'#FFD447', captureType:item.captureType||'number',
+    targetRegister:item.targetRegister||'points', min:item.min??0, max:item.max??null,
+    quickValues:Array.isArray(item.quickValues)?item.quickValues:[], visibleTo:item.visibleTo||'host',
+    askAt:item.askAt||'manual', options:Array.isArray(item.options)?item.options:[]
+  }));
+}
+
+function resolveStatusIndicators(config){
+  return (Array.isArray(config?.statusIndicators)?config.statusIndicators:[]).map((item,idx)=>({
+    id:item.id||`status_${idx+1}`, label:item.label||`Estado ${idx+1}`, icon:item.icon||'🛡️',
+    color:item.color||'#4A90FF', scope:item.scope||'player', visibility:item.visibility||'all',
+    mode:item.mode||'toggle', defaultValue:!!item.defaultValue, durationMode:item.durationMode||'manual',
+    clearOn:item.clearOn||'none'
+  }));
+}
+
+function resolveRoundQuestions(config){
+  return (Array.isArray(config?.roundQuestions)?config.roundQuestions:[]).map((item,idx)=>({
+    id:item.id||`question_${idx+1}`, label:item.label||`Pregunta ${idx+1}`,
+    inputType:item.inputType||'select', options:Array.isArray(item.options)?item.options:[],
+    required:item.required!==false, saveAs:item.saveAs||`question_${idx+1}`,
+    visibleTo:item.visibleTo||'host', min:item.min??0, max:item.max??null
+  }));
+}
+
+function resolveAutoBehaviors(config){
+  return (Array.isArray(config?.autoBehaviors)?config.autoBehaviors:[]).map((item,idx)=>({
+    id:item.id||`behavior_${idx+1}`, trigger:item.trigger||'', condition:item.condition||'',
+    effect:item.effect||'', enabled:item.enabled!==false, clearAfter:!!item.clearAfter,
+    label:item.label||item.effect||`Regla ${idx+1}`
+  }));
+}
+
+function resolvePhaseLifecycle(config){
+  const phases = Array.isArray(config?.gamePhases)?config.gamePhases:[];
+  const explicit = Array.isArray(config?.phaseLifecycle)?config.phaseLifecycle:[];
+  const byPhase = new Map();
+  explicit.forEach((item,idx)=>{
+    const id = item.phaseId||item.id||`phase_${idx+1}`;
+    byPhase.set(id,{ id:item.id||`lifecycle_${idx+1}`, phaseId:id, label:item.label||id,
+      visibleDuring:Array.isArray(item.visibleDuring)?item.visibleDuring:[],
+      reset:item.reset||'none', autoEnter:!!item.autoEnter, autoExit:!!item.autoExit,
+      blocksAdvance:!!item.blocksAdvance, persistUntil:item.persistUntil||'' });
+  });
+  phases.forEach((phase,idx)=>{
+    if(!byPhase.has(phase.id)){
+      byPhase.set(phase.id,{ id:`lifecycle_${phase.id||idx+1}`, phaseId:phase.id,
+        label:phase.label||phase.id||`Fase ${idx+1}`, visibleDuring:[phase.id],
+        reset:phase.scope==='turn'?'turn':(phase.scope==='round'?'round':'none'),
+        autoEnter:phase.trigger!=='manual', autoExit:false, blocksAdvance:false, persistUntil:'' });
+    }
+  });
+  return Array.from(byPhase.values());
+}
+
+function resolveOptimization(config, resolved){
+  const victoryMode = _normalizedVM(config);
+  const resultActions = resolved.resultActionsResolved||[];
+  const roundQuestions = resolved.roundQuestionsResolved||[];
+  const captureActions = resolved.captureActionsResolved||[];
+  const hiddenRegisters = [];
+  const warnings = [];
+  const hasCustomEffect = (actions, effects) => actions.some(a=>effects.includes(a.effect));
+  const hideAutoWinAction = victoryMode==='elimination' || hasCustomEffect(resultActions,['mark_victory']);
+  const hideAutoDefeatAction = hasCustomEffect(resultActions,['mark_out','mark_defeat']);
+  if(victoryMode==='elimination') hiddenRegisters.push('points','wins');
+  const roundQKeys = new Set(roundQuestions.map(q=>String(q.saveAs||'').toLowerCase()));
+  captureActions.forEach(c=>{ const t=String(c.targetRegister||'').toLowerCase(); if(t&&roundQKeys.has(t)) warnings.push(`La captura "${c.label}" puede duplicar una pregunta de cierre.`); });
+  return { hideAutoWinAction, hideAutoDefeatAction, hiddenRegisters:Array.from(new Set(hiddenRegisters)), warnings };
+}
+
+function buildRuntimeTimeline(config, resolved){
+  const timeline = [];
+  const phases   = resolved.gamePhasesResolved||[];
+  const checklist= resolved.phaseChecklistResolved||[];
+  const entities = resolved.externalEntitiesResolved||[];
+  const playObjs = resolved.playObjectsResolved||[];
+  const captures = resolved.captureActionsResolved||[];
+  const results  = resolved.resultActionsResolved||[];
+  const autos    = resolved.autoBehaviorsResolved||[];
+
+  timeline.push({ id:'game_start',    type:'system',   label:'Inicio de partida',       order:0,   visibleTo:'all',  phaseId:'setup',     lifecycle:{reset:'game',autoEnter:true,autoExit:true} });
+  phases.forEach((p,i)   => timeline.push({ id:`phase_${p.id||i+1}`,   type:'phase',      label:p.label,         order:p.order??i+1,   phaseId:p.id,      visibleTo:p.owner==='player'?'all':'host',  owner:p.owner||'host', trigger:p.trigger||'manual', description:p.description||'', lifecycle:{reset:p.scope==='turn'?'turn':(p.scope==='round'?'round':'none'),autoEnter:p.trigger!=='manual',autoExit:false} }));
+  checklist.forEach((c,i)=> timeline.push({ id:`check_${c.id||i+1}`,   type:'checklist',  label:c.label,         order:100+i,  phaseId:c.phaseId||'manual', visibleTo:c.visibleTo||'host', required:c.required!==false, lifecycle:{reset:c.autoReset||'round',autoEnter:false,autoExit:false,blocksAdvance:c.required===true} }));
+  entities.forEach((e,i) => timeline.push({ id:`entity_${e.id||i+1}`,  type:'entity',     label:e.label,         order:200+i,  phaseId:'persistent',        visibleTo:e.visibleTo||'all',  entityType:e.entityType||'global', stateType:e.stateType||'status', defaultState:e.defaultState??'', lifecycle:{reset:'none',persistUntil:'game_end'} }));
+  playObjs.forEach((o,i) => timeline.push({ id:`object_${o.id||i+1}`,  type:'play_object',label:o.label||o.id,   order:300+i,  phaseId:o.kind==='numeric_input'?'score_capture':'manual', visibleTo:o.visibleTo||'host', kind:o.kind, lifecycle:{reset:'none'} }));
+  captures.forEach((c,i) => timeline.push({ id:`capture_${c.id||i+1}`, type:'capture',    label:c.label,         order:400+i,  phaseId:c.askAt==='round_end'?'round_end':'manual', visibleTo:c.visibleTo||'host', captureType:c.captureType||'number', targetRegister:c.targetRegister||'', lifecycle:{reset:c.askAt==='round_end'?'round':'none'} }));
+  results.forEach((r,i)  => timeline.push({ id:`result_${r.id||i+1}`,  type:'result',     label:r.label,         order:500+i,  phaseId:r.scope||'manual',   visibleTo:r.visibleTo||'all',  effect:r.effect||'record_only', lifecycle:{reset:r.scope==='round'?'round':'none'} }));
+  autos.forEach((a,i)    => timeline.push({ id:`auto_${a.id||i+1}`,    type:'automation', label:a.label||a.effect||`Regla ${i+1}`, order:600+i, phaseId:a.trigger||'event', visibleTo:'host', trigger:a.trigger||'', condition:a.condition||'', effect:a.effect||'', lifecycle:{reset:a.clearAfter?'after_trigger':'none'} }));
+  timeline.push({ id:'game_end_check', type:'system', label:'Revisar condición final', order:999, visibleTo:'host', phaseId:'end_check', lifecycle:{reset:'none'} });
+
+  return timeline.sort((a,b)=>(a.order||0)-(b.order||0));
+}
+
+function buildInitialGameState(config, resolved){
+  const phases    = resolved.gamePhasesResolved||[];
+  const checklist = resolved.phaseChecklistResolved||[];
+  const entities  = resolved.externalEntitiesResolved||[];
+  const firstPhase= phases[0]?.id||'setup';
+  const checklistState = {};
+  checklist.forEach(item=>{ checklistState[item.id]={done:!!item.defaultDone,required:item.required!==false,phaseId:item.phaseId||'',reset:item.autoReset||'round'}; });
+  const entityState = {};
+  entities.forEach(item=>{ entityState[item.id]={label:item.label,type:item.entityType||'global',stateType:item.stateType||'status',value:item.defaultState??'',visibleTo:item.visibleTo||'all'}; });
+  return { currentRound:1, currentTurn:1, currentPhase:firstPhase, activePlayerId:null, firstPlayerId:null, checklist:checklistState, entities:entityState, status:{}, scores:{}, eliminations:{}, history:[] };
+}
+
+/**
+ * resolveRuntime(config) — Pipeline completo de resolución
+ * Reemplaza window.RuntimeResolver.resolveRuntime()
+ * Retorna el objeto completo que el simulador y UniversalRuntime consumen
+ */
+function resolveRuntime(config){
+  const base = {
+    registersResolved:        resolveRegisters(config),
+    playObjectsResolved:      resolvePlayObjects(config),
+    resultActionsResolved:    resolveResultActions(config),
+    captureActionsResolved:   resolveCaptureActions(config),
+    statusIndicatorsResolved: resolveStatusIndicators(config),
+    roundQuestionsResolved:   resolveRoundQuestions(config),
+    autoBehaviorsResolved:    resolveAutoBehaviors(config),
+    gamePhasesResolved:       Array.isArray(config?.gamePhases) ? config.gamePhases : [],
+    phaseChecklistResolved:   Array.isArray(config?.phaseChecklist) ? config.phaseChecklist : [],
+    externalEntitiesResolved: Array.isArray(config?.externalEntities) ? config.externalEntities : [],
+    phaseLifecycleResolved:   resolvePhaseLifecycle(config),
+  };
+
+  const derivedRules = [];
+  const playObjects = _resolvePlayObjects(config);
+  const vm = _normalizedVM(config);
+  if(config?.trackFinancials && !playObjects.includes('round_resolution_popup') && !config?.useRoundResolution){
+    derivedRules.push({ type:'warning_rule', id:'financials_requires_round_popup' });
+  }
+  if((config?.scoreInputTarget==='lives'||vm==='lives') && !(Array.isArray(config?.counterSet)&&config.counterSet.length)){
+    derivedRules.push({ type:'suggestion_rule', id:'lives_counter_missing' });
+  }
+  base.derivedRules = derivedRules;
+  base.optimization = resolveOptimization(config, base);
+  base.timeline    = buildRuntimeTimeline(config, base);
+  base.gameState   = buildInitialGameState(config, base);
+  return base;
+}
+
+// ── COMPATIBILIDAD: exponer como window.RuntimeResolver para no romper nada ─
+window.RuntimeResolver = {
+  resolveRuntime,
+  resolveRegisters,
+  resolvePlayObjects,
+  resolveResultActions,
+  resolveCaptureActions,
+  resolveStatusIndicators,
+  resolveRoundQuestions,
+  resolveAutoBehaviors,
+  resolvePhaseLifecycle,
+  resolveOptimization,
+  buildRuntimeTimeline,
+  buildInitialGameState,
+};

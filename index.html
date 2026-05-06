@@ -115,14 +115,14 @@
   var fill  = null;
   var msg   = null;
   var steps = [
-    [12, 'FIREBASE...'],
-    [28, 'MOTOR DE JUEGO...'],
-    [46, 'HERRAMIENTAS...'],
-    [60, 'STRIKE...'],
-    [72, 'PARTIDAS...'],
-    [82, 'RUNTIME...'],
-    [90, 'INTERFAZ...'],
-    [96, 'BUILDER...'],
+    [10, 'FIREBASE...'],
+    [22, 'MOTOR UNIFICADO...'],
+    [38, 'HERRAMIENTAS...'],
+    [52, 'STRIKE...'],
+    [64, 'RUNTIME...'],
+    [78, 'INTERFAZ...'],
+    [90, 'BUILDER v2...'],
+    [96, 'SIMULADOR...'],
   ];
   var done  = false;
 
@@ -238,7 +238,7 @@
 <!-- Cambios nuevo motor -->
 <script src="./engine-schema.js"></script>
 <script src="./schema-utils.js"></script>
-<script src="./runtime-resolver.js"></script>
+<!-- runtime-resolver.js — ABSORBIDO en config-interpreter.js v2 (ya no necesario) -->
 <script src="./official-presets.js"></script>
 
 
@@ -254,7 +254,7 @@
 <script type="text/babel" src="runtime.jsx"   ></script>
 <script type="text/babel" src="components.jsx"></script>
 <script type="text/babel" src="boardgamez-motor-diagrama.jsx"></script>
-  <script type="text/babel" src="builder.jsx"   ></script>
+  <!-- builder.jsx (legacy) — REMOVIDO, reemplazado por builder-vnext.jsx -->
 
 <!-- Cambios nuevo builder -->
 <script type="text/babel" src="./builder-vnext.jsx"></script>
