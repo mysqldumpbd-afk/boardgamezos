@@ -168,6 +168,9 @@ function ValidationPanel({ validation }){
 function HumanSummary({ config }){
   const summary = window.SchemaUtils.summarizeConfig(config);
   const autoBehaviors = Array.isArray(config?.autoBehaviors) ? config.autoBehaviors : [];
+  const phases = Array.isArray(config?.gamePhases) ? config.gamePhases : [];
+  const checklist = Array.isArray(config?.phaseChecklist) ? config.phaseChecklist : [];
+  const entities = Array.isArray(config?.externalEntities) ? config.externalEntities : [];
 
   return (
     <div style={{
@@ -1795,7 +1798,7 @@ function _runtimeFlowSteps(payload){
   const phases = _previewResolvedList(payload, 'gamePhasesResolved');
   if(phases.length) steps.push({ title:'Fases asistidas', desc:phases.map(p=>p.label).join(' → ') });
   const checks = _previewResolvedList(payload, 'phaseChecklistResolved');
-  if(checks.length) steps.push({ title:'Checklist', desc:checks.map(c=>c.label).join(' · ') });
+  if(checklist.length) steps.push({ title:'Checklist', desc:checklist.map(c=>c.label).join(' · ') });
   const entities = _previewResolvedList(payload, 'externalEntitiesResolved');
   if(entities.length) steps.push({ title:'Entidades externas', desc:entities.map(e=>e.label).join(' · ') });
   if(r.roundClose) steps.push({ title:'Cierre de ronda', desc:`${r.roundCloseWho || 'host'} cierra la ronda · modo ${r.roundClose}` });
