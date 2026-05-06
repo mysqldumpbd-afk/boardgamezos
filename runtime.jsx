@@ -320,14 +320,14 @@ function RoundBadge({ current, total, spec }){
 // 'agile'      — 1 botón grande "Terminé mi turno" + recordatorios informativos
 // 'regulatory' — stepper de fases con checks bloqueantes
 function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onPhaseAction, onAction, db, session }){
-  const [turnStart]    = React.useState(()=>Date.now());
-  const [elapsed,  setElapsed]   = React.useState(0);
+  // Usar turnStartedAt de Firebase para que todos los jugadores vean el mismo reloj
+  const turnStart = room.turnStartedAt || Date.now();
+  const [elapsed, setElapsed] = React.useState(0);
   const [confirmed, setConfirmed] = React.useState({});
 
-  // Timer local del turno
   React.useEffect(()=>{
     const t = setInterval(()=>setElapsed(Math.floor((Date.now()-turnStart)/1000)),500);
-    return ()=>clearInterval(t);
+    return ()=>{ clearInterval(t); };
   },[turnStart]);
 
   const phases   = spec._phases || [];
@@ -450,9 +450,8 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
             {spec.playerActions?.some(a=>a.id==='add_win'||a.category==='score'&&a.id!=='add_points') && (
               <button onClick={()=>{
                 snd('score');
-                // Llamar la acción de victoria directamente
                 const winAction = spec.playerActions?.find(a=>a.id==='add_win');
-                if(winAction) onAction && onAction(winAction, currentPlayer?.id, {});
+                if(winAction) onAction && onAction(winAction, currentPlayer?.id, {value:1});
               }}
                 style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
                   fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
@@ -460,6 +459,23 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
                   color:'var(--gold)',
                   boxShadow:'0 4px 16px rgba(255,212,71,.12)',transition:'all .15s'}}>
                 🎯 RESOLVÍ UNA MISIÓN
+              </button>
+            )}
+
+            {/* Me quedé sin opciones — botón extra si aplica */}
+            {spec._rawConfig?.showNoOptionsButton !== false && spec.type === 'cooperative' && (
+              <button onClick={()=>{
+                snd('tap');
+                onAction && onAction(
+                  {id:'no_options',label:'Sin opciones',icon:'🚫',color:'rgba(255,255,255,.3)',
+                   type:'direct',category:'system'},
+                  currentPlayer?.id, {note:'sin_opciones'}
+                );
+              }}
+                style={{width:'100%',padding:'11px',borderRadius:10,border:'1px solid rgba(255,255,255,.12)',
+                  cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'.85rem',
+                  letterSpacing:1,background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)'}}>
+                🚫 Me quedé sin opciones
               </button>
             )}
 
@@ -904,7 +920,8 @@ function _canSee(action, isHost, isMe){
   if(!action.visibleTo) return true;
   const vt = Array.isArray(action.visibleTo) ? action.visibleTo : [action.visibleTo];
   if(vt.includes('all')) return true;
-  if(isMe && (vt.includes('self')||vt.includes('player'))) return true;
+  if(vt.includes('host') && isHost) return true;
+  if(isMe && (vt.includes('self')||vt.includes('player')||vt.includes('all'))) return true;
   return false;
 }
 
@@ -1135,7 +1152,13 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         const active = (room.players||[]).filter(p=>!p.eliminated);
         const cur = room.currentTurnIdx||0;
         const next = (cur+1)%Math.max(1,active.length);
-        await db.set(`rooms/${session.code}/currentTurnIdx`,next);
+        const firstTurnPhaseNT = spec._phases?.find(p=>p.scope==='turn')?.id||null;
+        await db.set(`rooms/${session.code}`,{
+          ...room,
+          currentTurnIdx:next,
+          turnPhase:firstTurnPhaseNT,
+          turnStartedAt:Date.now(),
+        });
         showToast(`↩ Turno de ${active[next]?.name||'siguiente'}`,'var(--gold)');
         break;
       }
@@ -1315,6 +1338,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
                 turnPhase: firstTurnPhase,
                 currentPhase: nextRoundPhase,
                 checklist: resetChecklist,
+                turnStartedAt: Date.now(),
               });
 
               if(!completedFullRound || roundPhases.length === 0){
@@ -1429,7 +1453,8 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
 // ── UNIVERSAL END SCREEN ─────────────────────────────────────────
 function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
   const players = sortPlayers(room.players||[], spec);
-  const winner  = players[0];
+  const isCooperative = spec.type === 'cooperative';
+  const winner  = isCooperative ? null : players[0];
   const totalDuration = room.endedAt&&room.startedAt ? fmtDuration(room.endedAt-room.startedAt) : '—';
   const [rematchLoading, setRematchLoading] = useState(false);
   const effectiveIsHostES = isHost||(myId&&room.hostId&&room.hostId===myId);
@@ -1479,13 +1504,28 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
         {spec.victoryMode==='lives'?'ÚLTIMO CON VIDA':spec.victoryMode==='wins'?'MÁS VICTORIAS':'CAMPEÓN'}
       </div>
       <div className="end-gamename">{(room.customTitle||'PARTIDA').toUpperCase()}</div>
-      {winner&&(
+      {isCooperative ? (
+        <div style={{textAlign:'center',marginBottom:8}}>
+          <div style={{fontSize:'2.8rem',marginBottom:8}}>🤝</div>
+          <div className="end-winner-name" style={{color:'var(--green)'}}>¡EQUIPO GANADOR!</div>
+          <div style={{display:'flex',gap:6,justifyContent:'center',flexWrap:'wrap',marginTop:8,marginBottom:4}}>
+            {players.map(p=>(
+              <div key={p.id} style={{padding:'4px 10px',borderRadius:20,
+                background:'rgba(0,255,157,.1)',border:'1px solid rgba(0,255,157,.25)',
+                fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,color:'var(--green)'}}>
+                {p.emoji} {p.name}
+              </div>
+            ))}
+          </div>
+          <div className="end-stats">{totalDuration}</div>
+        </div>
+      ) : winner&&(
         <>
           <div style={{fontSize:'2.6rem',marginBottom:6}}>{winner.emoji}</div>
           <div className="end-winner-name" style={{color:winner.color||'#fff'}}>{winner.name}</div>
           <div className="end-stats">
             {spec.primaryUnit==='points'?`${winner.points||0} PUNTOS · ${totalDuration}`:
-             spec.primaryUnit==='wins'?`${winner.wins||0} VICTORIAS · ${totalDuration}`:
+             spec.primaryUnit==='wins'?`${winner.wins||0} MISIONES · ${totalDuration}`:
              spec.primaryUnit==='lives'?`${winner.lives||0} VIDAS · ${totalDuration}`:totalDuration}
           </div>
         </>

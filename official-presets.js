@@ -136,11 +136,20 @@ nemesisAssist: {
   },
 
   falloutShelter: {
-    id:'fallout_shelter', order:16, name:'Fallout Shelter', emoji:'☢️', color:'#B7FF3C', category:'worker_placement_assist', complexity:'high',
+    id:'fallout_shelter', order:16, name:'Fallout Shelter', emoji:'☢️',
+    color:'#B7FF3C', category:'worker_placement_assist', complexity:'high',
     validates:['turns','phases','entities','checklist','dice_reminders'],
-    valueAdd:['Recordatorio de amenazas','Fases de turno','Entidades como habitación/evento/enemigo','Dados como herramienta de apoyo'],
+    valueAdd:[
+      'Fases globales de ronda (todos participan)',
+      'Turno individual: coloca moradores (botón tengo/no tengo)',
+      'Fase global: resolver recursos y habitaciones',
+      'Fase global: amenazas (dados, todos)',
+      'Entidades: amenaza activa, habitación, primer jugador',
+      'Checklist de fase con bloqueo',
+    ],
     config:{
-      name:'Fallout Shelter', emoji:'☢️', type:'individual', minPlayers:2, maxPlayers:4,
+      name:'Fallout Shelter', emoji:'☢️', type:'individual',
+      minPlayers:2, maxPlayers:4,
       useRounds:true, rounds:'libre', roundClose:'manual',
       useTurns:true, turnOrder:'rotative', useFirstPlayerToken:true,
       victoryMode:'points', pointsWinMode:'most', pointsValidation:'round_end',
@@ -152,26 +161,67 @@ nemesisAssist: {
       objectControlScope:'host',
       useTools:true, tools:['dice'],
       useFlowAssistance:true,
+      turnAssistMode:'agile',         // cada jugador tiene un botón simple
+      trackTurnDuration:false,
+
+      // Fases de TURNO individual — cada jugador pasa por ellas en su turno
+      // scope:'turn' = se repiten para cada jugador
       gamePhases:[
-        {id:'assign_dwellers',label:'Asignar moradores',order:1,scope:'turn',owner:'player',trigger:'turn_start',description:'Colocar o activar moradores'},
-        {id:'resolve_room',label:'Resolver habitación',order:2,scope:'turn',owner:'player',trigger:'manual',description:'Aplicar producción o efecto'},
-        {id:'resolve_threat',label:'Resolver amenaza',order:3,scope:'turn',owner:'host',trigger:'manual',description:'Si hay enemigo/evento, tirar dados y aplicar daño'},
-        {id:'end_turn',label:'Cierre de turno',order:4,scope:'turn',owner:'host',trigger:'manual',description:'Revisar mano, recursos y siguiente jugador'}
+        {id:'place_dwellers', label:'Colocar moradores', order:1,
+          scope:'turn', owner:'player', trigger:'turn_start',
+          description:'Coloca tus meeples en habitaciones. Botón: "Listos mis moradores"'},
       ],
+
+      // Fases GLOBALES de ronda — ocurren después de que TODOS los jugadores terminaron sus turnos
+      // scope:'round' = ocurren una vez por ronda, después de todos los turnos
+      // Estas se muestran en PhaseBand y el host las avanza manualmente
+      // El sistema avanza automáticamente a estas cuando todos terminan su turno
+
+      // NOTA: las fases de ronda se modelan separadas de las de turno
+      // Se usan externalEntities y phaseChecklist para controlar el flujo
       phaseChecklist:[
-        {id:'monster_dice',label:'Tirar dados de monstruo si hay amenaza',phaseId:'resolve_threat',visibleTo:'host',required:false,autoReset:'turn'},
-        {id:'apply_damage',label:'Aplicar daño / recompensa',phaseId:'resolve_threat',visibleTo:'host',required:false,autoReset:'turn'},
-        {id:'pass_first_player',label:'Pasar ficha de primer jugador cuando aplique',phaseId:'end_turn',visibleTo:'host',required:false,autoReset:'round'}
+        // Fase de recursos — todos resuelven sus habitaciones
+        {id:'resolve_rooms',   label:'Cada jugador resuelve su habitación',
+          phaseId:'resolve_rooms_phase', visibleTo:'all',
+          required:true, autoReset:'round'},
+        // Fase de amenazas
+        {id:'monster_dice',    label:'Tirar dados de amenaza (si hay)',
+          phaseId:'resolve_threat_phase', visibleTo:'host',
+          required:false, autoReset:'round'},
+        {id:'apply_damage',    label:'Aplicar daño / recompensa a todos',
+          phaseId:'resolve_threat_phase', visibleTo:'host',
+          required:false, autoReset:'round'},
+        // Cierre de ronda
+        {id:'pass_token',      label:'Pasar ficha de primer jugador',
+          phaseId:'end_round_phase', visibleTo:'host',
+          required:false, autoReset:'round'},
+        {id:'restock_rooms',   label:'Reabastecer habitaciones/eventos',
+          phaseId:'end_round_phase', visibleTo:'host',
+          required:false, autoReset:'round'},
       ],
+
       externalEntities:[
-        {id:'first_player_token',label:'Primer jugador',icon:'🎯',entityType:'token',stateType:'holder',defaultState:'manual',visibleTo:'all',description:'Control de iniciativa'},
-        {id:'active_threat',label:'Amenaza activa',icon:'👾',entityType:'enemy',stateType:'status',defaultState:'ninguna',visibleTo:'all',description:'Enemigo o evento pendiente'},
-        {id:'active_room',label:'Habitación activa',icon:'🏠',entityType:'room',stateType:'status',defaultState:'manual',visibleTo:'host',description:'Habitación que se resolvió o está pendiente'}
+        {id:'first_player',   label:'Primer jugador', icon:'🎯',
+          entityType:'token', stateType:'holder',
+          defaultState:'manual', visibleTo:'all',
+          description:'Quien inicia la siguiente ronda'},
+        {id:'active_threat',  label:'Amenaza activa', icon:'👾',
+          entityType:'enemy', stateType:'status',
+          defaultState:'ninguna', visibleTo:'all',
+          description:'Enemigo o evento pendiente'},
+        {id:'active_room',    label:'Habitación activa', icon:'🏠',
+          entityType:'room', stateType:'status',
+          defaultState:'manual', visibleTo:'host',
+          description:'Habitación que se resuelve'},
       ],
+
       phaseLifecycle:[
-        {id:'resolve_threat_life',phaseId:'resolve_threat',label:'Resolver amenaza',reset:'turn',autoEnter:false,autoExit:false,blocksAdvance:true}
+        {id:'threat_life', phaseId:'resolve_threat_phase',
+          label:'Resolver amenaza', reset:'round',
+          autoEnter:false, autoExit:false, blocksAdvance:true},
       ],
-      trackRoundHistory:true
+
+      trackRoundHistory:true,
     }
   },
   misionCumplida: {
