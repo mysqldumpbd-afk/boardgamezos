@@ -983,16 +983,38 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
   );
 }
 
-// Mantener modales legacy (OptionSelectorModal y ConfirmModal_R) del runtime original
+// ── OPTION SELECTOR MODAL ─────────────────────────────────────────
+function OptionSelectorModal({ action, player, onConfirm, onCancel }){
+  const [selected, setSelected] = React.useState(null);
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.8)',
+      backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="anim-pop" style={{background:'#0D0D1C',border:`1px solid ${action.color}44`,
+        borderRadius:20,padding:'24px 20px',width:'100%',maxWidth:340}}>
+        <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,
+          color:action.color,marginBottom:4}}>{action.icon} {action.label}</div>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',
+          color:'rgba(255,255,255,.4)',marginBottom:16}}>{player.emoji} {player.name}</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:20}}>
+          {(action.options||[]).map(opt=>(
+            <button key={opt} onClick={()=>{snd('tap');setSelected(opt);}}
+              style={{padding:'9px 14px',borderRadius:10,cursor:'pointer',
+                border:`1px solid ${selected===opt?action.color:'rgba(255,255,255,.15)'}`,
+                background:selected===opt?action.color+'22':'transparent',
+                color:selected===opt?action.color:'rgba(255,255,255,.6)',
+                fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:700}}>
               {opt}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost" style={{ flex: 1, marginBottom: 0 }} onClick={onCancel}>Cancelar</button>
+        <div style={{display:'flex',gap:10}}>
+          <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={onCancel}>Cancelar</button>
           <button className="btn" disabled={!selected}
-            style={{ flex: 1, marginBottom: 0, background: selected ? action.color : 'rgba(255,255,255,.1)', color: 'var(--bg)', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'var(--font-display)', fontSize: 'var(--fs-sm)', cursor: selected ? 'pointer' : 'not-allowed' }}
-            onClick={() => { snd('score'); onConfirm({ condition: selected, value: selected }); }}>
+            style={{flex:1,marginBottom:0,background:selected?action.color:'rgba(255,255,255,.1)',
+              color:'var(--bg)',border:'none',borderRadius:12,padding:14,
+              fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
+              cursor:selected?'pointer':'not-allowed'}}
+            onClick={()=>{snd('score');onConfirm({condition:selected,value:selected});}}>
             Confirmar
           </button>
         </div>
@@ -1002,35 +1024,40 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
 }
 
 // ── CONFIRM MODAL ─────────────────────────────────────────────────
-function ConfirmModal_R({ action, player, spec, onConfirm, onCancel }) {
+function ConfirmModal_R({ action, player, spec, onConfirm, onCancel }){
   const [elimReason, setElimReason] = React.useState(null);
   const reasons = [
-    { id: 'zero_lives', label: 'Sin vidas', emoji: '❤️' },
-    { id: 'last_place', label: 'Último lugar', emoji: '📉' },
-    { id: 'rule',       label: 'Regla del juego', emoji: '📋' },
-    { id: 'manual',     label: 'Decisión del host', emoji: '👑' },
+    {id:'zero_lives',label:'Sin vidas',emoji:'❤️'},
+    {id:'last_place',label:'Último lugar',emoji:'📉'},
+    {id:'rule',label:'Regla del juego',emoji:'📋'},
+    {id:'manual',label:'Decisión del host',emoji:'👑'},
   ];
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div className="anim-pop" style={{ background: '#0D0D1C', border: '2px solid rgba(255,59,92,.35)', borderRadius: 20, padding: '24px 20px', width: '100%', maxWidth: 340, textAlign: 'center' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>{player.emoji}</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: 1, color: 'var(--red)', marginBottom: 4 }}>
-          💀 Eliminar a {player.name}
-        </div>
-        <div style={{ fontFamily: 'var(--font-label)', fontSize: 'var(--fs-xs)', color: 'rgba(255,255,255,.4)', marginBottom: 16 }}>
-          Esta acción no se puede deshacer fácilmente.
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 18 }}>
-          {reasons.map(r => (
-            <button key={r.id} onClick={() => { snd('tap'); setElimReason(r.id); }}
-              style={{ padding: '7px 12px', borderRadius: 10, border: `1px solid ${elimReason === r.id ? 'rgba(255,59,92,.5)' : 'rgba(255,255,255,.12)'}`, background: elimReason === r.id ? 'rgba(255,59,92,.2)' : 'transparent', color: elimReason === r.id ? 'var(--red)' : 'rgba(255,255,255,.5)', cursor: 'pointer', fontFamily: 'var(--font-label)', fontSize: 'var(--fs-micro)' }}>
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.85)',
+      backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="anim-pop" style={{background:'#0D0D1C',border:'2px solid rgba(255,59,92,.35)',
+        borderRadius:20,padding:'24px 20px',width:'100%',maxWidth:340,textAlign:'center'}}>
+        <div style={{fontSize:'2.5rem',marginBottom:8}}>{player.emoji}</div>
+        <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,
+          color:'var(--red)',marginBottom:4}}>💀 Eliminar a {player.name}</div>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-xs)',
+          color:'rgba(255,255,255,.4)',marginBottom:16}}>Esta acción no se puede deshacer fácilmente.</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:18}}>
+          {reasons.map(r=>(
+            <button key={r.id} onClick={()=>{snd('tap');setElimReason(r.id);}}
+              style={{padding:'7px 12px',borderRadius:10,cursor:'pointer',
+                border:`1px solid ${elimReason===r.id?'rgba(255,59,92,.5)':'rgba(255,255,255,.12)'}`,
+                background:elimReason===r.id?'rgba(255,59,92,.2)':'transparent',
+                color:elimReason===r.id?'var(--red)':'rgba(255,255,255,.5)',
+                fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)'}}>
               {r.emoji} {r.label}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost" style={{ flex: 1, marginBottom: 0 }} onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-red" style={{ flex: 1, marginBottom: 0 }} onClick={() => { snd('elim'); onConfirm({ reason: elimReason }); }}>
+        <div style={{display:'flex',gap:10}}>
+          <button className="btn btn-ghost" style={{flex:1,marginBottom:0}} onClick={onCancel}>Cancelar</button>
+          <button className="btn btn-red" style={{flex:1,marginBottom:0}}
+            onClick={()=>{snd('elim');onConfirm({reason:elimReason});}}>
             💀 Confirmar
           </button>
         </div>
@@ -1039,38 +1066,21 @@ function ConfirmModal_R({ action, player, spec, onConfirm, onCancel }) {
   );
 }
 
-// ── PLAYER ACTION CARD ────────────────────────────────────────────
-
-// ── TOOLS TOOLBAR (de runtime original) ─────────────────────────
-function ToolsToolbar({ spec, players }) {
-  const [activeTool, setActiveTool] = React.useState(null);
+// ── TOOLS TOOLBAR ────────────────────────────────────────────────
+function ToolsToolbar({ spec, players }){
   const items = spec.toolbarItems || [];
-  if (items.length === 0) return null;
-
-  if (activeTool === 'coin')  return <CoinTool    onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'dice')  return <DiceTool     onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'wheel') return <SpinWheelTool onBack={() => setActiveTool(null)} players={players} />;
-  if (activeTool === 'rps')   return <RPSTool      onBack={() => setActiveTool(null)} />;
-
-  return (
-    <div style={{ display: 'flex', gap: 7, padding: '8px 0', overflowX: 'auto', marginBottom: 4 }}>
-      {items.map(t => (
-        <button key={t.id}
-          onClick={() => { snd('tap'); setActiveTool(t.id); }}
-          style={{
-            flexShrink: 0, padding: '8px 12px', borderRadius: 10,
-            border: `1px solid ${t.color}44`, background: `${t.color}0D`,
-            color: t.color, cursor: 'pointer',
-            fontFamily: 'var(--font-label)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: .5,
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}>
-          <span style={{ fontSize: '1rem' }}>{t.icon}</span>
-          {t.label}
+  if(!items.length) return null;
+  return(
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+      {items.map(item=>(
+        <button key={item.id}
+          style={{padding:'7px 11px',borderRadius:9,cursor:'pointer',
+            border:'1px solid rgba(255,255,255,.1)',background:'rgba(255,255,255,.05)',
+            color:'rgba(255,255,255,.65)',fontFamily:'var(--font-label)',
+            fontSize:'11px',fontWeight:700}}>
+          {item.icon} {item.label}
         </button>
       ))}
     </div>
   );
 }
-
-// ── HOST CONTROL PANEL ────────────────────────────────────────────
-function HostPanel({ spec, room, onHostAction, isOpen, onToggle }) {
