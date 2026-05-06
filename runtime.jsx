@@ -340,335 +340,158 @@ function RoundBadge({ current, total, spec }){
 }
 
 
-// ── TURNO ACTIVO — reloj + fases del turno + recordatorios ──────
-// Dos modos:
-// 'agile'      — 1 botón grande "Terminé mi turno" + recordatorios informativos
-// 'regulatory' — stepper de fases con checks bloqueantes
-function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onPhaseAction, onAction, db, session }){
-  // Usar turnStartedAt de Firebase para que todos los jugadores vean el mismo reloj
-  const turnStart = room.turnStartedAt || Date.now();
+// ── TURNO ACTIVO — asistente simplificado ──────────────────────
+// Modelo: contexto de fase (informativo) + botones de acción + un botón de terminar turno
+// Sin stepper, sin bloqueos por defecto. Máxima agilidad.
+function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onAction, db, session }){
   const [elapsed, setElapsed] = React.useState(0);
   const [confirmed, setConfirmed] = React.useState({});
+  const turnStart = room.turnStartedAt || Date.now();
 
   React.useEffect(()=>{
     const t = setInterval(()=>setElapsed(Math.floor((Date.now()-turnStart)/1000)),500);
-    return ()=>{ clearInterval(t); };
+    return ()=>clearInterval(t);
   },[turnStart]);
 
-  const phases   = spec._phases || [];
-  const checklist= spec._checklist || [];
-  const turnPhases = phases.filter(p=>p.scope==='turn');
-  if(!turnPhases.length) return null;
+  const phases      = spec._phases || [];
+  const checklist   = spec._checklist || [];
+  const hasTurnPhases = phases.some(p=>p.scope==='turn');
+  if(!hasTurnPhases && !spec.trackTurnDuration) return null;
 
-  // Detectar modo: lee de spec (que viene de interpret(config))
-  // Fallback: si algún check es required → regulatory, si no → agile
-  const turnAssistMode = spec.turnAssistMode ||
-    (checklist.some(c=>c.required) ? 'regulatory' : 'agile');
-  const isAgile = turnAssistMode === 'agile';
-
-  // Fase actual del turno (guardada en room por jugador activo)
-  const curTurnPhase = room.turnPhase || turnPhases[0]?.id;
-  const curPhaseIdx  = turnPhases.findIndex(p=>p.id===curTurnPhase);
-  const curPhaseObj  = turnPhases[curPhaseIdx] || turnPhases[0];
-
-  // Checks de la fase actual
-  const phaseChecks = checklist.filter(c=>c.phaseId===curTurnPhase||c.phaseId===curPhaseObj?.id);
+  const isActive    = isMyTurn || isHost;
+  const curPhase    = room.turnPhase || phases.find(p=>p.scope==='turn')?.id;
+  const curPhaseObj = phases.find(p=>p.id===curPhase);
   const roomChecks  = room.checklist || {};
-  const pendingReq  = phaseChecks.filter(c=>{
-    if(!c.required) return false;
-    const v = confirmed[c.id] || roomChecks[c.id];
-    return typeof v==='object' ? !v?.done : !v;
-  });
-  const blocked = pendingReq.length > 0;
 
-  function fmtSecs(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` }
+  // Recordatorios de la fase activa — solo informativos en modo ágil
+  const phaseChecks = checklist.filter(c=>
+    !c.phaseId || c.phaseId===curPhase ||
+    (c.autoReset==='turn' && c.phaseId==='draw_card')
+  ).slice(0,3); // máximo 3 recordatorios visibles
 
-  async function advancePhase(){
-    if(blocked) return;
-    const nextIdx = curPhaseIdx + 1;
-    if(nextIdx >= turnPhases.length){
-      // Último paso — fin de turno
-      onEndTurn(elapsed);
-    } else {
-      const nextPhase = turnPhases[nextIdx];
-      if(db&&session) await db.set(`rooms/${session.code}/turnPhase`, nextPhase.id).catch(()=>{});
-    }
+  function fmtS(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+
+  async function toggleCheck(id){
+    const cur = confirmed[id] ?? roomChecks[id];
+    const was = typeof cur==='object'?cur?.done:!!cur;
+    setConfirmed(p=>({...p,[id]:!was}));
+    if(db&&session) db.set(`rooms/${session.code}/checklist/${id}`,
+      typeof roomChecks[id]==='object'?{...roomChecks[id],done:!was}:!was).catch(()=>{});
   }
 
-  async function toggleCheck(checkId){
-    const cur = confirmed[checkId] || roomChecks[checkId];
-    const curDone = typeof cur==='object' ? cur?.done : !!cur;
-    setConfirmed(prev=>({...prev,[checkId]:!curDone}));
-    if(db&&session) await db.set(`rooms/${session.code}/checklist/${checkId}`,
-      typeof roomChecks[checkId]==='object'
-        ? {...roomChecks[checkId], done:!curDone}
-        : !curDone
-    ).catch(()=>{});
-  }
-
-  const isActive = isMyTurn || isHost;
-
-  // ── MODO ÁGIL: un botón + recordatorios informativos ──────────
-  if(isAgile){
-    return(
-      <div style={{borderRadius:14,overflow:'hidden',marginBottom:12,
-        border:'1px solid rgba(0,255,157,.2)',
-        background:'rgba(0,255,157,.03)'}}>
-
-        {/* Header jugador + reloj */}
-        <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
-          <div style={{fontSize:'1.3rem'}}>{currentPlayer?.emoji||'👤'}</div>
-          <div style={{flex:1}}>
-            <div style={{fontFamily:'var(--font-label)',fontWeight:700,fontSize:'13px',color:'#fff',
-              display:'flex',alignItems:'center',gap:6}}>
-              {currentPlayer?.name||'Jugador'}
-              {isMyTurn&&<span style={{fontFamily:'var(--font-ui)',fontSize:'7px',color:'var(--cyan)',
-                letterSpacing:2,background:'rgba(0,245,255,.1)',padding:'1px 5px',borderRadius:3}}>TU TURNO</span>}
-            </div>
-          </div>
-          {/* Reloj de ajedrez */}
-          <div style={{textAlign:'center',background:'rgba(0,0,0,.3)',borderRadius:10,
-            padding:'5px 11px',border:`1px solid ${elapsed>60?'rgba(255,107,53,.3)':'rgba(255,255,255,.1)'}`}}>
-            <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,lineHeight:1,
-              color:elapsed>120?'var(--red)':elapsed>60?'var(--orange)':'var(--cyan)'}}>
-              {fmtSecs(elapsed)}
-            </div>
-            <div style={{fontFamily:'var(--font-ui)',fontSize:'6px',letterSpacing:1,
-              color:'rgba(255,255,255,.2)',marginTop:1}}>TURNO</div>
-          </div>
-        </div>
-
-        {/* Recordatorios informativos — NO bloquean */}
-        {phaseChecks.length>0&&(
-          <div style={{padding:'0 12px 8px'}}>
-            {phaseChecks.map(c=>{
-              const v    = confirmed[c.id] ?? roomChecks[c.id];
-              const done = typeof v==='object'?v?.done:!!v;
-              return(
-                <div key={c.id}
-                  style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',
-                    borderRadius:8,marginBottom:3,
-                    background:'rgba(255,212,71,.05)',border:'1px solid rgba(255,212,71,.12)'}}>
-                  <div style={{fontSize:'1rem',flexShrink:0}}>💡</div>
-                  <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'11px',
-                    color:'rgba(255,212,71,.8)',fontWeight:600}}>
-                    {c.label}
-                  </div>
-                  <button onClick={()=>isActive&&toggleCheck(c.id)}
-                    style={{width:20,height:20,borderRadius:5,flexShrink:0,border:'none',cursor:'pointer',
-                      background:done?'var(--green)':'rgba(255,255,255,.1)',
-                      color:done?'var(--bg)':'rgba(255,255,255,.3)',
-                      fontSize:'10px',fontWeight:900,transition:'all .15s'}}>
-                    {done?'✓':'·'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        "Acciones del turno ágil */}
-        {isActive&&(
-          <div style={{padding:'0 12px 12px',display:'flex',flexDirection:'column',gap:8}}>
-
-            {/* Botones configurados en agileTurnButtons */}
-            {(spec.agileTurnButtons||[]).map((btn,i)=>{
-              const bColors={add_win:'rgba(255,212,71,.15)',add_points:'rgba(0,245,255,.12)',end_game_loss:'rgba(255,59,92,.12)'};
-              const bText={add_win:'var(--gold)',add_points:'var(--cyan)',end_game_loss:'var(--red)'};
-              return(
-                <button key={i} onClick={()=>{
-                  snd(btn.effect==='end_game_loss'?'elim':'score');
-                  if(btn.effect==='add_win') onAction&&onAction({id:'add_win',label:btn.label,icon:btn.icon||'🎯',color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
-                  else if(btn.effect==='add_points') onAction&&onAction({id:'add_points',label:btn.label,icon:btn.icon||'➕',color:'var(--cyan)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
-                  else onAction&&onAction({id:btn.effect||'log_event',label:btn.label,icon:btn.icon||'📝',color:'rgba(255,255,255,.4)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
-                }}
-                  style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
-                    fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
-                    background:bColors[btn.effect]||'rgba(155,93,229,.12)',
-                    color:bText[btn.effect]||'var(--purple)'}}>
-                  {btn.icon||'🎯'} {(btn.label||'').toUpperCase()}
-                </button>
-              );
-            })}
-
-            {/* Fallback si no hay agileTurnButtons pero sí registers wins */}
-            {!(spec.agileTurnButtons?.length)&&spec.registers?.includes('wins')&&(
-              <button onClick={()=>{snd('score');onAction&&onAction({id:'add_win',label:'Victoria',icon:'🎯',color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});}}
-                style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
-                  fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
-                  background:'rgba(255,212,71,.15)',color:'var(--gold)'}}>
-                🎯 RESOLVÍ UNA MISIÓN
-              </button>
-            )}
-
-            {/* Me quedé sin opciones */}
-            {(spec.showNoOptionsButton||spec._rawConfig?.showNoOptionsButton)&&(
-              <button onClick={()=>{snd('elim');onAction&&onAction({id:'no_options',label:'Sin opciones',icon:'🚫',color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:'sin_opciones'});}}
-                style={{width:'100%',padding:'11px',borderRadius:10,border:'1px solid rgba(255,255,255,.12)',
-                  cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:1,
-                  background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)'}}>
-                🚫 Me quedé sin opciones
-              </button>
-            )}
-
-                        {/* Botón principal — terminar turno */}
-            <button onClick={()=>onEndTurn(elapsed)}
-              style={{width:'100%',padding:'16px',borderRadius:12,border:'none',cursor:'pointer',
-                fontFamily:'var(--font-display)',fontSize:'1.1rem',fontWeight:700,letterSpacing:2,
-                background:'linear-gradient(135deg,rgba(0,255,157,.18),rgba(0,245,255,.12))',
-                color:'var(--green)',
-                boxShadow:'0 4px 20px rgba(0,255,157,.15)',transition:'all .15s'}}>
-              ✓ TERMINÉ MI TURNO · {fmtSecs(elapsed)}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── MODO REGULATORIO: stepper + checks bloqueantes ────────────
   return(
-    <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,
-      border:`2px solid ${blocked?'rgba(255,107,53,.4)':'rgba(0,245,255,.25)'}`,
-      background:`linear-gradient(135deg,${blocked?'rgba(255,107,53,.06)':'rgba(0,245,255,.04)'},rgba(0,0,0,.1))`,
-      transition:'border .3s,background .3s'}}>
+    <div style={{borderRadius:14,overflow:'hidden',marginBottom:12,
+      border:'1px solid rgba(0,245,255,.2)',background:'rgba(0,245,255,.03)'}}>
 
-      {/* Header — jugador + timer */}
-      <div style={{padding:'10px 14px',borderBottom:'1px solid rgba(255,255,255,.06)',
-        display:'flex',alignItems:'center',gap:10}}>
-        <div style={{fontSize:'1.4rem'}}>{currentPlayer?.emoji||'👤'}</div>
+      {/* Header: jugador + fase actual (informativo) + reloj */}
+      <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
         <div style={{flex:1}}>
           <div style={{fontFamily:'var(--font-label)',fontWeight:700,fontSize:'13px',
             color:'#fff',display:'flex',alignItems:'center',gap:6}}>
-            {currentPlayer?.name||'Jugador'}
-            {isMyTurn&&<span style={{fontFamily:'var(--font-ui)',fontSize:'7px',
-              color:'var(--cyan)',letterSpacing:2,background:'rgba(0,245,255,.1)',
-              padding:'1px 5px',borderRadius:3}}>TU TURNO</span>}
+            {currentPlayer?.emoji} {currentPlayer?.name}
+            {isMyTurn&&<span style={{fontFamily:'var(--font-ui)',fontSize:'7px',color:'var(--cyan)',
+              letterSpacing:2,background:'rgba(0,245,255,.1)',padding:'1px 5px',borderRadius:3}}>TU TURNO</span>}
           </div>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
-            color:'rgba(255,255,255,.3)',marginTop:1}}>
-            {curPhaseObj?.description||''}
-          </div>
-        </div>
-        {/* Reloj de ajedrez */}
-        <div style={{textAlign:'center',background:'rgba(0,0,0,.3)',borderRadius:10,
-          padding:'6px 12px',border:`1px solid ${elapsed>60?'rgba(255,107,53,.3)':'rgba(255,255,255,.1)'}`}}>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',
-            color:elapsed>120?'var(--red)':elapsed>60?'var(--orange)':'var(--cyan)',
-            letterSpacing:1,lineHeight:1}}>
-            {fmtSecs(elapsed)}
-          </div>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
-            color:'rgba(255,255,255,.25)',marginTop:2}}>TURNO</div>
-        </div>
-      </div>
-
-      {/* Pasos del turno — stepper horizontal */}
-      <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:4,
-        overflowX:'auto',borderBottom:'1px solid rgba(255,255,255,.05)'}}>
-        {turnPhases.map((p,i)=>{
-          const isPast   = i < curPhaseIdx;
-          const isCur    = p.id === curTurnPhase;
-          const isFuture = i > curPhaseIdx;
-          return(
-            <React.Fragment key={p.id}>
-              {i>0&&<div style={{flex:'0 0 12px',height:1,
-                background:isPast||isCur?'rgba(0,245,255,.3)':'rgba(255,255,255,.1)'}}/>}
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',
-                gap:3,flexShrink:0,opacity:isFuture?.4:1}}>
-                <div style={{width:26,height:26,borderRadius:'50%',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:'11px',fontWeight:900,
-                  border:`2px solid ${isCur?'var(--cyan)':isPast?'rgba(0,255,157,.4)':'rgba(255,255,255,.15)'}`,
-                  background:isCur?'rgba(0,245,255,.15)':isPast?'rgba(0,255,157,.1)':'transparent',
-                  color:isCur?'var(--cyan)':isPast?'var(--green)':'rgba(255,255,255,.3)'}}>
-                  {isPast?'✓':i+1}
-                </div>
-                <div style={{fontFamily:'var(--font-label)',fontSize:'9px',fontWeight:700,
-                  color:isCur?'var(--cyan)':isPast?'var(--green)':'rgba(255,255,255,.3)',
-                  textAlign:'center',maxWidth:60,lineHeight:1.2}}>
-                  {p.label}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      {/* Recordatorios / checks de la fase actual */}
-      {phaseChecks.length>0&&(
-        <div style={{padding:'8px 14px',
-          background:blocked?'rgba(255,107,53,.04)':'transparent',
-          borderBottom:'1px solid rgba(255,255,255,.05)'}}>
-          {blocked&&(
-            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
-              <div style={{fontSize:'1rem'}}>⚠️</div>
-              <div style={{fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
-                color:'var(--orange)'}}>Pendiente antes de continuar</div>
+          {curPhaseObj&&(
+            <div style={{fontFamily:'var(--font-label)',fontSize:'10px',
+              color:'rgba(255,255,255,.35)',marginTop:2}}>
+              {curPhaseObj.description||curPhaseObj.label||''}
             </div>
           )}
+        </div>
+        {/* Reloj sincronizado */}
+        <div style={{textAlign:'center',background:'rgba(0,0,0,.3)',borderRadius:10,
+          padding:'5px 12px',border:`1px solid ${elapsed>120?'rgba(255,59,92,.3)':elapsed>60?'rgba(255,107,53,.3)':'rgba(255,255,255,.1)'}`}}>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.2rem',letterSpacing:1,lineHeight:1,
+            color:elapsed>120?'var(--red)':elapsed>60?'var(--orange)':'var(--cyan)'}}>
+            {fmtS(elapsed)}
+          </div>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'6px',letterSpacing:1,
+            color:'rgba(255,255,255,.2)',marginTop:2}}>TURNO</div>
+        </div>
+      </div>
+
+      {/* Recordatorios informativos — aparecen pero NO bloquean */}
+      {phaseChecks.length>0&&(
+        <div style={{padding:'0 12px 8px',display:'flex',flexDirection:'column',gap:3}}>
           {phaseChecks.map(c=>{
-            const v    = confirmed[c.id] ?? (roomChecks[c.id]);
+            const v    = confirmed[c.id] ?? roomChecks[c.id];
             const done = typeof v==='object'?v?.done:!!v;
             return(
               <button key={c.id} onClick={()=>isActive&&toggleCheck(c.id)}
-                style={{display:'flex',alignItems:'center',gap:8,width:'100%',
-                  padding:'7px 10px',borderRadius:8,marginBottom:4,
-                  border:`1px solid ${done?'rgba(0,255,157,.2)':c.required?'rgba(255,107,53,.25)':'rgba(255,255,255,.08)'}`,
-                  background:done?'rgba(0,255,157,.05)':c.required?'rgba(255,107,53,.04)':'rgba(255,255,255,.02)',
-                  cursor:isActive?'pointer':'default',textAlign:'left',transition:'all .15s'}}>
-                <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
-                  border:`2px solid ${done?'var(--green)':c.required?'var(--orange)':'rgba(255,255,255,.2)'}`,
-                  background:done?'var(--green)':'transparent',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:'11px',color:'var(--bg)',fontWeight:900,transition:'all .15s'}}>
-                  {done?'✓':''}
+                style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',
+                  borderRadius:8,cursor:isActive?'pointer':'default',textAlign:'left',
+                  border:`1px solid ${done?'rgba(0,255,157,.2)':'rgba(255,212,71,.15)'}`,
+                  background:done?'rgba(0,255,157,.05)':'rgba(255,212,71,.04)',
+                  transition:'all .15s'}}>
+                <div style={{fontSize:'.9rem',flexShrink:0}}>
+                  {done ? '✅' : '💡'}
                 </div>
-                <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:600,
-                  color:done?'rgba(255,255,255,.35)':c.required?'rgba(255,200,100,.9)':'rgba(255,255,255,.75)',
+                <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'11px',
+                  color:done?'rgba(255,255,255,.3)':'rgba(255,212,71,.8)',fontWeight:600,
                   textDecoration:done?'line-through':'none'}}>
                   {c.label}
                 </div>
-                {c.required&&!done&&(
-                  <div style={{fontFamily:'var(--font-ui)',fontSize:'6px',letterSpacing:1,
-                    color:'var(--orange)',background:'rgba(255,107,53,.12)',
-                    padding:'2px 5px',borderRadius:3,flexShrink:0}}>REQ</div>
-                )}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Botón de avanzar / terminar turno */}
+      {/* Botones de acción configurados */}
       {isActive&&(
-        <div style={{padding:'10px 14px'}}>
-          <button onClick={advancePhase} disabled={blocked}
-            style={{width:'100%',padding:'13px',borderRadius:12,border:'none',
-              cursor:blocked?'not-allowed':'pointer',
-              fontFamily:'var(--font-display)',fontSize:'.95rem',fontWeight:700,
-              letterSpacing:1.5,transition:'all .2s',
-              background:blocked
-                ?'rgba(255,255,255,.06)'
-                : curPhaseIdx>=turnPhases.length-1
-                  ?'linear-gradient(135deg,rgba(0,255,157,.2),rgba(0,245,255,.15))'
-                  :'rgba(0,245,255,.1)',
-              color:blocked?'rgba(255,255,255,.2)'
-                :curPhaseIdx>=turnPhases.length-1?'var(--green)':'var(--cyan)',
-              boxShadow:blocked?'none':`0 4px 16px ${curPhaseIdx>=turnPhases.length-1?'rgba(0,255,157,.15)':'rgba(0,245,255,.1)'}`}}>
-            {blocked
-              ?`⏸ Completa el recordatorio`
-              :curPhaseIdx>=turnPhases.length-1
-                ?`✓ TURNO TERMINADO (${fmtSecs(elapsed)})`
-                :`→ ${turnPhases[curPhaseIdx+1]?.label}`
-            }
+        <div style={{padding:'0 12px 10px',display:'flex',flexDirection:'column',gap:6}}>
+          {(spec.agileTurnButtons||[]).map((btn,i)=>{
+            const bC={add_win:'rgba(255,212,71,.15)',add_points:'rgba(0,245,255,.12)',end_game_loss:'rgba(255,59,92,.1)'};
+            const bT={add_win:'var(--gold)',add_points:'var(--cyan)',end_game_loss:'var(--red)'};
+            return(
+              <button key={i} onClick={()=>{
+                snd(btn.effect==='end_game_loss'?'elim':'score');
+                if(btn.effect==='add_win') onAction&&onAction({id:'add_win',icon:btn.icon||'🎯',label:btn.label,color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
+                else if(btn.effect==='add_points') onAction&&onAction({id:'add_points',icon:btn.icon||'➕',label:btn.label,color:'var(--cyan)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
+                else onAction&&onAction({id:btn.effect||'log_event',icon:btn.icon||'📝',label:btn.label,color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
+              }}
+                style={{padding:'11px',borderRadius:10,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'.9rem',fontWeight:700,letterSpacing:1,
+                  background:bC[btn.effect]||'rgba(155,93,229,.12)',color:bT[btn.effect]||'var(--purple)'}}>
+                {btn.icon||'🎯'} {btn.label}
+              </button>
+            );
+          })}
+
+          {/* Fallback wins button */}
+          {!(spec.agileTurnButtons?.length)&&spec.registers?.includes('wins')&&(
+            <button onClick={()=>{snd('score');onAction&&onAction({id:'add_win',icon:'🎯',label:'Victoria',color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});}}
+              style={{padding:'11px',borderRadius:10,border:'none',cursor:'pointer',
+                fontFamily:'var(--font-display)',fontSize:'.9rem',fontWeight:700,letterSpacing:1,
+                background:'rgba(255,212,71,.15)',color:'var(--gold)'}}>
+              🎯 RESOLVÍ UNA MISIÓN
+            </button>
+          )}
+
+          {/* Sin opciones */}
+          {(spec.showNoOptionsButton||spec._rawConfig?.showNoOptionsButton)&&(
+            <button onClick={()=>{snd('elim');onAction&&onAction({id:'no_options',icon:'🚫',label:'Sin opciones',color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:'sin_opciones'});}}
+              style={{padding:'9px',borderRadius:10,border:'1px solid rgba(255,255,255,.1)',cursor:'pointer',
+                fontFamily:'var(--font-display)',fontSize:'.8rem',letterSpacing:1,
+                background:'rgba(255,255,255,.03)',color:'rgba(255,255,255,.35)'}}>
+              🚫 Me quedé sin opciones
+            </button>
+          )}
+
+          {/* TERMINAR TURNO — siempre el último */}
+          <button onClick={()=>onEndTurn(elapsed)}
+            style={{padding:'14px',borderRadius:12,border:'none',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:2,
+              background:'linear-gradient(135deg,rgba(0,255,157,.18),rgba(0,245,255,.12))',
+              color:'var(--green)',boxShadow:'0 4px 16px rgba(0,255,157,.12)'}}>
+            ✓ TERMINÉ MI TURNO · {fmtS(elapsed)}
           </button>
         </div>
       )}
     </div>
   );
 }
-
 
 // ── PLAYER ACTION CARD v3 ────────────────────────────────────────
 function PlayerActionCard({ player, spec, actions, captureActions, resultActions, statusIndicators,
