@@ -80,7 +80,19 @@ async function loadGameTemplates(uid){
   const snap=await _db.ref(`gameTemplates/${uid}`).once('value');
   const val=snap.val();
   if(!val) return [];
-  return Object.values(val).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  return Object.values(val)
+    .filter(t => t && typeof t === 'object' && t.name && typeof t.name === 'string')
+    .map(t => ({
+      ...t,
+      // Garantizar que description y summary sean siempre strings (nunca objetos)
+      description: typeof t.description === 'string' ? t.description
+        : typeof t.description === 'object' ? JSON.stringify(t.description).slice(0,60)
+        : (t.name || ''),
+      summary: typeof t.summary === 'string' ? t.summary
+        : typeof t.summary === 'object' ? JSON.stringify(t.summary).slice(0,60)
+        : '',
+    }))
+    .sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
 }
 async function deleteGameTemplate(uid,id){
   await _db.ref(`gameTemplates/${uid}/${id}`).remove();

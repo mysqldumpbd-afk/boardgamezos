@@ -2446,7 +2446,7 @@ function MyGamesScreenVNext({ user, onBack, onBuildNew, onEditTemplate, onPlayTe
                 <div style={{fontSize:'2rem',width:50,height:50,borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',background:`${color}18`,border:`1px solid ${color}33`,flexShrink:0}}>{t.emoji||'🎮'}</div>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',letterSpacing:1,color:'#fff'}}>{t.name}</div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{t.description||t.summary||''}</div>
+                  <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',fontWeight:600,color:'rgba(255,255,255,.4)',letterSpacing:1,marginTop:2}}>{typeof t.description==='string'?t.description:typeof t.summary==='string'?t.summary:''}</div>
                 </div>
               </div>
               <div className="os-tags" style={{marginBottom:12}}>
@@ -2567,12 +2567,19 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game B
         ? _stripNaNForFirebase(payload)
         : payload;
 
+      // summary puede ser objeto o string — siempre guardar como string
+      const summaryStr = typeof safePay.summary === 'string'
+        ? safePay.summary
+        : (typeof safePay.summary === 'object' && safePay.summary)
+          ? [safePay.summary.players, safePay.summary.mode, safePay.summary.victory].filter(Boolean).join(' · ')
+          : '';
+
       const templateData = {
         id: editingTemplate?.id || undefined,
         name: String(config.name||'').trim(),
         emoji: config.emoji || '🎮',
-        description: safePay.summary || '',
-        summary: safePay.summary || '',
+        description: summaryStr,
+        summary: summaryStr,
         schemaVersion: '2.0',
         exportedAt: safePay.exportedAt,
         config: safePay.config,

@@ -670,6 +670,15 @@ function validateConfig(schema, incoming){
   // EXPORT FINAL
   // ═══════════════════════════════════════════════════════════════
 
+  function _buildSummaryString(s){
+    if(!s || typeof s !== 'object') return String(s || '');
+    const parts = [];
+    if(s.players) parts.push(s.players);
+    if(s.mode) parts.push(s.mode);
+    if(s.victory) parts.push('Victoria: ' + s.victory);
+    return parts.join(' · ');
+  }
+
   function _stripNaN(obj) {
     if(Array.isArray(obj)) return obj.map(_stripNaN);
     if(obj && typeof obj === 'object') {
@@ -701,7 +710,8 @@ function validateConfig(schema, incoming){
       valid: validation.valid,
       errors: validation.errors,
       warnings: validation.warnings,
-      summary: summarizeConfig(cfg),
+      summaryData: summarizeConfig(cfg),  // objeto con detalles
+      summary: _buildSummaryString(summarizeConfig(cfg)),  // string para UI
       config: cfg,
       grouped,
       runtime: {
