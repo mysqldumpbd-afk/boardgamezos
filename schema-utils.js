@@ -130,7 +130,11 @@ function sectionState(section, config){
 	  'resultActions',
 	  'captureActions',
 	  'statusIndicators',
-	  'autoBehaviors'
+	  'autoBehaviors',
+	  'phaseLifecycle',
+	  'externalEntities',
+	  'phaseChecklist',
+	  'gamePhases'
 	];
 	
     arrays.forEach(k=>{
@@ -285,6 +289,49 @@ function sectionState(section, config){
 	  label: String(b?.label || '').trim()
 	}));
 	//-------
+
+	cfg.phaseLifecycle = (cfg.phaseLifecycle || []).map((l, i) => ({
+	  id: l?.id || normalizeId(l?.phaseId || l?.label, `lifecycle_${i+1}`),
+	  phaseId: String(l?.phaseId || '').trim(),
+	  label: String(l?.label || l?.phaseId || `Lifecycle ${i+1}`).trim(),
+	  visibleDuring: Array.isArray(l?.visibleDuring) ? l.visibleDuring : [],
+	  reset: l?.reset || 'none',
+	  autoEnter: !!l?.autoEnter,
+	  autoExit: !!l?.autoExit,
+	  blocksAdvance: !!l?.blocksAdvance,
+	  persistUntil: l?.persistUntil || ''
+	}));
+
+	cfg.gamePhases = (cfg.gamePhases || []).map((p, i) => ({
+	  id: p?.id || normalizeId(p?.label || p?.name, `phase_${i+1}`),
+	  label: String(p?.label || p?.name || `Fase ${i+1}`).trim(),
+	  order: Number.isFinite(+p?.order) ? +p.order : i + 1,
+	  scope: p?.scope || 'round',
+	  owner: p?.owner || 'host',
+	  trigger: p?.trigger || 'manual',
+	  description: String(p?.description || '').trim()
+	}));
+
+	cfg.phaseChecklist = (cfg.phaseChecklist || []).map((c, i) => ({
+	  id: c?.id || normalizeId(c?.label, `check_${i+1}`),
+	  label: String(c?.label || `Recordatorio ${i+1}`).trim(),
+	  phaseId: c?.phaseId || '',
+	  visibleTo: c?.visibleTo || 'host',
+	  required: c?.required !== false,
+	  defaultDone: !!c?.defaultDone,
+	  autoReset: c?.autoReset || 'round'
+	}));
+
+	cfg.externalEntities = (cfg.externalEntities || []).map((e, i) => ({
+	  id: e?.id || normalizeId(e?.label || e?.name, `entity_${i+1}`),
+	  label: String(e?.label || e?.name || `Entidad ${i+1}`).trim(),
+	  icon: String(e?.icon || '📦').trim(),
+	  entityType: e?.entityType || e?.type || 'global',
+	  stateType: e?.stateType || 'status',
+	  defaultState: e?.defaultState ?? '',
+	  visibleTo: e?.visibleTo || 'all',
+	  description: String(e?.description || '').trim()
+	}));
 
 	cfg.phaseLifecycle = (cfg.phaseLifecycle || []).map((l, i) => ({
 	  id: l?.id || normalizeId(l?.phaseId || l?.label, `lifecycle_${i+1}`),

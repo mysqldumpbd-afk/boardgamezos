@@ -1951,6 +1951,8 @@ function PlayerPadPreview({ payload }){
   const statusIndicators = _previewResolvedList(payload, 'statusIndicatorsResolved');
   const roundQuestions = _previewResolvedList(payload, 'roundQuestionsResolved');
   const playObjects = _previewResolvedList(payload, 'playObjectsResolved');
+  const playerChecklist = _previewResolvedList(payload, 'phaseChecklistResolved').filter(x => ['player','all'].includes(x.visibleTo || 'host'));
+  const playerEntities = _previewResolvedList(payload, 'externalEntitiesResolved').filter(x => ['player','all'].includes(x.visibleTo || 'all'));
   const [calcOpen, setCalcOpen] = React.useState(false);
   const [calcTitle, setCalcTitle] = React.useState('Calculadora');
   const [calcSubtitle, setCalcSubtitle] = React.useState('');

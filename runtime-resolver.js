@@ -58,7 +58,8 @@ window.RuntimeResolver = (function(){
     });
 
     const target = config?.scoreInputTarget;
-    if(target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
+    const playObjects = _playObjects(config);
+    if(playObjects.includes('score_input') && target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
       pushRegister({
         id: target,
         label: String(target).toUpperCase(),
