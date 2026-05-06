@@ -144,11 +144,35 @@ function PhaseBand({ spec, room, onCheck, isHost }){
   }).length;
   const reqCount = visibleChecks.filter(c=>c.required).length;
 
+  const inRoundPhase = curPhase && roundPhases.some(p=>p.id===curPhase);
+  const turnPhasesAll = phases.filter(p=>p.scope==='turn');
+
   if(!phases.length && !allChecks.length && !entities.length) return null;
 
   return(
     <div style={{borderRadius:14,overflow:'hidden',marginBottom:12,
-      border:'1px solid rgba(155,93,229,.2)',background:'rgba(155,93,229,.04)'}}>
+      border:`1px solid ${inRoundPhase?'rgba(155,93,229,.4)':'rgba(155,93,229,.2)'}`,
+      background:`rgba(155,93,229,${inRoundPhase?'.07':'.04'})`}}>
+
+      {/* Banner de fase global activa */}
+      {inRoundPhase && (
+        <div style={{padding:'8px 12px',background:'rgba(155,93,229,.15)',
+          display:'flex',alignItems:'center',gap:8}}>
+          <div style={{fontSize:'1rem',animation:'osBlink 2s ease-in-out infinite'}}>📍</div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+              color:'rgba(155,93,229,.7)'}}>FASE GLOBAL ACTIVA</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'13px',fontWeight:700,
+              color:'var(--purple)'}}>
+              {phases.find(p=>p.id===curPhase)?.label||curPhase}
+            </div>
+          </div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'10px',
+            color:'rgba(155,93,229,.5)'}}>
+            {phases.find(p=>p.id===curPhase)?.description||''}
+          </div>
+        </div>
+      )}
 
       {/* Header de sección con progreso */}
       <div style={{padding:'8px 12px',borderBottom:'1px solid rgba(155,93,229,.1)',
@@ -442,44 +466,51 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
           </div>
         )}
 
-        {/* Acciones del turno ágil */}
+        "Acciones del turno ágil */}
         {isActive&&(
           <div style={{padding:'0 12px 12px',display:'flex',flexDirection:'column',gap:8}}>
 
-            {/* Botón de misión/victoria si el juego lo tiene */}
-            {spec.playerActions?.some(a=>a.id==='add_win'||a.category==='score'&&a.id!=='add_points') && (
-              <button onClick={()=>{
-                snd('score');
-                const winAction = spec.playerActions?.find(a=>a.id==='add_win');
-                if(winAction) onAction && onAction(winAction, currentPlayer?.id, {value:1});
-              }}
+            {/* Botones configurados en agileTurnButtons */}
+            {(spec.agileTurnButtons||[]).map((btn,i)=>{
+              const bColors={add_win:'rgba(255,212,71,.15)',add_points:'rgba(0,245,255,.12)',end_game_loss:'rgba(255,59,92,.12)'};
+              const bText={add_win:'var(--gold)',add_points:'var(--cyan)',end_game_loss:'var(--red)'};
+              return(
+                <button key={i} onClick={()=>{
+                  snd(btn.effect==='end_game_loss'?'elim':'score');
+                  if(btn.effect==='add_win') onAction&&onAction({id:'add_win',label:btn.label,icon:btn.icon||'🎯',color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
+                  else if(btn.effect==='add_points') onAction&&onAction({id:'add_points',label:btn.label,icon:btn.icon||'➕',color:'var(--cyan)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
+                  else onAction&&onAction({id:btn.effect||'log_event',label:btn.label,icon:btn.icon||'📝',color:'rgba(255,255,255,.4)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
+                }}
+                  style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
+                    fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
+                    background:bColors[btn.effect]||'rgba(155,93,229,.12)',
+                    color:bText[btn.effect]||'var(--purple)'}}>
+                  {btn.icon||'🎯'} {(btn.label||'').toUpperCase()}
+                </button>
+              );
+            })}
+
+            {/* Fallback si no hay agileTurnButtons pero sí registers wins */}
+            {!(spec.agileTurnButtons?.length)&&spec.registers?.includes('wins')&&(
+              <button onClick={()=>{snd('score');onAction&&onAction({id:'add_win',label:'Victoria',icon:'🎯',color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});}}
                 style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
                   fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
-                  background:'linear-gradient(135deg,rgba(255,212,71,.18),rgba(255,107,53,.1))',
-                  color:'var(--gold)',
-                  boxShadow:'0 4px 16px rgba(255,212,71,.12)',transition:'all .15s'}}>
+                  background:'rgba(255,212,71,.15)',color:'var(--gold)'}}>
                 🎯 RESOLVÍ UNA MISIÓN
               </button>
             )}
 
-            {/* Me quedé sin opciones — botón extra si aplica */}
-            {spec._rawConfig?.showNoOptionsButton !== false && spec.type === 'cooperative' && (
-              <button onClick={()=>{
-                snd('tap');
-                onAction && onAction(
-                  {id:'no_options',label:'Sin opciones',icon:'🚫',color:'rgba(255,255,255,.3)',
-                   type:'direct',category:'system'},
-                  currentPlayer?.id, {note:'sin_opciones'}
-                );
-              }}
+            {/* Me quedé sin opciones */}
+            {(spec.showNoOptionsButton||spec._rawConfig?.showNoOptionsButton)&&(
+              <button onClick={()=>{snd('elim');onAction&&onAction({id:'no_options',label:'Sin opciones',icon:'🚫',color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:'sin_opciones'});}}
                 style={{width:'100%',padding:'11px',borderRadius:10,border:'1px solid rgba(255,255,255,.12)',
-                  cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'.85rem',
-                  letterSpacing:1,background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)'}}>
+                  cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:1,
+                  background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)'}}>
                 🚫 Me quedé sin opciones
               </button>
             )}
 
-            {/* Botón principal — terminar turno */}
+                        {/* Botón principal — terminar turno */}
             <button onClick={()=>onEndTurn(elapsed)}
               style={{width:'100%',padding:'16px',borderRadius:12,border:'none',cursor:'pointer',
                 fontFamily:'var(--font-display)',fontSize:'1.1rem',fontWeight:700,letterSpacing:2,
@@ -852,10 +883,15 @@ function PlayerActionCard({ player, spec, actions, captureActions, resultActions
 
 // ── HOST PANEL v3 ────────────────────────────────────────────────
 function HostPanel({ spec, room, onHostAction, isOpen, onToggle }){
-  const actions = spec.hostActions || [];
-  const primary = actions.filter(a=>a.primary&&!a.dangerous);
-  const danger  = actions.filter(a=>a.dangerous);
-  const rest    = actions.filter(a=>!a.primary&&!a.dangerous);
+  const actions    = spec.hostActions || [];
+  const primary    = actions.filter(a=>a.primary&&!a.dangerous);
+  const danger     = actions.filter(a=>a.dangerous);
+  const rest       = actions.filter(a=>!a.primary&&!a.dangerous);
+  const roundPhases = (spec._phases||[]).filter(p=>p.scope==='round');
+  const turnPhases  = (spec._phases||[]).filter(p=>p.scope==='turn');
+  const inRoundPhase = room.currentPhase && roundPhases.some(p=>p.id===room.currentPhase);
+  const curRPIdx    = roundPhases.findIndex(p=>p.id===room.currentPhase);
+  const isLastRP    = curRPIdx === roundPhases.length-1;
 
   return(
     <div style={{marginTop:16,borderRadius:14,overflow:'hidden',
@@ -872,6 +908,44 @@ function HostPanel({ spec, room, onHostAction, isOpen, onToggle }){
 
       {isOpen && (
         <div style={{padding:'12px 14px',background:'rgba(0,0,0,.2)'}}>
+          {/* Fase global activa — controles de navegación */}
+          {inRoundPhase && (
+            <div style={{marginBottom:10,padding:'10px 12px',borderRadius:10,
+              background:'rgba(155,93,229,.08)',border:'1px solid rgba(155,93,229,.25)'}}>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(155,93,229,.7)',marginBottom:6}}>
+                FASE GLOBAL {curRPIdx+1}/{roundPhases.length}
+              </div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'13px',fontWeight:700,
+                color:'var(--purple)',marginBottom:8}}>
+                📍 {roundPhases[curRPIdx]?.label}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                {!isLastRP ? (
+                  <button onClick={()=>onHostAction('advance_round_phase')}
+                    style={{flex:1,padding:'10px',borderRadius:9,border:'none',cursor:'pointer',
+                      fontFamily:'var(--font-display)',fontSize:'12px',fontWeight:700,
+                      background:'rgba(155,93,229,.2)',color:'var(--purple)'}}>
+                    → {roundPhases[curRPIdx+1]?.label}
+                  </button>
+                ) : (
+                  <button onClick={()=>onHostAction('advance_round_phase')}
+                    style={{flex:1,padding:'10px',borderRadius:9,border:'none',cursor:'pointer',
+                      fontFamily:'var(--font-display)',fontSize:'12px',fontWeight:700,
+                      background:'rgba(0,255,157,.12)',color:'var(--green)'}}>
+                    ✓ Cerrar ronda
+                  </button>
+                )}
+                <button onClick={()=>onHostAction('back_to_turns')}
+                  style={{padding:'10px 12px',borderRadius:9,border:'1px solid rgba(255,255,255,.1)',
+                    cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                    background:'rgba(255,255,255,.04)',color:'rgba(255,255,255,.4)'}}>
+                  ↩ Turnos
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Acciones primarias */}
           {primary.map(a=>(
             <button key={a.id} onClick={()=>{snd('round');onHostAction(a.id);}}
@@ -950,19 +1024,33 @@ function sortPlayers(players, spec){
 
 
 // ── WAITING BADGE — aparece cuando no es tu turno ───────────────
-function WaitingBadge({ currentPlayer }){
+function WaitingBadge({ currentPlayer, room }){
+  const [elapsed, setElapsed] = React.useState(0);
+  const start = room?.turnStartedAt || Date.now();
+  React.useEffect(()=>{
+    const t = setInterval(()=>setElapsed(Math.floor((Date.now()-start)/1000)),500);
+    return ()=>clearInterval(t);
+  },[start]);
+  function fmtS(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
   return(
     <div style={{borderRadius:12,padding:'10px 14px',marginBottom:12,
       background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.07)',
       display:'flex',alignItems:'center',gap:10}}>
       <div style={{fontSize:'1.2rem',animation:'osBlink 1.5s ease-in-out infinite'}}>⏳</div>
-      <div>
+      <div style={{flex:1}}>
         <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
-          color:'rgba(255,255,255,.45)'}}>Esperando turno</div>
-        <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
-          color:'rgba(255,255,255,.25)',marginTop:2}}>
+          color:'rgba(255,255,255,.45)'}}>
           Turno de {currentPlayer?.name||'otro jugador'}
         </div>
+        <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+          color:'rgba(255,255,255,.25)',marginTop:2}}>
+          espera tu turno
+        </div>
+      </div>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',
+        color:elapsed>120?'var(--red)':elapsed>60?'var(--orange)':'rgba(255,255,255,.3)',
+        letterSpacing:1}}>
+        {fmtS(elapsed)}
       </div>
     </div>
   );
@@ -1112,6 +1200,36 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     if(!room||!spec) return;
     const now = Date.now();
     switch(actionId){
+      case 'advance_round_phase':{
+        snd('tap');
+        const rPhases = (spec._phases||[]).filter(p=>p.scope==='round');
+        const curRPIdx = rPhases.findIndex(p=>p.id===room.currentPhase);
+        if(curRPIdx < rPhases.length-1){
+          const nextRP = rPhases[curRPIdx+1];
+          await db.set(`rooms/${session.code}/currentPhase`, nextRP.id);
+          showToast(`📍 ${nextRP.label}`,'var(--purple)');
+          // Reset round checks for this new phase
+          const resetCL = Object.fromEntries(
+            Object.entries(room.checklist||{}).map(([k,v])=>{
+              const sc = spec._checklist?.find(c=>c.phaseId===nextRP.id&&c.id===k);
+              return sc ? [k, typeof v==='object'?{...v,done:false}:false] : [k,v];
+            })
+          );
+          await db.set(`rooms/${session.code}/checklist`, resetCL);
+        } else {
+          // Last round phase done → close round
+          handleHostAction('close_round');
+        }
+        break;
+      }
+      case 'back_to_turns':{
+        // Return from round phases back to player turns
+        snd('tap');
+        const firstTurnPhase2 = (spec._phases||[]).find(p=>p.scope==='turn')?.id||null;
+        await db.set(`rooms/${session.code}/currentPhase`, firstTurnPhase2);
+        showToast('↩ Volviendo a turnos de jugadores','var(--cyan)');
+        break;
+      }
       case 'close_round':{
         snd('round');
         const nextRound = (room.currentRound||1)+1;
@@ -1275,7 +1393,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         {spec.hasTurns && currentTurnPlayer && !effectiveIsHost &&
           currentTurnPlayer.id !== myId &&
           spec._phases?.filter(p=>p.scope==='turn').length > 0 && (
-          <WaitingBadge currentPlayer={currentTurnPlayer}/>
+          <WaitingBadge currentPlayer={currentTurnPlayer} room={room}/>
         )}
 
         {/* Asistente de turno — reloj + fases + recordatorios */}
@@ -1299,26 +1417,28 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
               const next    = (cur+1)%Math.max(1,active.length);
               const firstTurnPhase = spec._phases?.find(p=>p.scope==='turn')?.id || null;
 
-              // Detectar si TODOS los jugadores completaron su turno en esta vuelta
-              // Si next === 0 (volvemos al primero) → todos terminaron → fase de ronda
-              const completedFullRound = next === 0;
+              // Detectar si TODOS los jugadores activos completaron su turno en esta vuelta
+              // Usamos: el último turno completado es el del último jugador activo (next vuelve a 0)
+              const completedFullRound = next === 0 && active.length > 1;
               const roundPhases = (spec._phases||[]).filter(p=>p.scope==='round');
+              const turnPhasesList = (spec._phases||[]).filter(p=>p.scope==='turn');
               const curRoundPhase = room.currentPhase;
               const curRoundPhaseIdx = roundPhases.findIndex(p=>p.id===curRoundPhase);
 
-              // Si hay fases de ronda pendientes después de que todos juegan → avanzar fase
+              // Si había fases de ronda activas (scope:round), mantener la actual
+              // Si todos completaron su turno Y hay fases de ronda → avanzar a la primera
               let nextRoundPhase = curRoundPhase;
-              if(completedFullRound && roundPhases.length > 0){
-                const nextRPIdx = curRoundPhaseIdx + 1;
-                if(nextRPIdx < roundPhases.length){
-                  nextRoundPhase = roundPhases[nextRPIdx].id;
-                  const phaseName = roundPhases[nextRPIdx].label;
-                  showToast(`📍 Fase: ${phaseName}`,'var(--purple)');
-                  snd('round');
-                } else {
-                  // Todas las fases de ronda completadas → cerrar ronda automáticamente
-                  nextRoundPhase = roundPhases[0]?.id || curRoundPhase;
-                }
+              const inRoundPhase = curRoundPhase && roundPhases.some(p=>p.id===curRoundPhase);
+
+              if(completedFullRound && roundPhases.length > 0 && !inRoundPhase){
+                // Entrar a la primera fase de ronda
+                nextRoundPhase = roundPhases[0].id;
+                const phaseName = roundPhases[0].label;
+                showToast(`📍 ${phaseName}`, 'var(--purple)');
+                snd('round');
+              } else if(completedFullRound && roundPhases.length === 0){
+                // Sin fases de ronda — solo notificar vuelta completa
+                showToast(`🔄 Todos jugaron — Ronda ${currentRound}`, 'var(--cyan)');
               }
 
               // Reset checks según scope

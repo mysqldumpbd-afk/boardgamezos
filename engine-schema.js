@@ -1099,42 +1099,99 @@ window.ENGINE_SCHEMA = {
           default: 'regulatory',
           visible_if: { useFlowAssistance: true },
           options: [
-            { value: 'agile',      label: '⚡ Ágil — 1 botón + recordatorios informativos' },
+            { value: 'agile',      label: '⚡ Ágil — 1 botón grande + recordatorios informativos' },
             { value: 'regulatory', label: '📋 Regulatorio — fases con pasos obligatorios' }
           ],
-          helpText: 'Ágil: para juegos rápidos (Misión Cumplida, UNO). Regulatorio: cuando DEBES completar los pasos antes de avanzar (Fallout Shelter, Nemesis, Azul).'
-        },
-        {
-          id: 'turnPhaseCount',
-          type: 'select',
-          label: 'Pasos por turno',
-          default: '2',
-          visible_if: { useFlowAssistance: true },
-          options: [
-            { value: '1', label: '1 paso (solo recordatorio)' },
-            { value: '2', label: '2 pasos' },
-            { value: '3', label: '3 pasos' },
-            { value: '4', label: '4 pasos' },
-            { value: 'custom', label: 'Configuración avanzada (JSON)' }
-          ],
-          helpText: 'Cuántos pasos tiene el turno de cada jugador. Para juegos complejos usa la configuración avanzada.'
-        },
-        {
-          id: 'phaseReminderText',
-          type: 'text',
-          label: 'Texto del recordatorio principal',
-          default: '',
-          visible_if: { useFlowAssistance: true },
-          placeholder: 'ej: Recuerda tomar una carta del mazo',
-          helpText: 'Aparece en pantalla durante el turno como recordatorio. En modo ágil es informativo; en modo regulatorio bloquea hasta confirmarse.'
+          helpText: 'Ágil: para juegos rápidos donde los recordatorios no bloquean. Regulatorio: cuando DEBES completar pasos antes de avanzar (Fallout, Nemesis, Azul).'
         },
         {
           id: 'trackTurnDuration',
           type: 'toggle',
-          label: 'Registrar tiempo por turno (reloj de ajedrez)',
+          label: '⏱ Reloj de ajedrez — registrar tiempo por turno',
           default: false,
           visible_if: { useFlowAssistance: true, useTurns: true },
-          helpText: 'Muestra un cronómetro por turno y guarda el historial de tiempo de cada jugador'
+          helpText: 'Muestra un cronómetro sincronizado entre dispositivos. Al final muestra tiempo total y promedio por jugador.'
+        },
+        {
+          id: 'showNoOptionsButton',
+          type: 'toggle',
+          label: '🚫 Botón "Me quedé sin opciones"',
+          default: false,
+          visible_if: { useFlowAssistance: true },
+          helpText: 'Muestra un botón para cuando el jugador no puede hacer nada en su turno. Útil en juegos cooperativos o de cartas.'
+        },
+        {
+          id: 'agileTurnButtons',
+          type: 'list',
+          label: 'Botones extra del turno ágil',
+          default: [],
+          visible_if: { useFlowAssistance: true, turnAssistMode: 'agile' },
+          itemSchema: {
+            fields: [
+              { id: 'label',  type: 'text',   label: 'Nombre del botón',  placeholder: 'ej: Resolví misión' },
+              { id: 'icon',   type: 'emoji',  label: 'Icono',             default: '🎯' },
+              { id: 'effect', type: 'select', label: 'Qué registra',
+                options: [
+                  { value: 'add_win',      label: 'Suma una victoria/misión' },
+                  { value: 'add_points',   label: 'Suma puntos (pide valor)' },
+                  { value: 'log_event',    label: 'Solo registra el evento' },
+                  { value: 'end_game_loss',label: 'Termina la partida (derrota)' },
+                ]
+              }
+            ]
+          },
+          helpText: 'Define botones adicionales para el turno ágil. Ej: "Resolví misión" suma una victoria; "Sin opciones" puede terminar la partida.'
+        },
+        {
+          id: 'turnPhaseReminders',
+          type: 'list',
+          label: 'Recordatorios del turno',
+          default: [],
+          visible_if: { useFlowAssistance: true },
+          itemSchema: {
+            fields: [
+              { id: 'label',    type: 'text',   label: 'Texto del recordatorio', placeholder: 'ej: Toma una carta del mazo' },
+              { id: 'required', type: 'toggle', label: 'Bloquea el turno si no se confirma', default: false },
+            ]
+          },
+          helpText: 'En modo ágil: aparecen como notas informativas 💡. En modo regulatorio: si está marcado como requerido, bloquea el avance.'
+        },
+        {
+          id: 'roundPhasesEnabled',
+          type: 'toggle',
+          label: '🔄 Fases globales de ronda',
+          default: false,
+          visible_if: { useFlowAssistance: true, useRounds: true },
+          helpText: 'Activa fases que ocurren después de que TODOS los jugadores terminan su turno. Ej: Fallout Shelter — amenazas, cierre de ronda.'
+        },
+        {
+          id: 'roundPhasesList',
+          type: 'list',
+          label: 'Fases globales (después de todos los turnos)',
+          default: [],
+          visible_if: { useFlowAssistance: true, roundPhasesEnabled: true },
+          itemSchema: {
+            fields: [
+              { id: 'label',       type: 'text',   label: 'Nombre de la fase', placeholder: 'ej: Resolver amenazas' },
+              { id: 'description', type: 'text',   label: 'Descripción',       placeholder: 'ej: Tirar dados y aplicar daño' },
+              { id: 'owner',       type: 'select', label: 'Quién la maneja',
+                options: [
+                  { value: 'host', label: 'Solo el host' },
+                  { value: 'all',  label: 'Todos los jugadores' },
+                ]
+              }
+            ]
+          },
+          helpText: 'Estas fases aparecen en PhaseBand cuando todos terminaron su turno. El host puede avanzar entre ellas desde el Panel del Host.'
+        },
+        {
+          id: 'cooperativeTeamName',
+          type: 'text',
+          label: '🤝 Nombre del equipo cooperativo',
+          default: 'El Equipo',
+          visible_if: { type: 'cooperative' },
+          placeholder: 'ej: Los Supervivientes, El Equipo Alpha',
+          helpText: 'Se muestra en la pantalla final cuando todos ganan o pierden juntos.'
         }
       ]
     },

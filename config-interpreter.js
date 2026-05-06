@@ -91,11 +91,15 @@ function interpret(config) {
     rpsScope:       config.rpsScope      || 'any',
 
     // ── FLOW ASSISTANCE ───────────────────────────────────────
-    useFlowAssistance: config.useFlowAssistance || false,
-    turnAssistMode:    config.turnAssistMode    || 'regulatory',
-    trackTurnDuration: config.trackTurnDuration || false,
-    phaseReminderText: config.phaseReminderText || '',
-    // Preservar config raw para que TurnAssistant pueda leerlo
+    useFlowAssistance:    config.useFlowAssistance    || false,
+    turnAssistMode:       config.turnAssistMode       || 'regulatory',
+    trackTurnDuration:    config.trackTurnDuration    || false,
+    phaseReminderText:    config.phaseReminderText    || '',
+    showNoOptionsButton:  config.showNoOptionsButton  || false,
+    agileTurnButtons:     Array.isArray(config.agileTurnButtons) ? config.agileTurnButtons : [],
+    turnPhaseReminders:   Array.isArray(config.turnPhaseReminders) ? config.turnPhaseReminders : [],
+    roundPhasesEnabled:   config.roundPhasesEnabled   || false,
+    cooperativeTeamName:  config.cooperativeTeamName  || 'El Equipo',
     _rawConfig: config,
 
     // ── ROLES ──────────────────────────────────────────────────

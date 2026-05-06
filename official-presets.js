@@ -167,18 +167,22 @@ nemesisAssist: {
       // Fases de TURNO individual — cada jugador pasa por ellas en su turno
       // scope:'turn' = se repiten para cada jugador
       gamePhases:[
-        {id:'place_dwellers', label:'Colocar moradores', order:1,
+        // scope:'turn' = pasos del turno individual de cada jugador
+        {id:'place_dwellers',      label:'Colocar moradores',   order:1,
           scope:'turn', owner:'player', trigger:'turn_start',
-          description:'Coloca tus meeples en habitaciones. Botón: "Listos mis moradores"'},
+          description:'Coloca tus meeples en habitaciones'},
+        // scope:'round' = fases globales después de que TODOS terminan su turno
+        {id:'resolve_rooms_phase', label:'Resolver habitaciones', order:2,
+          scope:'round', owner:'all', trigger:'all_turns_done',
+          description:'Cada jugador cobra recursos según su habitación'},
+        {id:'resolve_threat_phase',label:'Resolver amenaza',     order:3,
+          scope:'round', owner:'host', trigger:'manual',
+          description:'Tirar dados de amenaza, aplicar daño'},
+        {id:'end_round_phase',     label:'Cierre de ronda',      order:4,
+          scope:'round', owner:'host', trigger:'manual',
+          description:'Pasar ficha, reabastecer, preparar siguiente ronda'},
       ],
 
-      // Fases GLOBALES de ronda — ocurren después de que TODOS los jugadores terminaron sus turnos
-      // scope:'round' = ocurren una vez por ronda, después de todos los turnos
-      // Estas se muestran en PhaseBand y el host las avanza manualmente
-      // El sistema avanza automáticamente a estas cuando todos terminan su turno
-
-      // NOTA: las fases de ronda se modelan separadas de las de turno
-      // Se usan externalEntities y phaseChecklist para controlar el flujo
       phaseChecklist:[
         // Fase de recursos — todos resuelven sus habitaciones
         {id:'resolve_rooms',   label:'Cada jugador resuelve su habitación',
@@ -245,9 +249,13 @@ nemesisAssist: {
       victoryMode:'manual', manualWinMode:'host_end',
       registers:['wins'],         // wins = misiones cumplidas por jugador
       playMode:'minimal',
-      playObjects:['victory_button'],   // botón "Resolví una misión"
-      victoryButtonLabel: 'Resolví una misión 🎯',
-      victoryButtonScope: 'round',      // cuenta como victoria de turno/ronda
+      playObjects:[],
+      // Botones del turno ágil — configurados explícitamente
+      agileTurnButtons:[
+        { label:'Resolví una misión', icon:'🎯', effect:'add_win' },
+        { label:'Me quedé sin opciones', icon:'🚫', effect:'end_game_loss' },
+      ],
+      showNoOptionsButton: false,  // ya está en agileTurnButtons
       objectControlScope:'all',         // cualquier jugador puede pulsar
       useFlowAssistance: true,
       turnAssistMode: 'agile',          // un botón, sin bloqueos
