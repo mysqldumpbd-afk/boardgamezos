@@ -225,8 +225,8 @@ function _playerActions(spec) {
   const actions = [];
   const isHost = true; // el runtime pasa `isHost` para filtrar
 
-  // ── 1. PUNTOS ──
-  if (spec.registers.includes('points') && spec.victoryMode !== 'elimination') {
+  // ── 1. PUNTOS — solo si el juego realmente usa puntos
+  if (spec.registers.includes('points') && spec.victoryMode !== 'elimination' && spec.victoryMode !== 'manual') {
     actions.push({
       id: 'add_points',
       label: '+ Puntos',

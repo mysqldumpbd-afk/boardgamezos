@@ -717,17 +717,19 @@ function PlayerActionCard({ player, spec, actions, captureActions, resultActions
           )}
         </div>
 
-        {/* Score principal */}
-        <div style={{textAlign:'right',flexShrink:0}}>
-          <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',
-            color: display.color || 'var(--gold)',lineHeight:1}}>
-            {display.main}
+        {/* Score principal — solo si hay algo que mostrar */}
+        {display.main !== null && (
+          <div style={{textAlign:'right',flexShrink:0}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',
+              color: display.color || 'var(--gold)',lineHeight:1}}>
+              {display.main}
+            </div>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+              color:'rgba(255,255,255,.25)',marginTop:1}}>
+              {display.unit}
+            </div>
           </div>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
-            color:'rgba(255,255,255,.25)',marginTop:1}}>
-            {display.unit}
-          </div>
-        </div>
+        )}
 
         {/* Expand toggle */}
         <button onClick={()=>setExpanded(e=>!e)}
@@ -889,6 +891,10 @@ function _canSee(action, isHost, isMe){
 
 function getScoreDisplay(player, spec){
   const pu = spec.primaryUnit;
+  // Sin registros ni victoria por puntos — no mostrar score
+  const noScore = (!spec.registers||spec.registers.length===0) &&
+    (spec.victoryMode==='manual'||spec.victoryMode==='objective');
+  if(noScore) return { main:null, unit:'', color:'rgba(255,255,255,.2)' };
   if(pu==='lives')  return { main:player.lives??'—', unit:'❤️', color:'var(--red)' };
   if(pu==='wins')   return { main:player.wins??0,    unit:'🏆', color:'var(--gold)' };
   if(pu==='coins')  return { main:player.coins??0,   unit:'🪙', color:'var(--gold)' };

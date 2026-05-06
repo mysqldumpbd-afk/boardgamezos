@@ -247,8 +247,12 @@ async function seedPresetTemplates(uid){
     try{
       const snap = await _db.ref(`gameTemplates/${uid}/${p.id}`).once('value');
       const existing = snap.val();
-      // Solo sembrar si no existe, o si es una versión vieja (sin schemaVersion)
-      if(!existing || !existing.schemaVersion){
+      // Re-sembrar si: no existe, no tiene schemaVersion, o el preset cambió
+      // Usamos un hash simple: JSON.stringify de los campos clave del preset
+      const presetHash = [p.name, p.config?.turnAssistMode, p.config?.registers?.join(','),
+        p.config?.victoryMode, p.config?.useRounds, (p.config?.gamePhases||[]).length].join('|');
+      const needsUpdate = !existing || !existing.schemaVersion || existing.presetHash !== presetHash;
+      if(needsUpdate){
         const now = Date.now();
         // Generar runtime spec si el motor está disponible
         let runtimeSpec = {};
@@ -282,6 +286,7 @@ async function seedPresetTemplates(uid){
           updatedAt: now,
           createdAt: existing?.createdAt || now,
           isPreset: true,
+          presetHash,
         });
       }
     }catch(e){ console.warn('seedPreset error:', p.id, e); }
