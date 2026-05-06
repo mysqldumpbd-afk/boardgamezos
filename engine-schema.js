@@ -1075,6 +1075,71 @@ window.ENGINE_SCHEMA = {
     },
 
     // ──────────────────────────────────────────────────────────
+    // 8b. ASISTENTE DE FLUJO (Flow Assistance)
+    // ──────────────────────────────────────────────────────────
+    {
+      id: 'flow_assistance',
+      title: 'Asistente de flujo',
+      icon: '🗺️',
+      color: '#9B5DE5',
+      optional: true,
+      helpText: 'Define fases del turno o ronda con recordatorios. Ideal para juegos con pasos específicos que los jugadores olvidan.',
+      fields: [
+        {
+          id: 'useFlowAssistance',
+          type: 'toggle',
+          label: 'Activar asistente de flujo',
+          default: false,
+          helpText: 'Muestra un guía de pasos durante el turno o ronda'
+        },
+        {
+          id: 'turnAssistMode',
+          type: 'select',
+          label: 'Modo del asistente',
+          default: 'regulatory',
+          visible_if: { useFlowAssistance: true },
+          options: [
+            { value: 'agile',      label: '⚡ Ágil — 1 botón + recordatorios informativos' },
+            { value: 'regulatory', label: '📋 Regulatorio — fases con pasos obligatorios' }
+          ],
+          helpText: 'Ágil: para juegos rápidos (Misión Cumplida, UNO). Regulatorio: cuando DEBES completar los pasos antes de avanzar (Fallout Shelter, Nemesis, Azul).'
+        },
+        {
+          id: 'turnPhaseCount',
+          type: 'select',
+          label: 'Pasos por turno',
+          default: '2',
+          visible_if: { useFlowAssistance: true },
+          options: [
+            { value: '1', label: '1 paso (solo recordatorio)' },
+            { value: '2', label: '2 pasos' },
+            { value: '3', label: '3 pasos' },
+            { value: '4', label: '4 pasos' },
+            { value: 'custom', label: 'Configuración avanzada (JSON)' }
+          ],
+          helpText: 'Cuántos pasos tiene el turno de cada jugador. Para juegos complejos usa la configuración avanzada.'
+        },
+        {
+          id: 'phaseReminderText',
+          type: 'text',
+          label: 'Texto del recordatorio principal',
+          default: '',
+          visible_if: { useFlowAssistance: true },
+          placeholder: 'ej: Recuerda tomar una carta del mazo',
+          helpText: 'Aparece en pantalla durante el turno como recordatorio. En modo ágil es informativo; en modo regulatorio bloquea hasta confirmarse.'
+        },
+        {
+          id: 'trackTurnDuration',
+          type: 'toggle',
+          label: 'Registrar tiempo por turno (reloj de ajedrez)',
+          default: false,
+          visible_if: { useFlowAssistance: true, useTurns: true },
+          helpText: 'Muestra un cronómetro por turno y guarda el historial de tiempo de cada jugador'
+        }
+      ]
+    },
+
+    // ──────────────────────────────────────────────────────────
     // 9. REGLAS / EVENTOS
     // ──────────────────────────────────────────────────────────
     {

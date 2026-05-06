@@ -90,6 +90,14 @@ function interpret(config) {
     wheelSegments:  config.wheelSegments || 'fixed',
     rpsScope:       config.rpsScope      || 'any',
 
+    // ── FLOW ASSISTANCE ───────────────────────────────────────
+    useFlowAssistance: config.useFlowAssistance || false,
+    turnAssistMode:    config.turnAssistMode    || 'regulatory',
+    trackTurnDuration: config.trackTurnDuration || false,
+    phaseReminderText: config.phaseReminderText || '',
+    // Preservar config raw para que TurnAssistant pueda leerlo
+    _rawConfig: config,
+
     // ── ROLES ──────────────────────────────────────────────────
     roles:          config.roles         || ['host','player'],
     scoreCapture:   config.scoreCapture  || 'host',
