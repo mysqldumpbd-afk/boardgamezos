@@ -114,6 +114,12 @@ function interpret(config) {
     saveHistory:       config.saveHistory      !== false,
     exportFormat:      config.exportFormat     || [],
     rematch:           _buildRematch(config),
+
+    // ── ASISTENTE DE FLUJO ─────────────────────────────────────
+    flowAssistance:   !!config.useFlowAssistance,
+    gamePhases:       config.gamePhases || [],
+    phaseChecklist:   config.phaseChecklist || [],
+    externalEntities: config.externalEntities || [],
   };
 
   // ── DERIVADOS: lo que el runtime necesita saber ─────────────

@@ -58,7 +58,8 @@ window.RuntimeResolver = (function(){
     });
 
     const target = config?.scoreInputTarget;
-    if(target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
+    const playObjects = _playObjects(config);
+    if(playObjects.includes('score_input') && target && target !== 'custom' && !seen.has(target) && victoryMode !== 'elimination'){
       pushRegister({
         id: target,
         label: String(target).toUpperCase(),
@@ -214,6 +215,44 @@ window.RuntimeResolver = (function(){
     }));
   }
 
+
+  function resolveGamePhases(config){
+    return (Array.isArray(config?.gamePhases) ? config.gamePhases : []).map((item, idx)=>({
+      id: item.id || `phase_${idx+1}`,
+      label: item.label || item.name || `Fase ${idx+1}`,
+      order: Number.isFinite(+item.order) ? +item.order : idx + 1,
+      scope: item.scope || 'round',
+      owner: item.owner || 'host',
+      trigger: item.trigger || 'manual',
+      description: item.description || ''
+    })).sort((a,b)=>(a.order||0)-(b.order||0));
+  }
+
+  function resolvePhaseChecklist(config){
+    return (Array.isArray(config?.phaseChecklist) ? config.phaseChecklist : []).map((item, idx)=>({
+      id: item.id || `check_${idx+1}`,
+      label: item.label || `Recordatorio ${idx+1}`,
+      phaseId: item.phaseId || '',
+      visibleTo: item.visibleTo || 'host',
+      required: item.required !== false,
+      defaultDone: !!item.defaultDone,
+      autoReset: item.autoReset || 'round'
+    }));
+  }
+
+  function resolveExternalEntities(config){
+    return (Array.isArray(config?.externalEntities) ? config.externalEntities : []).map((item, idx)=>({
+      id: item.id || `entity_${idx+1}`,
+      label: item.label || item.name || `Entidad ${idx+1}`,
+      icon: item.icon || '📦',
+      entityType: item.entityType || item.type || 'global',
+      stateType: item.stateType || 'status',
+      defaultState: item.defaultState ?? '',
+      visibleTo: item.visibleTo || 'all',
+      description: item.description || ''
+    }));
+  }
+
   function resolveDerivedRules(config){
     const rules = [];
     const playObjects = _playObjects(config);
@@ -279,6 +318,9 @@ window.RuntimeResolver = (function(){
       statusIndicatorsResolved: resolveStatusIndicators(config),
       roundQuestionsResolved: resolveRoundQuestions(config),
       autoBehaviorsResolved: resolveAutoBehaviors(config),
+      gamePhasesResolved: resolveGamePhases(config),
+      phaseChecklistResolved: resolvePhaseChecklist(config),
+      externalEntitiesResolved: resolveExternalEntities(config),
       derivedRules: resolveDerivedRules(config)
     };
 
@@ -296,6 +338,9 @@ window.RuntimeResolver = (function(){
     resolveStatusIndicators,
     resolveRoundQuestions,
     resolveAutoBehaviors,
+    resolveGamePhases,
+    resolvePhaseChecklist,
+    resolveExternalEntities,
     resolveDerivedRules,
     resolveRuntime
   };

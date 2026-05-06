@@ -214,6 +214,15 @@ function HumanSummary({ config }){
           </div>
         ))}
       </div>
+      {(phases.length > 0 || checklist.length > 0 || entities.length > 0) && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Fases y checklist</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:8,marginBottom:12}}>
+          {phases.map((p)=><div key={p.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(255,138,61,.08)',border:'1px solid rgba(255,138,61,.24)',color:'rgba(255,255,255,.86)',fontFamily:'var(--font-label)',fontSize:'12px'}}>🧭 {p.order}. {p.label}</div>)}
+          {checklist.map((c)=><div key={c.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(183,255,60,.07)',border:'1px solid rgba(183,255,60,.22)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>☑ {c.label}</div>)}
+          {entities.map((e)=><div key={e.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(74,144,255,.07)',border:'1px solid rgba(74,144,255,.22)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>{e.icon || '📦'} {e.label}{e.defaultState ? `: ${e.defaultState}` : ''}</div>)}
+        </div>
+      </>}
+
       {autoBehaviors.length > 0 && <>
         <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Reglas automáticas del sistema</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:8}}>{autoBehaviors.map((rule)=><div key={rule.id} style={{padding:'9px 12px',borderRadius:12,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>{rule.label || rule.effect}</div>)}</div>
@@ -760,9 +769,10 @@ function AutoBehaviorsEditor({ value = [], onChange, disabled }){
 
 function safeEval(expr){
   try{
-    const clean = String(expr || '').replace(/[^0-9+\-*/().]/g,'');
+    let clean = String(expr || '').replace(/[^0-9+\-*/().]/g,'');
     if(!clean) return 0;
-    const r = Function('"use strict";return (' + clean + ')')();
+    clean = clean.replace(/(^|[^0-9])0+(\d+)/g, '$1$2');
+    const r = Function('return (' + clean + ')')();
     return Number.isFinite(r) ? Math.round(r * 100) / 100 : null;
   }catch(e){
     return null;
@@ -867,6 +877,86 @@ function ScoreCalculatorModal({ title='Calculadora', subtitle='', initialValue='
     </div>
   );
 }
+
+
+function PhasesEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`phase_${Date.now()}`, label:'Nueva fase', order:items.length+1, scope:'round', owner:'host', trigger:'manual', description:'' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <ContextHint title='¿Para qué sirve?' lines={['Divide la partida en pasos claros para que el host no olvide qué sigue.', 'Ejemplo: preparar ronda, turno del jugador, resolver amenaza, cierre.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Fases del juego</div>
+      {!disabled && <MiniAddButton label='Fase' color='#FF8A3D' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#FF8A3D')}>
+      <div style={{display:'grid',gridTemplateColumns:'58px 1fr 110px',gap:8,marginBottom:8}}>
+        <input className='os-input' type='number' style={_rowInputStyle()} disabled={disabled} value={item.order ?? idx+1} onChange={e=>update(idx,{order:+e.target.value||idx+1})} />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Fase' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.scope||'round'} onChange={e=>update(idx,{scope:e.target.value})}><option value='setup'>Setup</option><option value='round'>Ronda</option><option value='turn'>Turno</option><option value='endgame'>Final</option></select>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.owner||'host'} onChange={e=>update(idx,{owner:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='system'>Sistema</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.trigger||'manual'} onChange={e=>update(idx,{trigger:e.target.value})}><option value='manual'>Manual</option><option value='turn_start'>Inicio turno</option><option value='round_start'>Inicio ronda</option><option value='round_end'>Fin ronda</option></select>
+      </div>
+      <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.description||''} onChange={e=>update(idx,{description:e.target.value})} placeholder='Descripción breve / recordatorio' />
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function ChecklistEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`check_${Date.now()}`, label:'Nuevo recordatorio', phaseId:'', visibleTo:'host', required:true, defaultDone:false, autoReset:'round' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <ContextHint title='Checklist de apoyo' lines={['Recordatorios que aparecen durante la partida.', 'Ejemplo: tirar dado de monstruo, pasar primer jugador, revisar bonus final.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Recordatorios</div>
+      {!disabled && <MiniAddButton label='Recordatorio' color='#B7FF3C' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#B7FF3C')}>
+      <input className='os-input' style={{..._rowInputStyle(), width:'100%', marginBottom:8}} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Recordatorio' />
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.phaseId||''} onChange={e=>update(idx,{phaseId:e.target.value})} placeholder='phaseId opcional' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'host'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='host'>Host</option><option value='player'>Jugador</option><option value='all'>Todos</option></select>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.autoReset||'round'} onChange={e=>update(idx,{autoReset:e.target.value})}><option value='round'>Cada ronda</option><option value='turn'>Cada turno</option><option value='never'>Manual</option></select>
+      </div>
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
+function ExternalEntitiesEditor({ value = [], onChange, disabled }){
+  const items = Array.isArray(value) ? value : [];
+  function add(){ onChange([...(items||[]), { id:`entity_${Date.now()}`, label:'Entidad', icon:'📦', entityType:'global', stateType:'status', defaultState:'', visibleTo:'all', description:'' }]); }
+  function update(idx, patch){ onChange(items.map((x,i)=> i===idx ? { ...x, ...patch } : x)); }
+  function remove(idx){ onChange(items.filter((_,i)=>i!==idx)); }
+  return <div style={{opacity: disabled ? .45 : 1}}>
+    <ContextHint title='Entidades externas' lines={['Cosas del juego que no son jugadores, pero afectan la partida.', 'Ejemplo: primer jugador, enemigo activo, bolsa de piezas, evento pendiente.']} />
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',color:'rgba(255,255,255,.55)'}}>Entidades externas</div>
+      {!disabled && <MiniAddButton label='Entidad' color='#4A90FF' onClick={add} />}
+    </div>
+    {items.map((item, idx)=><div key={item.id||idx} style={_cardEditorStyle('#4A90FF')}>
+      <div style={{display:'grid',gridTemplateColumns:'46px 1fr 110px',gap:8,marginBottom:8}}>
+        <EmojiPickerField disabled={disabled} value={item.icon||'📦'} onChange={icon=>update(idx,{icon})} />
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.label||''} onChange={e=>update(idx,{label:e.target.value})} placeholder='Primer jugador / enemigo activo' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.entityType||'global'} onChange={e=>update(idx,{entityType:e.target.value})}><option value='global'>Global</option><option value='token'>Token</option><option value='deck'>Mazo/Bolsa</option><option value='enemy'>Enemigo</option><option value='room'>Habitación</option><option value='board'>Tablero</option></select>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.stateType||'status'} onChange={e=>update(idx,{stateType:e.target.value})}><option value='status'>Estado</option><option value='holder'>Quién lo tiene</option><option value='count'>Cantidad</option><option value='zone'>Zona</option></select>
+        <input className='os-input' style={_rowInputStyle()} disabled={disabled} value={item.defaultState||''} onChange={e=>update(idx,{defaultState:e.target.value})} placeholder='Estado inicial' />
+        <select className='os-select' style={_rowInputStyle()} disabled={disabled} value={item.visibleTo||'all'} onChange={e=>update(idx,{visibleTo:e.target.value})}><option value='all'>Todos</option><option value='host'>Host</option><option value='player'>Jugador</option></select>
+      </div>
+      <input className='os-input' style={{..._rowInputStyle(), width:'100%'}} disabled={disabled} value={item.description||''} onChange={e=>update(idx,{description:e.target.value})} placeholder='Descripción breve' />
+      {!disabled && <button type='button' className='btn btn-ghost' style={{width:'auto', marginTop:8, color:'var(--red)', padding:'6px 9px', fontSize:'11px'}} onClick={()=>remove(idx)}>Eliminar</button>}
+    </div>)}
+  </div>;
+}
+
 
 function AnimatedFieldMount({ children, delay = 0 }){
   const [entered, setEntered] = React.useState(false);
@@ -1239,13 +1329,25 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
     return <div style={wrapStyle}><AutoBehaviorsEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
   }
 
+  if(field.type === 'phases_editor'){
+    return <div style={wrapStyle}><PhasesEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'checklist_editor'){
+    return <div style={wrapStyle}><ChecklistEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'entities_editor'){
+    return <div style={wrapStyle}><ExternalEntitiesEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
   return null;
 }
 
 function _fieldHasStoredValue(field, value){
   if(value === null || value === undefined) return false;
   if(field.type === 'boolean') return value === true;
-  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor' || field.type === 'phases_editor' || field.type === 'checklist_editor' || field.type === 'entities_editor'){
     return Array.isArray(value) && value.length > 0;
   }
   if(field.type === 'number') return value !== '' && !Number.isNaN(Number(value));
@@ -1255,7 +1357,7 @@ function _fieldHasStoredValue(field, value){
 function _compactValueText(field, value){
   if(value === null || value === undefined || value === '') return null;
   if(field.type === 'boolean') return value ? 'Sí' : 'No';
-  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor'){
+  if(field.type === 'multi_select' || field.type === 'list_text' || field.type === 'counter_set_editor' || field.type === 'phases_editor' || field.type === 'checklist_editor' || field.type === 'entities_editor'){
     return Array.isArray(value) && value.length ? `${value.length}` : null;
   }
   if(field.type === 'select'){
@@ -1690,6 +1792,12 @@ function _runtimeFlowSteps(payload){
   if(statuses.length) steps.push({ title:'Indicadores visibles', desc:statuses.map(s=>s.label).join(' · ') });
   const autos = _previewResolvedList(payload, 'autoBehaviorsResolved');
   if(autos.length) steps.push({ title:'Automatizaciones', desc:autos.map(a=>a.label || a.effect).join(' · ') });
+  const phases = _previewResolvedList(payload, 'gamePhasesResolved');
+  if(phases.length) steps.push({ title:'Fases asistidas', desc:phases.map(p=>p.label).join(' → ') });
+  const checks = _previewResolvedList(payload, 'phaseChecklistResolved');
+  if(checks.length) steps.push({ title:'Checklist', desc:checks.map(c=>c.label).join(' · ') });
+  const entities = _previewResolvedList(payload, 'externalEntitiesResolved');
+  if(entities.length) steps.push({ title:'Entidades externas', desc:entities.map(e=>e.label).join(' · ') });
   if(r.roundClose) steps.push({ title:'Cierre de ronda', desc:`${r.roundCloseWho || 'host'} cierra la ronda · modo ${r.roundClose}` });
   if(r.primaryUnit) steps.push({ title:'Actualización de marcador', desc:`Se actualiza ${r.primaryUnit}${r.scoreCapture ? ` · captura ${r.scoreCapture}` : ''}` });
   let endDesc = 'Se revisa condición final';
@@ -1703,6 +1811,8 @@ function _runtimeFlowSteps(payload){
 function _summaryLines(payload){
   const r = payload?.runtime || {};
   const playObjects = _previewResolvedList(payload, 'playObjectsResolved');
+  const playerChecklist = _previewResolvedList(payload, 'phaseChecklistResolved').filter(x => ['player','all'].includes(x.visibleTo || 'host'));
+  const playerEntities = _previewResolvedList(payload, 'externalEntitiesResolved').filter(x => ['player','all'].includes(x.visibleTo || 'all'));
   const registers = _previewResolvedList(payload, 'registersResolved');
   const tools = Array.isArray(r.tools) ? r.tools : [];
   const resultActions = _previewResolvedList(payload, 'resultActionsResolved');
@@ -1886,6 +1996,15 @@ function PlayerPadPreview({ payload }){
         <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>{statusIndicators.map((item)=><div key={item.id} style={{padding:'8px 12px',borderRadius:999,background:`linear-gradient(135deg, ${_withAlpha(item.color || '#4A90FF', .16)}, rgba(255,255,255,.03))`,border:`1px solid ${_withAlpha(item.color || '#4A90FF', .28)}`,color:'#fff',fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700}}><span style={{marginRight:6}}>{item.icon || '•'}</span>{item.label}</div>)}</div>
       </>}
 
+
+      {(playerChecklist.length > 0 || playerEntities.length > 0) && <>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Asistente visible para jugador</div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>
+          {playerChecklist.map((item)=><div key={item.id} style={{padding:'8px 12px',borderRadius:12,background:'rgba(183,255,60,.08)',border:'1px solid rgba(183,255,60,.22)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>☑ {item.label}</div>)}
+          {playerEntities.map((item)=><div key={item.id} style={{padding:'8px 12px',borderRadius:12,background:'rgba(74,144,255,.08)',border:'1px solid rgba(74,144,255,.22)',color:'rgba(255,255,255,.82)',fontFamily:'var(--font-label)',fontSize:'12px'}}>{item.icon || '📦'} {item.label}{item.defaultState ? `: ${item.defaultState}` : ''}</div>)}
+        </div>
+      </>}
+
       {toolbar.length > 0 && (
         <>
           <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:1.2,color:'rgba(255,255,255,.48)',marginBottom:8,textTransform:'uppercase'}}>Toolbar</div>
@@ -1918,6 +2037,9 @@ function HostPadPreview({ payload }){
   const runtime = payload?.runtime || {};
   const actions = Array.isArray(runtime.hostActions) ? runtime.hostActions : [];
   const autoBehaviors = _previewResolvedList(payload, 'autoBehaviorsResolved');
+  const phases = _previewResolvedList(payload, 'gamePhasesResolved');
+  const checklist = _previewResolvedList(payload, 'phaseChecklistResolved');
+  const entities = _previewResolvedList(payload, 'externalEntitiesResolved');
   return (
     <div style={{padding:'12px',borderRadius:16,background:'linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025))',border:'1px solid rgba(255,255,255,.08)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
