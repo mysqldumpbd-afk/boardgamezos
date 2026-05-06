@@ -30,6 +30,7 @@ window.ENGINE_SCHEMA = {
             { value: "🐉", label: "🐉" },
             { value: "🎯", label: "🎯" }
           ]
+          helpText: 'El nombre que aparece en la sala y en la pantalla de partida.',
         },
 
         { id: "description", type: "textarea", label: "Descripción", default: "" },
@@ -45,6 +46,7 @@ window.ENGINE_SCHEMA = {
             { value: "teams", label: "Equipos" },
             { value: "cooperative", label: "Cooperativo" }
           ]
+          helpText: 'Una línea que describe la esencia del juego. Ej: "Último en pie gana".',
         },
 
         {
@@ -53,6 +55,7 @@ window.ENGINE_SCHEMA = {
           label: "Número de equipos",
           default: 2,
           visible_if: { type: "teams" }
+          helpText: 'Cuántos equipos juegan. Cada equipo tendrá su propio marcador.',
         },
 
         {
@@ -66,6 +69,7 @@ window.ENGINE_SCHEMA = {
             { value: "code", label: "Código" },
             { value: "link", label: "Link" }
           ]
+          helpText: 'Quién puede unirse. "Código" es lo más común — compartes el código de 4 letras.',
         },
 
         { id: "minPlayers", type: "number", label: "Mínimo de jugadores", default: 2, required: true },
@@ -104,6 +108,7 @@ window.ENGINE_SCHEMA = {
             { value: 10, label: "10" },
             { value: "libre", label: "∞ Libre" }
           ]
+          helpText: '→ Pad: muestra el contador de ronda "RONDA 2/5" con barra de progreso. Útil para juegos con cierre de ronda.',
         },
 
         {
@@ -117,6 +122,7 @@ window.ENGINE_SCHEMA = {
             { value: "timer", label: "Timer" },
             { value: "all_done", label: "Auto" }
           ]
+          helpText: 'Manual: el host toca "Cerrar ronda" en el Panel del Host. Auto: se cierra al completar todos los turnos.',
         },
 
         {
@@ -125,6 +131,7 @@ window.ENGINE_SCHEMA = {
           label: "Segundos por ronda",
           default: 60,
           visible_if: { useRounds: true, roundClose: "timer" }
+          helpText: 'Tiempo máximo por ronda. Al expirar, la ronda se cierra automáticamente.',
         },
 
         {
@@ -139,6 +146,7 @@ window.ENGINE_SCHEMA = {
             { value: "turns", label: "Turnos" },
             { value: "tools", label: "Herramientas" }
           ]
+          helpText: 'Qué pasa con los puntos al iniciar una nueva ronda.',
         },
 
         { id: "useTurns", type: "boolean", label: "Usar turnos", default: false },
@@ -155,6 +163,7 @@ window.ENGINE_SCHEMA = {
             { value: "rotative", label: "Rotativo" },
             { value: "score", label: "Por puntaje" }
           ]
+          helpText: '→ Pad: muestra "TURNO · Nombre del jugador" y avanza automáticamente. Sin esto, todos juegan simultáneamente.',
         },
 
         {
@@ -163,6 +172,7 @@ window.ENGINE_SCHEMA = {
           label: "Permitir saltar turno",
           default: false,
           visible_if: { useTurns: true }
+          helpText: 'Permite que el host salte el turno de un jugador si se ausenta.',
         },
 
         {
@@ -171,6 +181,7 @@ window.ENGINE_SCHEMA = {
           label: "Permitir turnos extra",
           default: false,
           visible_if: { useTurns: true }
+          helpText: 'Permite turnos adicionales en la misma ronda (ej: cuando sacas doble en un dado).',
         },
 
         {
@@ -179,6 +190,7 @@ window.ENGINE_SCHEMA = {
           label: "Limitar turnos por ronda",
           default: false,
           visible_if: { useTurns: true }
+          helpText: 'Limita cuántos turnos puede tener cada jugador por ronda.',
         },
 
         {
@@ -187,6 +199,7 @@ window.ENGINE_SCHEMA = {
           label: "Turnos por ronda",
           default: 1,
           visible_if: { useTurns: true, turnLimitPerRound: true }
+          helpText: 'Número exacto de turnos por jugador por ronda.',
         },
 
         {
@@ -199,6 +212,7 @@ window.ENGINE_SCHEMA = {
             { value: "simultaneous", label: "Simultáneo" },
             { value: "mixed", label: "Mixto" }
           ]
+          helpText: 'Todos juegan simultáneamente o por señal del host — sin orden estricto.',
         },
 
         {
@@ -206,6 +220,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Token primer jugador",
           default: false
+          helpText: '→ Pad: muestra el ícono 👑 en quien tiene el token. Se puede pasar entre rondas.',
         },
 
         { id: "useTimer", type: "boolean", label: "Temporizador general", default: false },
@@ -221,6 +236,7 @@ window.ENGINE_SCHEMA = {
             { value: "round", label: "Ronda" },
             { value: "match", label: "Partida" }
           ]
+          helpText: '→ Pad: aparece un reloj visible para todos en pantalla.',
         },
 
         {
@@ -229,6 +245,7 @@ window.ENGINE_SCHEMA = {
           label: "Segundos del temporizador",
           default: 60,
           visible_if: { useTimer: true }
+          helpText: 'Duración en segundos. Ej: 60 = 1 minuto, 300 = 5 minutos.',
         },
 
         {
@@ -237,6 +254,7 @@ window.ENGINE_SCHEMA = {
           label: "Alerta visual",
           default: true,
           visible_if: { useTimer: true }
+          helpText: 'Muestra alerta visual cuando quedan pocos segundos.',
         },
 
         {
@@ -245,6 +263,7 @@ window.ENGINE_SCHEMA = {
           label: "Alerta sonora",
           default: true,
           visible_if: { useTimer: true }
+          helpText: 'Emite un sonido cuando el tiempo está por acabar.',
         },
 
         {
@@ -288,6 +307,7 @@ window.ENGINE_SCHEMA = {
             { value: "time", label: "Tiempo" },
             { value: "manual", label: "Manual" }
           ]
+          helpText: 'La forma en que se gana. → Puntos: calculadora en el pad. → Victorias: botón "Gané ronda". → Vidas: contador de corazones ❤️. → Manual: el host decide quién gana.',
         },
 
         {
@@ -301,6 +321,7 @@ window.ENGINE_SCHEMA = {
             { value: "target", label: "Llegar a X" },
             { value: "exact", label: "Exacto X" }
           ]
+          helpText: 'Más puntos gana (Strike, King of Tokyo), menos puntos gana (UNO, Golf), o llegar exactamente a X.',
         },
 
         {
@@ -313,6 +334,7 @@ window.ENGINE_SCHEMA = {
             { value: "instant", label: "Al instante" },
             { value: "round_end", label: "Fin de ronda" }
           ]
+          helpText: 'Al instante: en cuanto alcanzan los puntos aparece el ganador. Fin de ronda: solo se revisa al cerrar la ronda.',
         },
 
         {
@@ -322,6 +344,7 @@ window.ENGINE_SCHEMA = {
           default: 100,
           visible_if: { victoryMode: "points", pointsWinMode: ["target", "exact"] },
           required: true
+          helpText: 'Puntos exactos para ganar. Ej: 100 en Azul, 20 en King of Tokyo.',
         },
 
         {
@@ -335,6 +358,7 @@ window.ENGINE_SCHEMA = {
             { value: "target", label: "Meta N" },
             { value: "last_round", label: "Última ronda decisiva" }
           ]
+          helpText: 'Más victorias gana, o quien llegue exactamente a N victorias de ronda.',
         },
 
         {
@@ -344,6 +368,7 @@ window.ENGINE_SCHEMA = {
           default: 3,
           visible_if: { victoryMode: "wins" },
           required: true
+          helpText: '→ Pad: muestra contador de victorias 🏆. Nro de victorias para ganar la partida. Ej: 4 en Love Letter.',
         },
 
         {
@@ -356,6 +381,7 @@ window.ENGINE_SCHEMA = {
             { value: "last_alive", label: "Último con vida" },
             { value: "most_lives", label: "Más vidas" }
           ]
+          helpText: 'Último con vida (survival), o quien tenga más vidas al terminar el tiempo.',
         },
 
         {
@@ -369,6 +395,7 @@ window.ENGINE_SCHEMA = {
             { value: "last_team", label: "Último equipo" },
             { value: "eliminate_all", label: "Eliminar todos" }
           ]
+          helpText: 'Último jugador en pie (todos los demás eliminados).',
         },
 
         {
@@ -382,6 +409,7 @@ window.ENGINE_SCHEMA = {
             { value: "resource_goal", label: "Meta de recurso" },
             { value: "special_event", label: "Evento único" }
           ]
+          helpText: 'Ganar al completar una misión. El host declara quién lo logró.',
         },
 
         {
@@ -394,6 +422,7 @@ window.ENGINE_SCHEMA = {
             { value: "host_end", label: "Host decide cuándo" },
             { value: "host_pick", label: "Host define ganador" }
           ]
+          helpText: 'El host termina la partida y declara al ganador. Ideal para cooperativos.',
         },
 
         {
@@ -406,6 +435,7 @@ window.ENGINE_SCHEMA = {
             { value: "tool", label: "Herramienta" },
             { value: "host", label: "Host" }
           ]
+          helpText: 'Cómo se resuelve el empate. Dado/moneda para decidir, el host elige, o se comparte la victoria.',
         },
 
         {
@@ -502,6 +532,7 @@ window.ENGINE_SCHEMA = {
             { value: "objectives", label: "Objetivos" },
             { value: "custom", label: "Custom" }
           ]
+          helpText: '→ Pad: qué contadores aparecen. Puntos: calculadora. Victorias: contador 🏆. Vidas: contador ❤️. Puedes activar varios.',
         },
 
         {
@@ -510,6 +541,7 @@ window.ENGINE_SCHEMA = {
           label: "Nombre del contador custom",
           default: "",
           visible_if: { registers: ["custom"] }
+          helpText: 'Nombre del contador personalizado. Ej: "Energía", "Monedas", "Radiación".',
         },
 
         {
@@ -524,6 +556,7 @@ window.ENGINE_SCHEMA = {
             { value: "camera", label: "Con cámara" },
             { value: "ai", label: "Con IA" }
           ]
+          helpText: 'Cómo se ingresan los valores. Manual: el jugador/host los ingresa. Automática: calculados por el sistema.',
         },
 
         {
@@ -537,6 +570,7 @@ window.ENGINE_SCHEMA = {
             { value: "integer", label: "Enteros" },
             { value: "decimal", label: "Decimales" }
           ]
+          helpText: 'Solo positivos (no hay penalizaciones), positivos y negativos (hay penalizaciones o daño), decimales.',
         },
 
         {
@@ -550,6 +584,7 @@ window.ENGINE_SCHEMA = {
             { value: "reset_round", label: "Reinicia c/ronda" },
             { value: "persistent", label: "Siempre conserva" }
           ]
+          helpText: 'Global: un solo total. Por ronda: historial de cada ronda + total acumulado. Reinicia: score vuelve a 0 cada ronda.',
         },
 
         {
@@ -565,6 +600,7 @@ window.ENGINE_SCHEMA = {
             { value: "shield", label: "Escudo" },
             { value: "block", label: "Bloqueo" }
           ]
+          helpText: 'Extras del juego: bonus (+), penalización (-), multiplicador (×), escudo (bloquea daño). Activa los que apliquen.',
         },
 
         {
@@ -577,6 +613,7 @@ window.ENGINE_SCHEMA = {
             { value: "host", label: "Host" },
             { value: "all", label: "Todos" }
           ]
+          helpText: '→ Pad: quién ve la calculadora. Host: solo el organizador. Todos: cada jugador ingresa el suyo. Solo yo: cada quien el propio.',
         },
 
         {
@@ -690,6 +727,7 @@ window.ENGINE_SCHEMA = {
             { value: "counter", label: "Contador manual" },
             { value: "ai_judge", label: "Juez IA" }
           ]
+          helpText: '→ Pad: aparecen botones de herramientas (dado 🎲, moneda 🪙, ruleta 🎡). Activa los que necesites.',
         },
 
         {
@@ -702,6 +740,7 @@ window.ENGINE_SCHEMA = {
             { value: "informal", label: "Libre" },
             { value: "formal", label: "Formal" }
           ]
+          helpText: 'Libre: cualquiera usa las herramientas cuando quiere. Controlado: solo en el turno activo.',
         },
 
         {
@@ -710,6 +749,7 @@ window.ENGINE_SCHEMA = {
           label: "Registrar herramientas en historial",
           default: false,
           visible_if: { useTools: true }
+          helpText: 'Si el resultado (ej: "Saqué 6") se guarda en el historial de la partida.',
         },
 
         {
@@ -725,6 +765,7 @@ window.ENGINE_SCHEMA = {
             { value: "events", label: "Eventos" },
             { value: "rules", label: "Reglas" }
           ]
+          helpText: 'Si el resultado del dado/moneda modifica automáticamente el score de alguien.',
         },
 
         {
@@ -742,6 +783,7 @@ window.ENGINE_SCHEMA = {
             { value: "d20", label: "D20" },
             { value: "custom", label: "Custom" }
           ]
+          helpText: 'd6: dado clásico. d4/d8/d12/d20: dados de rol. Personalizado: tú defines las caras (ver abajo).',
         },
 
         {
@@ -750,6 +792,7 @@ window.ENGINE_SCHEMA = {
           label: "Lados custom",
           default: 6,
           visible_if: { useTools: true, tools: ["dice"], diceType: "custom" }
+          helpText: 'Las caras de tu dado personalizado, separadas por coma. Ej: "1,2,3,Pierde turno,+5,Doble siguiente".',
         },
 
         {
@@ -762,6 +805,7 @@ window.ENGINE_SCHEMA = {
             { value: "free", label: "Libre" },
             { value: "official", label: "Oficial" }
           ]
+          helpText: 'Para qué se usa la moneda. Decisión neutral, desempate entre jugadores, o primer jugador.',
         },
 
         {
@@ -774,6 +818,7 @@ window.ENGINE_SCHEMA = {
             { value: "fixed", label: "Fijos" },
             { value: "custom", label: "Custom" }
           ]
+          helpText: 'Los segmentos de tu ruleta, separados por coma. Ej: "+1,+2,+5,Pierde turno,Bonus,Nada".',
         },
 
         {
@@ -989,6 +1034,7 @@ window.ENGINE_SCHEMA = {
             { value: "all", label: "Todos" },
             { value: "judge", label: "Juez" }
           ]
+          helpText: '→ Pad: quién ve y puede usar la calculadora. Host = organizador. Mismo jugador = cada quien el suyo. Todos = cualquiera.',
         },
 
         {
@@ -1001,6 +1047,7 @@ window.ENGINE_SCHEMA = {
             { value: "player", label: "Jugadores" },
             { value: "all", label: "Todos" }
           ]
+          helpText: '→ Pad: quién puede tocar las herramientas (dado, moneda, ruleta).',
         },
 
         {
@@ -1012,6 +1059,7 @@ window.ENGINE_SCHEMA = {
             { value: "host", label: "Host" },
             { value: "all", label: "Todos" }
           ]
+          helpText: 'Quién puede cerrar una ronda. Normalmente solo el host para evitar cierres accidentales.',
         },
 
         {
@@ -1023,6 +1071,7 @@ window.ENGINE_SCHEMA = {
             { value: "host", label: "Host" },
             { value: "all", label: "Todos" }
           ]
+          helpText: 'Quién puede pausar la partida.',
         },
 
         {
@@ -1293,6 +1342,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Mostrar pantalla final",
           default: true
+          helpText: 'Muestra la pantalla de resultados con ranking, ganador y estadísticas al terminar la partida.',
         },
 
         {
@@ -1300,6 +1350,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Guardar historial",
           default: true
+          helpText: 'Guarda el historial de esta partida en tu cuenta para verlo en Stats después.',
         },
 
         {
@@ -1333,6 +1384,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Revancha conserva jugadores",
           default: true
+          helpText: 'En la revancha, mantiene los mismos jugadores — no tienen que volver a unirse.',
         },
 
         {
@@ -1340,6 +1392,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Revancha conserva sala",
           default: true
+          helpText: 'Mantiene el código de sala. Los jugadores que ya estaban conectados siguen ahí.',
         },
 
         {
@@ -1354,6 +1407,7 @@ window.ENGINE_SCHEMA = {
           type: "boolean",
           label: "Reiniciar puntajes",
           default: true
+          helpText: 'Reinicia todos los scores al iniciar la revancha.',
         },
 
         {
