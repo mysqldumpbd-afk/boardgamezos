@@ -188,162 +188,64 @@ function describeTemplate(t){
 // ── PRESET GAME TEMPLATES ───────────────────────────────────────
 // Templates precargados que demuestran el motor completo
 function getPresetTemplates(){
-  return [
-    {
-      id:'preset_strike', name:'Strike', emoji:'🎳', description:'Supervivencia · El último en pie gana',
-      config:{
-        type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',
-        useRounds:false, useTurns:false, useFirstPlayerToken:false, useTimer:false,
-        victoryMode:'lives', livesWinMode:'last_alive', tiebreak:'host',
-        winConditions:['Sin dados','Sin cartas','Last stand','Sin recursos','Time out'],
-        useDefeat:true, defeatType:'lives', defeatLives:'zero',
-        defeatMoment:'immediate', defeatConsequence:'eliminated',
-        registers:['lives'], captureType:'manual', valueNature:'positive',
-        accumulation:'global', modifiers:[], capturedBy:'self', scoreVisibility:'all',
-        useElimination:true, elimStartsAt:'round_1', elimMethod:'zero_lives',
-        elimTieRule:'host', elimAftermath:'out',
-        useTools:false, tools:[], toolsMode:'informal',
-        roles:['host','player'], scoreCapture:'self', roundCloseWho:'host',
-        endConditions:['last_elim'], showEndScreen:true, saveHistory:true,
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        // Legado
-        accumulates:'lives', scoreSign:'positive',
-      }
-    },
-    {
-      id:'preset_cubilete', name:'Cubilete', emoji:'🎲', description:'Dados con cubilete · Fichas · El último con vida gana',
-      config:{
-        type:'individual', minPlayers:2, maxPlayers:6, roomAccess:'code',
-        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
-        useTurns:true, turnOrder:'fixed', canSkipTurn:false, hasExtraTurns:false,
-        turnLimitPerRound:false, useFirstPlayerToken:true, useTimer:false,
-        victoryMode:'lives', livesWinMode:'last_alive', tiebreak:'host',
-        winConditions:['Par','Dos pares','Tercia','Full','Póker','Quintilla'],
-        useDefeat:true, defeatType:'lives', defeatLives:'zero',
-        defeatMoment:'round_end', defeatConsequence:'eliminated',
-        registers:['lives'], captureType:'manual', valueNature:'positive',
-        accumulation:'always_keep', modifiers:['penalty'], capturedBy:'host', scoreVisibility:'all',
-        useElimination:true, elimStartsAt:'round_1', elimMethod:'zero_lives',
-        elimTieRule:'host', elimAftermath:'out',
-        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
-        toolsAffect:[], coinUse:'free', wheelSegments:'fixed', rpsScope:'any',
-        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
-        pauseWho:'host', errorWho:'host', visHost:'all', visPlayer:'all', visSpectator:'score',
-        endConditions:['last_elim'], showEndScreen:true, saveHistory:true,
-        exportFormat:['image'],
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        accumulates:'lives', scoreSign:'positive',
-      }
-    },
-    {
-      id:'preset_nothanks', name:'No Thanks', emoji:'🚫',
-      description:'Rechaza cartas · Fichas como escudo · Menos puntos gana',
-      config:{
-        type:'individual', minPlayers:3, maxPlayers:7, roomAccess:'code',
-        useRounds:false, useTurns:true, turnOrder:'rotating', canSkipTurn:false,
-        useFirstPlayerToken:false, useTimer:false,
-        victoryMode:'manual', manualWinMode:'host_winner', tiebreak:'host',
-        winConditions:['Acepta carta','Rechaza (ficha)','Cadena formada','Sin fichas'],
-        useDefeat:false,
-        registers:['points','coins'], captureType:'manual',
-        valueNature:'both',
-        accumulation:'global', modifiers:['penalty','bonus'],
-        capturedBy:'host', scoreVisibility:'all',
-        useElimination:false,
-        useTools:true, tools:['counter'], toolsMode:'informal',
-        toolsRegistered:'no', toolsAffect:[],
-        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
-        endConditions:['manual'], showEndScreen:true, saveHistory:true,
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        accumulates:'points', scoreSign:'both',
-      }
-    },
-    {
-      id:'preset_nothanks', name:'No Thanks!', emoji:'🚫',
-      description:'Cartas con valores negativos · Fichas para rechazar · El menos puntos gana',
-      config:{
-        type:'individual', minPlayers:3, maxPlayers:7, roomAccess:'code',
-        useRounds:false, useTurns:true, turnOrder:'rotating', canSkipTurn:false,
-        useFirstPlayerToken:false, useTimer:false,
-        victoryMode:'points', pointsWinMode:'least',  // least = el que MENOS tiene gana
-        tiebreak:'host',
-        winConditions:['Carta aceptada','Fichas usadas','Carta rechazada'],
-        useDefeat:false,
-        registers:['points','coins'], captureType:'manual', valueNature:'both',
-        accumulation:'global', modifiers:['penalty','bonus'], capturedBy:'host',
-        scoreVisibility:'all', useElimination:false,
-        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
-        coinUse:'free', toolsAffect:[],
-        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
-        endConditions:['manual'], showEndScreen:true, saveHistory:true,
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        // Regla especial: puntos negativos son buenos — mostrar nota
-        gameNote:'🚫 En No Thanks el MENOR puntaje gana. Cada carta que tomas suma su valor. Las fichas en mano RESTAN. Las cartas consecutivas cuentan una sola vez (la menor).',
-        accumulates:'points', scoreSign:'both',
-      }
-    },
-    {
-      id:'preset_flip7', name:'Flip 7', emoji:'🎴',
-      description:'Volteador de cartas · Llegar a 7 cartas sin pasarse',
-      config:{
-        type:'individual', minPlayers:2, maxPlayers:8, roomAccess:'code',
-        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
-        useTurns:true, turnOrder:'fixed', canSkipTurn:false,
-        useFirstPlayerToken:true, useTimer:false,
-        victoryMode:'wins', winsMode:'target', winsTarget:3, tiebreak:'host',
-        winConditions:['Flip 7','Se pasó','Paró en 7','Penalización'],
-        useDefeat:true, defeatType:'points', defeatMoment:'round_end', defeatConsequence:'lose_points',
-        registers:['wins','points'], captureType:'manual', valueNature:'both',
-        accumulation:'global', modifiers:['penalty'], capturedBy:'host', scoreVisibility:'all',
-        useElimination:false,
-        useTools:true, tools:['counter'], toolsMode:'informal', toolsRegistered:'no',
-        toolsAffect:[], coinUse:'free',
-        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
-        endConditions:['victory'], showEndScreen:true, saveHistory:true,
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        gameNote:'🎴 Flip 7: voltea cartas tratando de llegar a exactamente 7. Si te pasas pierdes la ronda. El primero en ganar 3 rondas gana la partida.',
-        accumulates:'wins', scoreSign:'both',
-      }
-    },
-    {
-      id:'preset_uno', name:'UNO', emoji:'🃏', description:'Puntos por cartas · El primero en llegar a 500 gana',
-      config:{
-        type:'individual', minPlayers:2, maxPlayers:10, roomAccess:'code',
-        useRounds:true, rounds:'libre', roundClose:'manual', roundReset:'nothing',
-        useTurns:true, turnOrder:'rotating', canSkipTurn:true, hasExtraTurns:true,
-        turnLimitPerRound:false, useFirstPlayerToken:true, useTimer:false,
-        victoryMode:'points', pointsWinMode:'reach_x', targetScore:500, pointsValidation:'instant',
-        tiebreak:'host',
-        winConditions:['UNO!','Color especial','Comodín +4','Reversa','Salto'],
-        useDefeat:false,
-        registers:['points'], captureType:'manual', valueNature:'positive',
-        accumulation:'global', modifiers:['penalty','bonus'], capturedBy:'host', scoreVisibility:'all',
-        useElimination:false,
-        useTools:true, tools:['coin'], toolsMode:'informal', toolsRegistered:'no',
-        coinUse:'order', toolsAffect:[],
-        roles:['host','player'], scoreCapture:'host', roundCloseWho:'host',
-        endConditions:['victory'], showEndScreen:true, saveHistory:true,
-        rematchKeepPlayers:true,rematchKeepRoom:true,rematchKeepConfig:true,rematchResetScore:true,
-        accumulates:'points', scoreSign:'positive',
-      }
-    }
-  ];
+  // Usa OFFICIAL_PRESETS (official-presets.js) como fuente única de verdad
+  // Convierte cada preset al formato de template para Firebase
+  const map = window.OFFICIAL_PRESETS || {};
+  return Object.values(map)
+    .filter(p => p && p.config)
+    .sort((a,b) => (a.order||999) - (b.order||999))
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      emoji: p.emoji || '🎮',
+      description: (p.valueAdd || []).join(' · ') || p.name,
+      color: p.color || '#00F5FF',
+      category: p.category || 'general',
+      complexity: p.complexity || 'medium',
+      validates: p.validates || [],
+      valueAdd: p.valueAdd || [],
+      config: p.config,
+      schemaVersion: '2.0',
+    }));
 }
 
 async function seedPresetTemplates(uid){
+  if(!uid) return;
   const presets = getPresetTemplates();
-  // Sembrar cada preset que no exista — permite agregar nuevos sin borrar templates del usuario
+  if(!presets.length) return;
   for(const p of presets){
     try{
       const snap = await _db.ref(`gameTemplates/${uid}/${p.id}`).once('value');
-      if(!snap.val()){
+      const existing = snap.val();
+      // Solo sembrar si no existe, o si es una versión vieja (sin schemaVersion)
+      if(!existing || !existing.schemaVersion){
+        const now = Date.now();
+        // Generar runtime spec si el motor está disponible
+        let runtimeSpec = {};
+        let grouped = {};
+        try{
+          if(typeof resolveRuntime === 'function') runtimeSpec = resolveRuntime(p.config);
+          if(window.SchemaUtils?.groupConfigForStorage) grouped = window.SchemaUtils.groupConfigForStorage(p.config);
+        }catch(e){}
         await _db.ref(`gameTemplates/${uid}/${p.id}`).set({
-          id:p.id, uid, name:p.name, emoji:p.emoji,
-          description:p.description, config:p.config,
-          updatedAt:Date.now(), createdAt:Date.now()
+          id: p.id,
+          uid,
+          name: p.name,
+          emoji: p.emoji,
+          description: p.description,
+          color: p.color,
+          category: p.category,
+          complexity: p.complexity,
+          schemaVersion: '2.0',
+          config: p.config,          // plano — compatible con runtime actual
+          grouped,                   // por secciones — nuevo motor
+          runtime: runtimeSpec,      // spec + timeline + gameState
+          updatedAt: now,
+          createdAt: existing?.createdAt || now,
+          isPreset: true,
         });
       }
-    }catch(e){}
+    }catch(e){ console.warn('seedPreset error:', p.id, e); }
   }
 }
 

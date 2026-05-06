@@ -813,35 +813,38 @@ function App(){
 
   async function createRoom(gameType,customTitle,players,config){
     const code=uid4();
-    // Inicializar jugadores según config del motor
     const cfg=config||{};
-    const initLives=cfg.registers?.includes('lives')||
-      cfg.accumulates==='lives'||
-      cfg.victoryMode==='lives'||
-      gameType==='preset:strike' ? 5 : null;
+
+    // Generar spec del motor v2 para inicializar jugadores correctamente
+    let spec = null;
+    try{ if(typeof interpret==='function') spec = interpret(cfg); }catch(e){}
+
+    // Inicializar jugadores usando buildInitialPlayers si está disponible
+    let initPlayers;
+    if(spec && typeof buildInitialPlayers==='function'){
+      initPlayers = buildInitialPlayers(players.map((p,i)=>({...p,id:p.id||uid()})), spec);
+    } else {
+      // Fallback legacy
+      const initLives = cfg.registers?.includes('lives')||cfg.accumulates==='lives'||cfg.victoryMode==='lives'||gameType==='preset:strike' ? 5 : null;
+      initPlayers = players.map((p,i)=>({
+        ...p, id:p.id||uid(), total:0, wins:0, rounds:[],
+        ...(initLives!==null?{lives:initLives}:{}),
+        ...(cfg.registers?.includes('coins')?{coins:0}:{}),
+        ...(cfg.registers?.includes('custom')?{custom:0}:{}),
+        eliminated:false, finalPosition:null,
+        hasFirstPlayerToken: cfg.useFirstPlayerToken===true && i===0,
+      }));
+    }
+
+    // Runtime pre-calculado para guardar en room (lo usa UniversalRuntime v2)
+    let runtimeSpec = null;
+    try{ if(typeof resolveRuntime==='function') runtimeSpec = resolveRuntime(cfg); }catch(e){}
 
     await db.set(`rooms/${code}`,{
-      code,gameType,customTitle,status:'lobby',hostId:myId,
-      createdAt:Date.now(),config:cfg||null,
-      players:players.map((p,i)=>({
-        ...p,
-        id:p.id||uid(),
-        // Scores
-        total:0,wins:0,rounds:[],
-        // Vidas (si aplica)
-        ...(initLives!==null?{lives:initLives}:{}),
-        // Recursos / monedas
-        ...(cfg.registers?.includes('resources')?{resources:0}:{}),
-        ...(cfg.registers?.includes('coins')?{coins:0}:{}),
-        ...(cfg.registers?.includes('objectives')?{objectives:0}:{}),
-        ...(cfg.registers?.includes('custom')?{custom:0}:{}),
-        // Estado
-        eliminated:false,finalPosition:null,survivalMs:null,
-        // Modificadores
-        activeShield:false,activeBlock:false,activeDouble:false,
-        // Token primer jugador
-        hasFirstPlayerToken:cfg.useFirstPlayerToken===true && i===0,
-      })),
+      code, gameType, customTitle, status:'lobby', hostId:myId,
+      createdAt:Date.now(), config:cfg||null,
+      ...(runtimeSpec ? {runtimeSpec} : {}),
+      players: initPlayers,
       events:[]
     });
     setSession({code,demo:false,date:Date.now()});

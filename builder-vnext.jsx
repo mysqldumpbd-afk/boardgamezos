@@ -2355,8 +2355,14 @@ function MyGamesScreenVNext({ user, onBack, onBuildNew, onEditTemplate, onPlayTe
 
   React.useEffect(()=>{
     if(!user) return;
-    seedPresetTemplates(user.uid).catch(()=>{});
-    loadGameTemplates(user.uid).then(t=>{ setTemplates(t); setLoading(false); }).catch(()=>setLoading(false));
+    // Re-sembrar presets — incluye nuevos juegos de official-presets.js
+    seedPresetTemplates(user.uid)
+      .catch(()=>{})
+      .finally(()=>{
+        loadGameTemplates(user.uid)
+          .then(t=>{ setTemplates(t); setLoading(false); })
+          .catch(()=>setLoading(false));
+      });
   },[user?.uid]);
 
   async function handleDelete(t){

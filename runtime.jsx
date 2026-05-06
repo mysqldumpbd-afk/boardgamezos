@@ -499,16 +499,18 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   const timerRef = React.useRef(null);
   const prevStartedAtRef = React.useRef(null);
 
-  // Interpretar el config — puede venir del prop o del room en Firebase
+  // Config v2: soporta formato nuevo (.grouped, .runtime) y legacy (config plano)
   const [resolvedConfig, setResolvedConfig] = React.useState(templateConfig);
+  const [resolvedRuntime, setResolvedRuntime] = React.useState(null);
 
   React.useEffect(() => {
     const unsub = db.listen(`rooms/${session.code}`, data => {
       if (data) {
         setRoom(data);
-        // Si no tenemos config del prop, cargarlo del room
-        if (!resolvedConfig && data.config) {
-          setResolvedConfig(data.config);
+        if (!resolvedConfig) {
+          const cfg = data.config || null;
+          if (cfg) setResolvedConfig(cfg);
+          if (data.runtimeSpec) setResolvedRuntime(data.runtimeSpec);
         }
       }
     });
@@ -516,10 +518,17 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   }, [session.code]);
 
   const spec = React.useMemo(() => {
+    if (!resolvedConfig) return null;
     const s = interpret(resolvedConfig);
+    if (resolvedRuntime) {
+      s._timeline  = resolvedRuntime.timeline || [];
+      s._gameState = resolvedRuntime.gameState || {};
+      s._checklist = resolvedRuntime.phaseChecklistResolved || [];
+      s._entities  = resolvedRuntime.externalEntitiesResolved || [];
+    }
     window._runtimeSpec = s;
     return s;
-  }, [resolvedConfig]);
+  }, [resolvedConfig, resolvedRuntime]);
 
   // Presencia
   React.useEffect(() => {
@@ -685,7 +694,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     </div>
   );
 
-  if (!room || !resolvedConfig) return (
+  if (!room || !resolvedConfig || !spec) return (
     <div className="os-wrap">
       <div className="os-page" style={{ paddingTop: 80, textAlign: 'center' }}>
         <div className="os-spin" style={{ marginBottom: 16 }} />
