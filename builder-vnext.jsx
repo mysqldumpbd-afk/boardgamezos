@@ -1830,7 +1830,7 @@ function _runtimeFlowSteps(payload){
   if(autos.length) steps.push({ title:'Automatizaciones', desc:autos.map(a=>a.label || a.effect).join(' · ') });
   const phases = _previewResolvedList(payload, 'gamePhasesResolved');
   if(phases.length) steps.push({ title:'Fases asistidas', desc:phases.map(p=>p.label).join(' → ') });
-  const checks = _previewResolvedList(payload, 'phaseChecklistResolved');
+  const checklist = _previewResolvedList(payload, 'phaseChecklistResolved');
   if(checklist.length) steps.push({ title:'Checklist', desc:checklist.map(c=>c.label).join(' · ') });
   const entities = _previewResolvedList(payload, 'externalEntitiesResolved');
   if(entities.length) steps.push({ title:'Entidades externas', desc:entities.map(e=>e.label).join(' · ') });
@@ -2151,6 +2151,13 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
       .sort((a, b) => (a.order || 999) - (b.order || 999));
   }, []);
 
+  const [selectedPresetKey, setSelectedPresetKey] = React.useState('');
+
+  const selectedPreset = React.useMemo(()=>{
+    if(!presets.length) return null;
+    return presets.find(p => String(p.key || p.id) === String(selectedPresetKey)) || presets[0];
+  }, [presets, selectedPresetKey]);
+
   const livePayload = React.useMemo(()=>{
     if(!schema || !window.SchemaUtils) return null;
     try{
@@ -2259,24 +2266,105 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
             <div style={{fontFamily:'var(--font-label)',fontSize:'11px',letterSpacing:2,color:'rgba(255,255,255,.48)',marginBottom:8}}>
               PRESETS DE VALIDACIÓN
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:8}}>
-              {presets.map((preset, idx)=>{
-                const c = preset.color || BUILDER_SECTION_PALETTE[idx % BUILDER_SECTION_PALETTE.length];
-                return (
-                  <button
-                    key={preset.id || preset.key}
-                    type="button"
-                    onClick={()=>applyPreset(preset)}
-                    style={{..._gradientButtonStyle(c,{compact:true, full:true}), justifyContent:'space-between', alignItems:'flex-start', textAlign:'left', minHeight:66, flexDirection:'column'}}
-                  >
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span>{preset.emoji || '🎮'}</span>
-                      <span>{preset.name || preset.label || preset.key}</span>
+
+            <div style={{
+              padding:12,
+              borderRadius:16,
+              border:'1px solid rgba(255,255,255,.10)',
+              background:'linear-gradient(135deg, rgba(255,255,255,.045), rgba(255,255,255,.018))'
+            }}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,alignItems:'center'}}>
+                <select
+                  className="os-select"
+                  value={String((selectedPreset?.key || selectedPreset?.id) || '')}
+                  onChange={e=>setSelectedPresetKey(e.target.value)}
+                  style={{minHeight:42, fontSize:'0.86rem', padding:'8px 10px'}}
+                >
+                  {presets.map((preset)=>(
+                    <option key={preset.id || preset.key} value={String(preset.key || preset.id)}>
+                      {(preset.emoji || '🎮') + ' ' + (preset.name || preset.label || preset.key)}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={()=>applyPreset(selectedPreset)}
+                  disabled={!selectedPreset}
+                  style={_gradientButtonStyle((selectedPreset?.color || '#00F5FF'), {compact:true})}
+                >
+                  Cargar
+                </button>
+              </div>
+
+              {selectedPreset && (
+                <div style={{marginTop:10}}>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
+                    <span style={{
+                      padding:'5px 9px',
+                      borderRadius:999,
+                      background:_withAlpha(selectedPreset.color || '#00F5FF', .12),
+                      border:`1px solid ${_withAlpha(selectedPreset.color || '#00F5FF', .28)}`,
+                      color:selectedPreset.color || '#00F5FF',
+                      fontFamily:'var(--font-label)',
+                      fontSize:'10px',
+                      letterSpacing:1
+                    }}>
+                      {selectedPreset.category || 'preset'}
+                    </span>
+                    <span style={{
+                      padding:'5px 9px',
+                      borderRadius:999,
+                      background:'rgba(255,255,255,.05)',
+                      border:'1px solid rgba(255,255,255,.10)',
+                      color:'rgba(255,255,255,.68)',
+                      fontFamily:'var(--font-label)',
+                      fontSize:'10px',
+                      letterSpacing:1
+                    }}>
+                      {selectedPreset.complexity || 'medium'}
+                    </span>
+                  </div>
+
+                  {Array.isArray(selectedPreset.validates) && selectedPreset.validates.length > 0 && (
+                    <div style={{marginBottom:8}}>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'10px',letterSpacing:1.4,color:'rgba(255,255,255,.45)',marginBottom:5,textTransform:'uppercase'}}>Valida</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                        {selectedPreset.validates.map((v,i)=>(
+                          <span key={i} style={{
+                            padding:'5px 8px',
+                            borderRadius:10,
+                            background:'rgba(0,245,255,.07)',
+                            border:'1px solid rgba(0,245,255,.16)',
+                            color:'rgba(255,255,255,.76)',
+                            fontFamily:'var(--font-label)',
+                            fontSize:'10px'
+                          }}>
+                            {v}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{fontSize:'10px',opacity:.86,letterSpacing:.8,textTransform:'none',fontWeight:700}}>{preset.category || 'preset'} · {preset.complexity || 'medium'}</div>
-                  </button>
-                );
-              })}
+                  )}
+
+                  {Array.isArray(selectedPreset.valueAdd) && selectedPreset.valueAdd.length > 0 && (
+                    <div>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'10px',letterSpacing:1.4,color:'rgba(255,255,255,.45)',marginBottom:5,textTransform:'uppercase'}}>Qué debería probar</div>
+                      <div style={{display:'grid',gap:5}}>
+                        {selectedPreset.valueAdd.map((v,i)=>(
+                          <div key={i} style={{
+                            fontFamily:'var(--font-label)',
+                            fontSize:'11px',
+                            color:'rgba(255,255,255,.64)'
+                          }}>
+                            • {v}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
