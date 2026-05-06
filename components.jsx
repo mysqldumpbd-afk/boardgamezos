@@ -1,10 +1,79 @@
 // ═══════════════════════════════════════════════════════════════
-// components.jsx — BOARDGAMEZ OS v1.3
-// Fixes: ProfileSetup, GameBuilder visible, LiveScoreboard,
-//        botón eliminación grande, código sala siempre visible
+// components.jsx — BOARDGAMEZ OS v2.0
+// Incluye AuthScreen (extraído de builder.jsx legacy)
 // ═══════════════════════════════════════════════════════════════
 if(window._splashStep) window._splashStep(6);
 const{useState,useEffect,useRef,useCallback}=React;
+
+// ── AUTH SCREEN — extraído de builder.jsx para no depender de él ─
+function AuthScreen({ onAuth, onSkip }){
+  const [mode,setMode]=React.useState('choose');
+  const [email,setEmail]=React.useState('');
+  const [password,setPassword]=React.useState('');
+  const [loading,setLoading]=React.useState(false);
+  const [error,setError]=React.useState('');
+
+  async function handleGoogle(){
+    setLoading(true); setError('');
+    try{ const r=await authSignInGoogle(); onAuth(r.user); }
+    catch(e){ setError('Error con Google: '+(e.message||'intenta de nuevo')); setLoading(false); }
+  }
+  async function handleEmail(isSignUp){
+    if(!email.trim()||!password.trim()){ setError('Completa email y contraseña'); return; }
+    if(password.length<6){ setError('La contraseña debe tener al menos 6 caracteres'); return; }
+    setLoading(true); setError('');
+    try{
+      const r=isSignUp ? await authSignUpEmail(email.trim(),password) : await authSignInEmail(email.trim(),password);
+      onAuth(r.user);
+    } catch(e){
+      const msg=e.code==='auth/user-not-found'?'Usuario no encontrado':e.code==='auth/wrong-password'?'Contraseña incorrecta':e.code==='auth/email-already-in-use'?'Email ya registrado':e.code==='auth/invalid-email'?'Email inválido':(e.message||'Error de autenticación');
+      setError(msg); setLoading(false);
+    }
+  }
+
+  return(
+    <div className="os-wrap">
+      <div className="os-header">
+        <div><div className="os-logo">BOARD<span>GAMEZ</span></div><div className="os-logo-sub">OS · GAME BUILDER</div></div>
+        <button className="btn btn-ghost btn-sm" style={{width:'auto'}} onClick={onSkip}>Después →</button>
+      </div>
+      <div className="os-page" style={{paddingTop:16}}>
+        <div style={{textAlign:'center',background:'linear-gradient(135deg,rgba(155,93,229,.08),rgba(0,245,255,.04))',border:'1px solid rgba(155,93,229,.25)',borderRadius:18,padding:'24px 20px',marginBottom:24}}>
+          <div style={{fontSize:'3rem',marginBottom:10}}>🎮</div>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',letterSpacing:2,background:'linear-gradient(135deg,var(--purple),var(--cyan))',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',marginBottom:6}}>GAME BUILDER</div>
+          <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-sm)',fontWeight:600,color:'rgba(255,255,255,.45)',letterSpacing:1,lineHeight:1.5}}>Crea y guarda la configuración de tus juegos.<br/>La próxima vez solo la cargas y juegas.</div>
+        </div>
+        {mode==='choose'&&(
+          <div className="anim-fade">
+            <div className="os-section">INICIAR SESIÓN</div>
+            <button className="btn" style={{background:'#fff',color:'#333',marginBottom:12,border:'none',fontFamily:'var(--font-body)',fontWeight:700,fontSize:'var(--fs-sm)'}} onClick={handleGoogle} disabled={loading}>
+              <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Continuar con Google
+            </button>
+            <div style={{display:'flex',alignItems:'center',gap:10,margin:'16px 0'}}><div style={{flex:1,height:1,background:'rgba(255,255,255,.1)'}}/><div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:2}}>O CON EMAIL</div><div style={{flex:1,height:1,background:'rgba(255,255,255,.1)'}}/></div>
+            <button className="btn btn-ghost" onClick={()=>setMode('email-in')}>📧 Iniciar sesión con email</button>
+            <button className="btn btn-ghost" onClick={()=>setMode('email-up')}>✨ Crear cuenta nueva</button>
+            {error&&<div className="os-alert alert-red" style={{marginTop:12}}>{error}</div>}
+          </div>
+        )}
+        {(mode==='email-in'||mode==='email-up')&&(
+          <div className="anim-fade">
+            <div className="os-section">{mode==='email-up'?'CREAR CUENTA':'INICIAR SESIÓN'}</div>
+            <input className="os-input" type="email" placeholder="tu@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleEmail(mode==='email-up')}/>
+            <input className="os-input" type="password" placeholder={mode==='email-up'?'Contraseña (mín. 6 caracteres)':'Contraseña'} value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleEmail(mode==='email-up')}/>
+            {error&&<div className="os-alert alert-red">{error}</div>}
+            <button className="btn btn-cyan" disabled={loading} onClick={()=>handleEmail(mode==='email-up')}>{loading?'⏳ ...':mode==='email-up'?'✨ Crear cuenta':'🔑 Iniciar sesión'}</button>
+            <button className="btn btn-ghost" onClick={()=>{setMode('choose');setError('');}}>← Atrás</button>
+          </div>
+        )}
+        <div className="g16"/>
+        <div style={{background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.06)',borderRadius:12,padding:'12px 14px',fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.3)',letterSpacing:1,lineHeight:1.6}}>
+          🔒 Tu cuenta solo se usa para guardar tus juegos en la nube. Puedes jugar sin cuenta.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── PROFILE SETUP — se pide al crear la primera sala ────────────
 // ── PROFILE SETUP — rediseñado con anime.js ──────────────────────
