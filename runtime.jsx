@@ -519,30 +519,6 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
   );
 }
 
-){
-  if(!spec.hasRounds) return null;
-  const pct = total ? Math.min(100, ((current-1)/total)*100) : 0;
-  return(
-    <div style={{display:'flex',alignItems:'center',gap:8,
-      background:'rgba(0,245,255,.05)',border:'1px solid rgba(0,245,255,.15)',
-      borderRadius:10,padding:'6px 12px',marginBottom:10}}>
-      <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
-        color:'rgba(0,245,255,.5)'}}>RONDA</div>
-      <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',color:'var(--cyan)'}}>
-        {current}{total?`/${total}`:''}
-      </div>
-      {total && (
-        <div style={{flex:1,height:4,background:'rgba(255,255,255,.07)',borderRadius:2}}>
-          <div style={{width:pct+'%',height:'100%',borderRadius:2,
-            background:'linear-gradient(90deg,var(--cyan),var(--purple))',
-            transition:'width .4s ease'}}/>
-        </div>
-      )}
-      {!total && <div style={{fontFamily:'var(--font-label)',fontSize:'10px',
-        color:'rgba(255,255,255,.25)'}}>∞ Libre</div>}
-    </div>
-  );
-}
 
 // ── PLAYER ACTION CARD v3 ────────────────────────────────────────
 function PlayerActionCard({ player, spec, actions, captureActions, resultActions, statusIndicators,
