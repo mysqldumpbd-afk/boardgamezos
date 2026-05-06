@@ -242,7 +242,11 @@ function _playerActions(spec) {
       quickValues: [1, 5, 10, 50, -1, -5, -10],
       allowNegative: spec.valueNature === 'both',
       decimals: spec.valueNature === 'decimals',
-      visibleTo: _who(spec.scoreCapture),
+      visibleTo: spec.objectControlScope==='all'
+        ? ['host','player','self']
+        : spec.objectControlScope==='self'
+          ? ['host','self']
+          : _who(spec.scoreCapture),
       requires: { notEliminated: true },
     });
   }
@@ -273,7 +277,11 @@ function _playerActions(spec) {
       category: 'lives',
       affectsScore: true,
       autoTrigger: 'check_zero_lives', // si llega a 0 → eliminar
-      visibleTo: _who(spec.scoreCapture),
+      visibleTo: spec.objectControlScope==='all'
+        ? ['host','player','self']
+        : spec.objectControlScope==='self'
+          ? ['host','self']
+          : _who(spec.scoreCapture),
       requires: { notEliminated: true, livesAboveZero: true },
     });
     actions.push({
@@ -284,7 +292,11 @@ function _playerActions(spec) {
       type: 'direct',
       category: 'lives',
       affectsScore: true,
-      visibleTo: _who(spec.scoreCapture),
+      visibleTo: spec.objectControlScope==='all'
+        ? ['host','player','self']
+        : spec.objectControlScope==='self'
+          ? ['host','self']
+          : _who(spec.scoreCapture),
       requires: { notEliminated: true },
       secondary: true,  // en panel secundario
     });
@@ -311,7 +323,11 @@ function _playerActions(spec) {
     actions.push({
       id: 'complete_objective', label: 'Objetivo', icon: '🎯', color: '#9B5DE5',
       type: 'direct', category: 'objective', affectsScore: false,
-      visibleTo: _who(spec.scoreCapture),
+      visibleTo: spec.objectControlScope==='all'
+        ? ['host','player','self']
+        : spec.objectControlScope==='self'
+          ? ['host','self']
+          : _who(spec.scoreCapture),
       requires: { notEliminated: true }, secondary: true,
     });
   }

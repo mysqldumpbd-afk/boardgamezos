@@ -6,124 +6,170 @@
 if(window._splashStep) window._splashStep(5);
 const {useState,useEffect,useRef,useMemo,useCallback} = React;
 
-// ── CALCULADORA DE JUEGO (nueva — no el input viejo) ────────────
+// ── CALCULADORA DE JUEGO v2 ─────────────────────────────────────
 function GameCalc({ action, player, onConfirm, onCancel }){
-  const [val, setVal] = useState('');
-  const allowNeg = !!action.allowNegative;
-  const quick = action.quickValues || [];
-  const color = action.color || 'var(--cyan)';
+  const [val,      setVal]   = React.useState('');
+  const allowNeg  = !!action.allowNegative;
+  const quick     = (action.quickValues||[]).filter(v=>typeof v==='number');
+  const quickPos  = quick.filter(v=>v>0);
+  const quickNeg  = quick.filter(v=>v<0);
+  const color     = action.color || 'var(--cyan)';
 
-  function tap(v){ snd('tap'); setVal(String(v)); }
+  const numVal    = parseFloat(val);
+  const hasVal    = !isNaN(numVal) && numVal !== 0 && val !== '' && val !== '-';
+  const display   = val===''?'0':val==='-'?'-':(numVal>0&&allowNeg?'+':'')+val;
+
   function digit(d){
     snd('tap');
-    setVal(prev => {
-      if(prev === '' && d === '-') return allowNeg ? '-' : '';
-      if(prev === '-' && d === '-') return '';
-      const next = prev + d;
-      // máx 6 dígitos
-      const num = parseFloat(next);
-      if(isNaN(num) && next !== '-') return prev;
-      return next;
+    setVal(prev=>{
+      if(prev.replace('-','').length >= 5) return prev;
+      if(prev==='' && d==='0') return '0';
+      if(d==='-') return allowNeg ? (prev==='-'?'':'-') : prev;
+      if(prev==='0' && d!=='.') return d;
+      return prev+d;
     });
   }
-  function del(){ snd('tap'); setVal(prev => prev.slice(0,-1) || ''); }
+  function del(){ snd('tap'); setVal(p=>p.slice(0,-1)||''); }
+  function tap(v){ snd('tap'); setVal(String(v)); }
   function confirm(){
-    const n = parseFloat(val);
-    if(isNaN(n) || n === 0) return;
+    if(!hasVal) return;
     snd('score');
-    onConfirm({ value: n });
+    onConfirm({ value: numVal });
   }
 
-  const numVal = parseFloat(val);
-  const valid = !isNaN(numVal) && numVal !== 0;
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:9999,
+      background:'rgba(0,0,0,.75)',backdropFilter:'blur(10px)',
+      display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{
+        background:'linear-gradient(180deg,#0F0F20 0%,#090910 100%)',
+        borderTop:`2px solid ${color}55`,
+        borderRadius:'24px 24px 0 0',
+        padding:'0 0 env(safe-area-inset-bottom,0)',
+        width:'100%',maxWidth:420,
+        boxShadow:`0 -8px 40px ${color}22`,
+      }}>
 
-  const btnD = { width:72, height:52, borderRadius:12, border:'1px solid rgba(255,255,255,.1)',
-    background:'rgba(255,255,255,.06)', color:'#fff', cursor:'pointer',
-    fontFamily:'var(--font-display)', fontSize:'1.4rem', transition:'background .1s' };
-
-  return (
-    <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.88)',
-      backdropFilter:'blur(8px)',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:0}}>
-      <div className="anim-slide-up" style={{background:'#0D0D1C',borderTop:`2px solid ${color}44`,
-        borderRadius:'22px 22px 0 0',padding:'20px 16px 32px',width:'100%',maxWidth:400}}>
-
-        {/* Header */}
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-          <div style={{fontSize:'1.6rem'}}>{action.icon||'➕'}</div>
-          <div style={{flex:1}}>
-            <div style={{fontFamily:'var(--font-display)',fontSize:'.95rem',letterSpacing:1,color}}>{action.label}</div>
-            <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)',marginTop:1}}>
-              {player.emoji} {player.name}
-            </div>
-          </div>
-          <button onClick={onCancel} style={{background:'none',border:'1px solid rgba(255,255,255,.15)',
-            borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,.4)',cursor:'pointer',
-            fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)'}}>✕</button>
+        {/* HANDLE */}
+        <div style={{display:'flex',justifyContent:'center',padding:'10px 0 2px'}}>
+          <div style={{width:36,height:4,borderRadius:2,background:'rgba(255,255,255,.15)'}}/>
         </div>
 
-        {/* Valores rápidos */}
-        {quick.filter(v=>v>0).length > 0 && (
-          <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
-            {quick.filter(v=>v>0).map(v=>(
+        {/* HEADER */}
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 20px 14px'}}>
+          <div style={{width:44,height:44,borderRadius:13,
+            background:`${color}15`,border:`1.5px solid ${color}30`,
+            display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.5rem'}}>
+            {action.icon||'➕'}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,color}}>{action.label}</div>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.35)',marginTop:1}}>
+              {player?.emoji} {player?.name}
+            </div>
+          </div>
+          <button onClick={onCancel} style={{width:32,height:32,borderRadius:10,
+            background:'rgba(255,255,255,.08)',border:'1px solid rgba(255,255,255,.12)',
+            color:'rgba(255,255,255,.4)',cursor:'pointer',fontSize:'14px',
+            display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+        </div>
+
+        {/* QUICK VALUES */}
+        {(quickPos.length>0||quickNeg.length>0)&&(
+          <div style={{padding:'0 16px 12px',display:'flex',gap:6,flexWrap:'wrap'}}>
+            {quickPos.map(v=>(
               <button key={v} onClick={()=>tap(v)}
-                style={{flex:1,minWidth:50,padding:'10px 4px',borderRadius:10,border:'none',cursor:'pointer',
-                  fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
-                  background: String(val)===String(v) ? color : 'rgba(255,255,255,.08)',
-                  color: String(val)===String(v) ? 'var(--bg)' : '#fff',transition:'all .12s'}}>
+                style={{flex:1,minWidth:52,padding:'9px 4px',borderRadius:11,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'14px',fontWeight:700,
+                  background: String(val)===String(v)?color:'rgba(255,255,255,.08)',
+                  color: String(val)===String(v)?'#07070F':'rgba(255,255,255,.7)',
+                  transition:'all .12s'}}>
                 +{v}
               </button>
             ))}
-          </div>
-        )}
-        {allowNeg && quick.filter(v=>v<0).length > 0 && (
-          <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
-            {quick.filter(v=>v<0).map(v=>(
+            {allowNeg&&quickNeg.map(v=>(
               <button key={v} onClick={()=>tap(v)}
-                style={{flex:1,minWidth:50,padding:'10px 4px',borderRadius:10,border:'none',cursor:'pointer',
-                  fontFamily:'var(--font-display)',fontSize:'var(--fs-sm)',
-                  background: String(val)===String(v) ? '#FF3B5C' : 'rgba(255,59,92,.1)',
-                  color: String(val)===String(v) ? '#fff' : '#FF6B6B',transition:'all .12s'}}>
+                style={{flex:1,minWidth:52,padding:'9px 4px',borderRadius:11,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'14px',fontWeight:700,
+                  background: String(val)===String(v)?'var(--red)':'rgba(255,59,92,.1)',
+                  color: String(val)===String(v)?'#fff':'rgba(255,100,100,.8)',
+                  transition:'all .12s'}}>
                 {v}
               </button>
             ))}
           </div>
         )}
 
-        {/* Display */}
-        <div style={{textAlign:'center',fontFamily:'var(--font-display)',fontSize:'2.8rem',
-          color: valid ? color : 'rgba(255,255,255,.2)',
-          borderBottom:`2px solid ${valid ? color : 'rgba(255,255,255,.1)'}`,
-          paddingBottom:8,marginBottom:14,letterSpacing:2,
-          minHeight:56,transition:'color .2s'}}>
-          {val === '' ? '0' : (val === '-' ? '-' : (numVal > 0 && allowNeg ? '+' : '') + val)}
+        {/* DISPLAY */}
+        <div style={{margin:'0 16px 12px',padding:'12px 20px',borderRadius:14,
+          background:'rgba(0,0,0,.4)',border:`1px solid ${hasVal?color+'44':'rgba(255,255,255,.08)'}`,
+          textAlign:'center',transition:'border .2s'}}>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'2.6rem',letterSpacing:2,
+            color:hasVal?color:'rgba(255,255,255,.2)',transition:'color .2s',lineHeight:1}}>
+            {display}
+          </div>
+          {hasVal&&(
+            <div style={{fontFamily:'var(--font-label)',fontSize:'10px',
+              color:'rgba(255,255,255,.25)',marginTop:4,letterSpacing:1}}>
+              {action.targetRegister||'puntos'}
+            </div>
+          )}
         </div>
 
-        {/* Keypad */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+        {/* KEYPAD */}
+        <div style={{padding:'0 16px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
           {['7','8','9','4','5','6','1','2','3'].map(d=>(
-            <button key={d} onClick={()=>digit(d)} style={{...btnD,fontSize:'1.5rem'}}>{d}</button>
+            <button key={d} onClick={()=>digit(d)}
+              style={{padding:'16px 0',borderRadius:13,border:'none',cursor:'pointer',
+                fontFamily:'var(--font-display)',fontSize:'1.3rem',fontWeight:700,
+                background:'rgba(255,255,255,.07)',color:'#fff',
+                transition:'background .1s',letterSpacing:.5}}>
+              {d}
+            </button>
           ))}
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
-          {allowNeg && <button onClick={()=>digit('-')} style={{...btnD,color:'var(--red)',fontSize:'1.2rem',borderColor:'rgba(255,59,92,.2)'}}>±</button>}
-          {!allowNeg && <div/>}
-          <button onClick={()=>digit('0')} style={{...btnD,fontSize:'1.5rem'}}>0</button>
-          <button onClick={del} style={{...btnD,color:'rgba(255,212,71,.7)',fontSize:'1.3rem',borderColor:'rgba(255,212,71,.15)'}}>⌫</button>
+        <div style={{padding:'0 16px 14px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+          {allowNeg
+            ? <button onClick={()=>digit('-')}
+                style={{padding:'14px 0',borderRadius:13,border:'1px solid rgba(255,59,92,.2)',
+                  cursor:'pointer',fontFamily:'var(--font-display)',fontSize:'1.1rem',fontWeight:700,
+                  background:'rgba(255,59,92,.08)',color:'var(--red)',transition:'background .1s'}}>
+                ±
+              </button>
+            : <div/>
+          }
+          <button onClick={()=>digit('0')}
+            style={{padding:'14px 0',borderRadius:13,border:'none',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1.3rem',fontWeight:700,
+              background:'rgba(255,255,255,.07)',color:'#fff',transition:'background .1s'}}>
+            0
+          </button>
+          <button onClick={del}
+            style={{padding:'14px 0',borderRadius:13,border:'none',cursor:'pointer',
+              fontFamily:'var(--font-display)',fontSize:'1.1rem',
+              background:'rgba(255,255,255,.07)',color:'rgba(255,212,71,.8)',transition:'background .1s'}}>
+            ⌫
+          </button>
         </div>
 
-        {/* Confirm */}
-        <button onClick={confirm} disabled={!valid}
-          style={{width:'100%',padding:'16px',borderRadius:14,border:'none',cursor:valid?'pointer':'not-allowed',
-            fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:2,
-            background: valid ? color : 'rgba(255,255,255,.08)',
-            color: valid ? 'var(--bg)' : 'rgba(255,255,255,.25)',
-            boxShadow: valid ? `0 4px 20px ${color}44` : 'none',transition:'all .2s'}}>
-          {valid ? (numVal > 0 ? `+${numVal}` : `${numVal}`) + ' — CONFIRMAR' : 'INGRESA UN VALOR'}
-        </button>
+        {/* CONFIRM */}
+        <div style={{padding:'0 16px 20px'}}>
+          <button onClick={confirm} disabled={!hasVal}
+            style={{width:'100%',padding:'16px',borderRadius:14,border:'none',
+              cursor:hasVal?'pointer':'not-allowed',
+              fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:2,
+              background:hasVal?color:'rgba(255,255,255,.06)',
+              color:hasVal?'#07070F':'rgba(255,255,255,.2)',
+              boxShadow:hasVal?`0 4px 24px ${color}44`:'none',
+              transition:'all .2s'}}>
+            {hasVal?(numVal>0?`+${numVal}`:numVal)+' — CONFIRMAR':'INGRESA UN VALOR'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+
 
 // ── FASE ACTIVA — banda visual de fases, checklist y entidades ──
 function PhaseBand({ spec, room, onCheck, isHost }){
@@ -1401,7 +1447,30 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
   const [rematchLoading, setRematchLoading] = useState(false);
   const effectiveIsHostES = isHost||(myId&&room.hostId&&room.hostId===myId);
 
-  useEffect(()=>{ snd('victory'); },[]);
+  useEffect(()=>{
+    snd('victory');
+    // Guardar historial de partida al terminar
+    if(room && typeof saveSession === 'function'){
+      try{
+        saveSession({
+          id: room.code,
+          gameType: room.gameType,
+          customTitle: room.customTitle,
+          emoji: room.config?.emoji || '🎮',
+          playerCount: (room.players||[]).length,
+          winner: room.winner || null,
+          players: (room.players||[]).map(p=>({
+            id:p.id, name:p.name, emoji:p.emoji,
+            points:p.points||0, wins:p.wins||0, eliminated:p.eliminated||false,
+            turnHistory:p.turnHistory||[]
+          })),
+          startedAt: room.startedAt,
+          endedAt:   room.endedAt || Date.now(),
+          createdAt: room.createdAt,
+        });
+      }catch(e){}
+    }
+  },[]);
 
   const confetti = Array.from({length:28},(_,i)=>({
     id:i, c:['#FFD447','#FF6B35','#00F5FF','#00FF9D','#9B5DE5'][i%5],
