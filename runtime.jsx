@@ -125,82 +125,165 @@ function GameCalc({ action, player, onConfirm, onCancel }){
   );
 }
 
-// ── FASE ACTIVA — banda visual de fases y checklist ─────────────
+// ── FASE ACTIVA — banda visual de fases, checklist y entidades ──
 function PhaseBand({ spec, room, onCheck, isHost }){
-  const phases  = spec._timeline?.filter(t=>t.type==='phase') || [];
-  const checks  = spec._timeline?.filter(t=>t.type==='checklist') || [];
-  const curPhase = room.currentPhase || (phases[0]?.phaseId);
-  const checklist = room.checklist || {};
+  const phases   = spec._timeline?.filter(t=>t.type==='phase')    || [];
+  const allChecks= spec._timeline?.filter(t=>t.type==='checklist')|| [];
+  const entities = spec._timeline?.filter(t=>t.type==='entity')   || [];
+  const curPhase = room.currentPhase || phases[0]?.phaseId;
+  const checklist= room.checklist || {};
 
-  if(!phases.length && !checks.length) return null;
+  // Solo mostrar checks de la fase activa (o todos si no hay fases)
+  const visibleChecks = curPhase && phases.length
+    ? allChecks.filter(c=> !c.phaseId || c.phaseId === curPhase || c.phaseId === 'manual')
+    : allChecks;
+
+  const doneCount = visibleChecks.filter(c=>{
+    const val = checklist[c.id];
+    return typeof val==='object' ? val?.done : !!val;
+  }).length;
+  const reqCount = visibleChecks.filter(c=>c.required).length;
+
+  if(!phases.length && !allChecks.length && !entities.length) return null;
 
   return(
-    <div style={{background:'rgba(155,93,229,.06)',border:'1px solid rgba(155,93,229,.2)',
-      borderRadius:12,padding:'10px 12px',marginBottom:12}}>
+    <div style={{borderRadius:14,overflow:'hidden',marginBottom:12,
+      border:'1px solid rgba(155,93,229,.2)',background:'rgba(155,93,229,.04)'}}>
 
-      {/* Fases */}
-      {phases.length > 0 && (
-        <div style={{marginBottom:checks.length?8:0}}>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
-            color:'rgba(255,255,255,.3)',marginBottom:6}}>FASE ACTUAL</div>
-          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-            {phases.map(p=>{
-              const active = p.phaseId === curPhase;
-              return(
-                <button key={p.id}
-                  onClick={()=>isHost && onCheck && onCheck('set_phase', p.phaseId)}
-                  style={{padding:'5px 10px',borderRadius:8,
-                    border:`1px solid ${active?'rgba(155,93,229,.6)':'rgba(255,255,255,.08)'}`,
-                    background: active?'rgba(155,93,229,.2)':'rgba(255,255,255,.03)',
-                    color: active?'var(--purple)':'rgba(255,255,255,.4)',
-                    fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
-                    cursor:isHost?'pointer':'default',letterSpacing:.5}}>
-                  {p.label}
-                </button>
-              );
-            })}
+      {/* Header de sección con progreso */}
+      <div style={{padding:'8px 12px',borderBottom:'1px solid rgba(155,93,229,.1)',
+        display:'flex',alignItems:'center',gap:8}}>
+        <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+          color:'rgba(155,93,229,.7)',flex:1}}>FLUJO DE PARTIDA</div>
+        {visibleChecks.length>0 && (
+          <div style={{fontFamily:'var(--font-display)',fontSize:'11px',
+            color: doneCount===visibleChecks.length?'var(--green)':'rgba(255,255,255,.3)'}}>
+            {doneCount}/{visibleChecks.length}
+            {reqCount>0&&` · ${reqCount} req`}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Checklist */}
-      {checks.length > 0 && (
-        <div>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
-            color:'rgba(255,255,255,.3)',marginBottom:6}}>CHECKLIST DE FASE</div>
-          <div style={{display:'flex',flexDirection:'column',gap:4}}>
-            {checks.map(c=>{
-              const done = !!(checklist[c.id]?.done ?? checklist[c.id]);
-              return(
-                <button key={c.id}
-                  onClick={()=> isHost && onCheck && onCheck('toggle_check', c.id)}
-                  style={{display:'flex',alignItems:'center',gap:8,
-                    padding:'6px 10px',borderRadius:8,
-                    border:`1px solid ${done?'rgba(0,255,157,.25)':'rgba(255,255,255,.08)'}`,
-                    background: done?'rgba(0,255,157,.06)':'rgba(255,255,255,.02)',
-                    cursor:isHost?'pointer':'default',textAlign:'left'}}>
-                  <div style={{width:16,height:16,borderRadius:4,flexShrink:0,
-                    border:`2px solid ${done?'var(--green)':'rgba(255,255,255,.2)'}`,
-                    background: done?'var(--green)':'transparent',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:'9px',color:'var(--bg)',fontWeight:900}}>
-                    {done?'✓':''}
-                  </div>
-                  <div style={{fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:600,
-                    color:done?'rgba(255,255,255,.45)':'rgba(255,255,255,.7)',
-                    textDecoration:done?'line-through':'none'}}>
-                    {c.label}
-                  </div>
-                  {c.required&&!done&&(
-                    <div style={{marginLeft:'auto',fontFamily:'var(--font-ui)',fontSize:'7px',
-                      letterSpacing:1,color:'rgba(255,107,53,.6)'}}>REQ</div>
-                  )}
-                </button>
-              );
-            })}
+      <div style={{padding:'10px 12px',display:'flex',flexDirection:'column',gap:10}}>
+
+        {/* Fases — selector horizontal */}
+        {phases.length > 0 && (
+          <div>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+              color:'rgba(255,255,255,.25)',marginBottom:5}}>FASE</div>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              {phases.map((p,idx)=>{
+                const active = p.phaseId===curPhase;
+                const phaseChecks = allChecks.filter(c=>c.phaseId===p.phaseId);
+                const phaseDone   = phaseChecks.filter(c=>{
+                  const v=checklist[c.id]; return typeof v==='object'?v?.done:!!v;
+                }).length;
+                return(
+                  <button key={p.id}
+                    onClick={()=>isHost&&onCheck&&onCheck('set_phase',p.phaseId)}
+                    style={{padding:'6px 11px',borderRadius:8,cursor:isHost?'pointer':'default',
+                      border:`1px solid ${active?'rgba(155,93,229,.5)':'rgba(255,255,255,.07)'}`,
+                      background:active?'rgba(155,93,229,.18)':'rgba(255,255,255,.02)',
+                      color:active?'var(--purple)':'rgba(255,255,255,.35)',
+                      fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                      letterSpacing:.3,display:'flex',alignItems:'center',gap:5}}>
+                    <span style={{opacity:.5,fontSize:'9px'}}>{idx+1}.</span>
+                    {p.label}
+                    {phaseChecks.length>0&&(
+                      <span style={{fontFamily:'var(--font-ui)',fontSize:'7px',
+                        color:phaseDone===phaseChecks.length?'var(--green)':'rgba(255,255,255,.25)',
+                        marginLeft:2}}>{phaseDone}/{phaseChecks.length}</span>
+                    )}
+                    {active&&<span style={{width:5,height:5,borderRadius:'50%',
+                      background:'var(--purple)',flexShrink:0}}/>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Checklist de fase activa */}
+        {visibleChecks.length > 0 && (
+          <div>
+            {curPhase&&phases.length>0&&(
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.2)',marginBottom:5}}>
+                CHECKLIST — {phases.find(p=>p.phaseId===curPhase)?.label||curPhase}
+              </div>
+            )}
+            {!curPhase||!phases.length?(
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.2)',marginBottom:5}}>CHECKLIST</div>
+            ):null}
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {visibleChecks.map(c=>{
+                const raw  = checklist[c.id];
+                const done = typeof raw==='object' ? raw?.done : !!raw;
+                return(
+                  <button key={c.id}
+                    onClick={()=>isHost&&onCheck&&onCheck('toggle_check',c.id)}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',
+                      borderRadius:8,textAlign:'left',cursor:isHost?'pointer':'default',
+                      border:`1px solid ${done?'rgba(0,255,157,.2)':'rgba(255,255,255,.07)'}`,
+                      background:done?'rgba(0,255,157,.05)':'rgba(255,255,255,.02)',
+                      transition:'all .15s'}}>
+                    <div style={{width:18,height:18,borderRadius:5,flexShrink:0,
+                      border:`2px solid ${done?'var(--green)':'rgba(255,255,255,.2)'}`,
+                      background:done?'var(--green)':'transparent',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:'10px',color:'var(--bg)',fontWeight:900,transition:'all .15s'}}>
+                      {done?'✓':''}
+                    </div>
+                    <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:600,
+                      color:done?'rgba(255,255,255,.35)':'rgba(255,255,255,.75)',
+                      textDecoration:done?'line-through':'none',lineHeight:1.3}}>
+                      {c.label}
+                    </div>
+                    {c.required&&!done&&(
+                      <div style={{fontFamily:'var(--font-ui)',fontSize:'6px',letterSpacing:1,
+                        color:'rgba(255,107,53,.7)',background:'rgba(255,107,53,.1)',
+                        padding:'2px 5px',borderRadius:3,flexShrink:0}}>REQ</div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Entidades externas — tokens, bolsa, etc. */}
+        {entities.length > 0 && (
+          <div>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+              color:'rgba(255,255,255,.2)',marginBottom:5}}>ENTIDADES</div>
+            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+              {entities.map(e=>{
+                const roomEntities = room.entities||{};
+                const val = roomEntities[e.entityType==='token'
+                  ? e.id.replace('entity_','') : e.id.replace('entity_','')]?.value
+                  ?? e.defaultState ?? '—';
+                return(
+                  <div key={e.id} style={{padding:'5px 10px',borderRadius:8,
+                    background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',
+                    display:'flex',alignItems:'center',gap:5}}>
+                    <span style={{fontSize:'1rem'}}>{
+                      (()=>{ const raw=e.id.replace('entity_',''); const found=spec._entities?.find(en=>en.id===raw); return found?.icon||'🔹'; })()
+                    }</span>
+                    <div>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'10px',fontWeight:700,
+                        color:'rgba(255,255,255,.6)',lineHeight:1}}>{e.label}</div>
+                      <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',
+                        color:'rgba(255,255,255,.3)',marginTop:1}}>{String(val)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
@@ -568,15 +651,22 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   const spec = useMemo(()=>{
     if(!resolvedConfig) return null;
     const s = interpret(resolvedConfig);
-    // Enriquecer con datos del nuevo motor si están disponibles
-    if(resolvedRuntime){
-      s._timeline  = resolvedRuntime.timeline  || [];
-      s._checklist = resolvedRuntime.phaseChecklistResolved || [];
-      s._entities  = resolvedRuntime.externalEntitiesResolved || [];
-      s._captureActions  = resolvedRuntime.captureActionsResolved  || [];
-      s._resultActions   = resolvedRuntime.resultActionsResolved   || [];
-      s._statusIndicators= resolvedRuntime.statusIndicatorsResolved|| [];
-      s._phases    = resolvedRuntime.gamePhasesResolved || [];
+
+    // Enriquecer con motor v2: usa runtimeSpec del room si existe,
+    // si no, lo calcula en el cliente (fallback para salas sin runtimeSpec)
+    const rt = resolvedRuntime ||
+      (typeof window.RuntimeResolver?.resolveRuntime === 'function'
+        ? (() => { try{ return window.RuntimeResolver.resolveRuntime(resolvedConfig); }catch(e){ return null; } })()
+        : null);
+
+    if(rt){
+      s._timeline         = rt.timeline                   || [];
+      s._checklist        = rt.phaseChecklistResolved     || [];
+      s._entities         = rt.externalEntitiesResolved   || [];
+      s._captureActions   = rt.captureActionsResolved     || [];
+      s._resultActions    = rt.resultActionsResolved      || [];
+      s._statusIndicators = rt.statusIndicatorsResolved   || [];
+      s._phases           = rt.gamePhasesResolved         || [];
     }
     window._runtimeSpec = s;
     return s;
@@ -608,6 +698,18 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
       prevStartedAtRef.current = room.startedAt||null;
       setShowEndScreen(false); setVictoryResult(null);
       setToast(null); setShowRematchOverlay(false);
+      // Auto-inicializar checklist y fase si no existen
+      if(spec && !room.checklist && spec._checklist?.length){
+        const initCl = {};
+        spec._checklist.forEach(c=>{
+          initCl[c.id]={done:false,required:c.required!==false,reset:c.autoReset||'round'};
+        });
+        db.set(`rooms/${session.code}/checklist`, initCl).catch(()=>{});
+      }
+      if(spec && !room.currentPhase && spec._phases?.length){
+        const firstPhase = spec._phases[0];
+        if(firstPhase?.id) db.set(`rooms/${session.code}/currentPhase`, firstPhase.id).catch(()=>{});
+      }
     } else if(room.status==='lobby'){
       setShowEndScreen(false); setVictoryResult(null); setToast(null); setShowRematchOverlay(false);
     }
@@ -646,7 +748,10 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         const nextRound = (room.currentRound||1)+1;
         const newRound  = {number:room.currentRound||1, closedAt:now};
         const rounds    = [...(room.rounds||[]), newRound];
-        let updates     = {rounds, currentRound:nextRound};
+        // Al cerrar ronda: volver a primera fase si las fases son de scope=round
+        const firstPhase = spec._timeline?.find(t=>t.type==='phase');
+        let updates     = {rounds, currentRound:nextRound,
+          ...(firstPhase?{currentPhase:firstPhase.phaseId}:{})};
         // Reiniciar checklist de ronda
         if(room.checklist){
           const resetChecklist = {};
@@ -694,16 +799,28 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   }
 
   async function handleCheckAction(type, id){
-    if(!room) return;
+    if(!room||!spec) return;
     if(type==='toggle_check'){
       const cur = room.checklist?.[id];
       const curDone = typeof cur==='object' ? cur.done : !!cur;
-      await db.set(`rooms/${session.code}/checklist/${id}`,
-        typeof cur==='object' ? {...cur,done:!curDone} : !curDone);
+      // Si el checklist no existe en Firebase, inicializarlo desde spec
+      if(!room.checklist){
+        const initChecklist = {};
+        (spec._checklist||[]).forEach(c=>{
+          initChecklist[c.id] = {done:false,required:c.required!==false,reset:c.autoReset||'round'};
+        });
+        initChecklist[id] = {...(initChecklist[id]||{}), done:true};
+        await db.set(`rooms/${session.code}/checklist`, initChecklist);
+      } else {
+        const newVal = typeof cur==='object' ? {...cur, done:!curDone} : !curDone;
+        await db.set(`rooms/${session.code}/checklist/${id}`, newVal);
+      }
       snd('tap');
     } else if(type==='set_phase'){
       await db.set(`rooms/${session.code}/currentPhase`, id);
-      snd('tap'); showToast(`Fase: ${id}`,'var(--purple)');
+      snd('tap');
+      const phaseName = spec._timeline?.find(t=>t.phaseId===id&&t.type==='phase')?.label || id;
+      showToast(`📍 ${phaseName}`,'var(--purple)');
     }
   }
 
