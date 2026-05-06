@@ -173,7 +173,7 @@ nemesisAssist: {
       ],
       trackRoundHistory:true
     }
-  }
+  },
   misionCumplida: {
     id:'mision_cumplida', order:17, name:'Misión Cumplida', emoji:'🎯',
     color:'#00FF9D', category:'card_game', complexity:'low',
