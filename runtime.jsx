@@ -144,7 +144,8 @@ function PhaseBand({ spec, room, onCheck, isHost }){
   }).length;
   const reqCount = visibleChecks.filter(c=>c.required).length;
 
-  const inRoundPhase = curPhase && roundPhases.some(p=>p.id===curPhase);
+  const roundPhases   = phases.filter(p=>p.scope==='round');
+  const inRoundPhase  = curPhase && roundPhases.some(p=>p.id===curPhase);
   const turnPhasesAll = phases.filter(p=>p.scope==='turn');
 
   if(!phases.length && !allChecks.length && !entities.length) return null;
