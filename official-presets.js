@@ -95,5 +95,83 @@ nemesisAssist: {
     validates:['market','dragon','entities','checklist'],
     valueAdd:['Mercado/dungeon','Bolsa de dragón','Recordatorios de ruido'],
     config:{ name:'Clank! Assist', emoji:'🐉', type:'individual', minPlayers:2, maxPlayers:4, useRounds:true, rounds:'libre', roundClose:'manual', useTurns:true, turnOrder:'rotative', victoryMode:'points', pointsWinMode:'most', pointsValidation:'round_end', registers:['points'], playMode:'enhanced', playObjects:['score_input'], scoreInputLabel:'Ajustar puntos', scoreInputTarget:'points', useFlowAssistance:true, gamePhases:[{id:'play_cards',label:'Jugar cartas',order:1,scope:'turn',owner:'player',trigger:'turn_start',description:'Generar recursos'},{id:'dragon_attack',label:'Ataque del dragón',order:2,scope:'turn',owner:'host',trigger:'manual',description:'Resolver bolsa'}], phaseChecklist:[{id:'add_clank',label:'Agregar cubos de Clank!',phaseId:'play_cards',visibleTo:'all',required:false,autoReset:'turn'},{id:'draw_dragon_bag',label:'Robar de la bolsa del dragón',phaseId:'dragon_attack',visibleTo:'host',required:false,autoReset:'turn'}], externalEntities:[{id:'dragon_bag',label:'Bolsa del dragón',icon:'🐉',entityType:'deck',stateType:'count',defaultState:'manual',visibleTo:'host',description:'Bolsa del dragón'}], trackRoundHistory:true }
+  },
+
+  azul: {
+    id:'azul', order:15, name:'Azul', emoji:'🟦', color:'#4A90FF', category:'tile_scoring', complexity:'medium',
+    validates:['rounds','first_player','manual_score','end_condition','flow_assistance'],
+    valueAdd:['Checklist de cierre','Primer jugador','Puntuación por ronda y bonus final','Entidades: ficha primer jugador y bolsa'],
+    config:{
+      name:'Azul', emoji:'🟦', type:'individual', minPlayers:2, maxPlayers:4,
+      useRounds:true, rounds:'libre', roundClose:'manual',
+      useTurns:true, turnOrder:'rotative', useFirstPlayerToken:true,
+      victoryMode:'points', pointsWinMode:'most', pointsValidation:'round_end',
+      registers:['points'],
+      playMode:'minimal',
+      playObjects:['score_input','round_resolution_popup','first_player_token'],
+      scoreInputLabel:'Capturar puntos de ronda',
+      scoreInputTarget:'points',
+      roundResolutionFields:['winner','round_points','notes'],
+      objectControlScope:'host',
+      useFlowAssistance:true,
+      gamePhases:[
+        {id:'factory_offer',label:'Oferta de fábricas',order:1,scope:'round',owner:'player',trigger:'manual',description:'Tomar azulejos de fábrica o centro'},
+        {id:'wall_tiling',label:'Mosaico / pared',order:2,scope:'round',owner:'host',trigger:'round_end',description:'Mover azulejos y puntuar'},
+        {id:'cleanup',label:'Limpieza y primer jugador',order:3,scope:'round',owner:'host',trigger:'round_end',description:'Revisar ficha de primer jugador y preparar bolsa'}
+      ],
+      phaseChecklist:[
+        {id:'floor_penalty',label:'Aplicar penalización del piso',phaseId:'wall_tiling',visibleTo:'host',required:true,autoReset:'round'},
+        {id:'check_horizontal_row',label:'¿Alguien completó fila horizontal?',phaseId:'wall_tiling',visibleTo:'host',required:true,autoReset:'round'},
+        {id:'final_bonus',label:'Si terminó partida, aplicar bonus final',phaseId:'cleanup',visibleTo:'host',required:false,autoReset:'never'}
+      ],
+      externalEntities:[
+        {id:'first_player_tile',label:'Ficha primer jugador',icon:'🔹',entityType:'token',stateType:'holder',defaultState:'centro',visibleTo:'all',description:'Determina quién inicia la siguiente ronda'},
+        {id:'tile_bag',label:'Bolsa de azulejos',icon:'👜',entityType:'deck',stateType:'count',defaultState:'manual',visibleTo:'host',description:'Control manual si se desea'}
+      ],
+      phaseLifecycle:[
+        {id:'wall_tiling_life',phaseId:'wall_tiling',label:'Mosaico / pared',reset:'round',autoEnter:false,autoExit:false,blocksAdvance:true}
+      ],
+      trackRoundHistory:true
+    }
+  },
+
+  falloutShelter: {
+    id:'fallout_shelter', order:16, name:'Fallout Shelter', emoji:'☢️', color:'#B7FF3C', category:'worker_placement_assist', complexity:'high',
+    validates:['turns','phases','entities','checklist','dice_reminders'],
+    valueAdd:['Recordatorio de amenazas','Fases de turno','Entidades como habitación/evento/enemigo','Dados como herramienta de apoyo'],
+    config:{
+      name:'Fallout Shelter', emoji:'☢️', type:'individual', minPlayers:2, maxPlayers:4,
+      useRounds:true, rounds:'libre', roundClose:'manual',
+      useTurns:true, turnOrder:'rotative', useFirstPlayerToken:true,
+      victoryMode:'points', pointsWinMode:'most', pointsValidation:'round_end',
+      registers:['points'],
+      playMode:'enhanced',
+      playObjects:['score_input','first_player_token','dice_tool'],
+      scoreInputLabel:'Ajustar felicidad / puntos',
+      scoreInputTarget:'points',
+      objectControlScope:'host',
+      useTools:true, tools:['dice'],
+      useFlowAssistance:true,
+      gamePhases:[
+        {id:'assign_dwellers',label:'Asignar moradores',order:1,scope:'turn',owner:'player',trigger:'turn_start',description:'Colocar o activar moradores'},
+        {id:'resolve_room',label:'Resolver habitación',order:2,scope:'turn',owner:'player',trigger:'manual',description:'Aplicar producción o efecto'},
+        {id:'resolve_threat',label:'Resolver amenaza',order:3,scope:'turn',owner:'host',trigger:'manual',description:'Si hay enemigo/evento, tirar dados y aplicar daño'},
+        {id:'end_turn',label:'Cierre de turno',order:4,scope:'turn',owner:'host',trigger:'manual',description:'Revisar mano, recursos y siguiente jugador'}
+      ],
+      phaseChecklist:[
+        {id:'monster_dice',label:'Tirar dados de monstruo si hay amenaza',phaseId:'resolve_threat',visibleTo:'host',required:false,autoReset:'turn'},
+        {id:'apply_damage',label:'Aplicar daño / recompensa',phaseId:'resolve_threat',visibleTo:'host',required:false,autoReset:'turn'},
+        {id:'pass_first_player',label:'Pasar ficha de primer jugador cuando aplique',phaseId:'end_turn',visibleTo:'host',required:false,autoReset:'round'}
+      ],
+      externalEntities:[
+        {id:'first_player_token',label:'Primer jugador',icon:'🎯',entityType:'token',stateType:'holder',defaultState:'manual',visibleTo:'all',description:'Control de iniciativa'},
+        {id:'active_threat',label:'Amenaza activa',icon:'👾',entityType:'enemy',stateType:'status',defaultState:'ninguna',visibleTo:'all',description:'Enemigo o evento pendiente'},
+        {id:'active_room',label:'Habitación activa',icon:'🏠',entityType:'room',stateType:'status',defaultState:'manual',visibleTo:'host',description:'Habitación que se resolvió o está pendiente'}
+      ],
+      phaseLifecycle:[
+        {id:'resolve_threat_life',phaseId:'resolve_threat',label:'Resolver amenaza',reset:'turn',autoEnter:false,autoExit:false,blocksAdvance:true}
+      ],
+      trackRoundHistory:true
+    }
   }
 };

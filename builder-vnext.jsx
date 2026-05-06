@@ -2280,7 +2280,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Schema
                   onChange={e=>setSelectedPresetKey(e.target.value)}
                   style={{minHeight:42, fontSize:'0.86rem', padding:'8px 10px'}}
                 >
-                  {presets.map((preset)=>(
+                  {[...presets].sort((a,b)=>(a.order||999)-(b.order||999)).map((preset)=>(
                     <option key={preset.id || preset.key} value={String(preset.key || preset.id)}>
                       {(preset.emoji || '🎮') + ' ' + (preset.name || preset.label || preset.key)}
                     </option>
