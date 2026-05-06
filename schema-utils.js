@@ -105,10 +105,21 @@ function sectionState(section, config){
     cfg.minPlayers = Math.max(1, parseInt(cfg.minPlayers || 1));
     cfg.maxPlayers = Math.max(cfg.minPlayers, parseInt(cfg.maxPlayers || cfg.minPlayers));
 
-    cfg.numTeams = Math.max(2, parseInt(cfg.numTeams || 2));
-    cfg.rounds = Math.max(1, parseInt(cfg.rounds || 1));
-    cfg.targetScore = Math.max(1, parseInt(cfg.targetScore || 1));
-    cfg.winsTarget = Math.max(1, parseInt(cfg.winsTarget || 1));
+    cfg.numTeams = Math.max(2, parseInt(cfg.numTeams || 2) || 2);
+
+    // rounds puede ser 'libre' (string válido) o un número — NO convertir 'libre' a NaN
+    if(cfg.rounds !== 'libre'){
+      const rNum = parseInt(cfg.rounds);
+      cfg.rounds = (!isNaN(rNum) && rNum >= 1) ? rNum : 3;
+    }
+
+    // NaN-safe: si parseInt falla, usar default
+    const safeInt = (v, def) => { const n = parseInt(v); return isNaN(n) ? def : Math.max(def, n); };
+    cfg.targetScore    = safeInt(cfg.targetScore, 1);
+    cfg.winsTarget     = safeInt(cfg.winsTarget, 1);
+    cfg.timerSecs      = safeInt(cfg.timerSecs, 30);
+    cfg.roundTimerSecs = safeInt(cfg.roundTimerSecs, 60);
+    cfg.turnLimitCount = safeInt(cfg.turnLimitCount, 1);
 
     // Arrays seguros
 	const arrays = [
@@ -659,9 +670,24 @@ function validateConfig(schema, incoming){
   // EXPORT FINAL
   // ═══════════════════════════════════════════════════════════════
 
+  function _stripNaN(obj) {
+    if(Array.isArray(obj)) return obj.map(_stripNaN);
+    if(obj && typeof obj === 'object') {
+      const out = {};
+      for(const k of Object.keys(obj)){
+        const v = obj[k];
+        if(typeof v === 'number' && isNaN(v)) out[k] = null;
+        else if(v === undefined) out[k] = null;
+        else out[k] = _stripNaN(v);
+      }
+      return out;
+    }
+    return obj;
+  }
+
   function exportPayload(schema, incoming){
     const validation = validateConfig(schema, incoming);
-    const cfg = validation.sanitized;
+    const cfg = _stripNaN(validation.sanitized);
     const grouped = groupConfigForStorage(cfg);
 
     const runtimeBase = typeof interpret === 'function' ? interpret(cfg) : {};

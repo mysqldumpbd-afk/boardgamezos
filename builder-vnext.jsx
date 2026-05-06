@@ -2507,10 +2507,12 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game B
   const livePayload = React.useMemo(()=>{
     if(!schema||!window.SchemaUtils) return null;
     try{
-      // Enriquecer payload con runtime unificado
       const base = window.SchemaUtils.exportPayload(schema, config);
-      if(typeof resolveRuntime === 'function'){
-        base.runtime = { ...base.runtime, ...resolveRuntime(config) };
+      // Enriquecer con runtime unificado (window.RuntimeResolver para evitar race condition)
+      const resolver = window.RuntimeResolver;
+      if(resolver?.resolveRuntime){
+        try{ base.runtime = { ...base.runtime, ...resolver.resolveRuntime(config) }; }
+        catch(e){}
       }
       return base;
     }catch(err){ console.error('livePayload error',err); return null; }
@@ -2560,21 +2562,24 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game B
       }
 
       // Estructura nueva (vnext) + campo config plano para compatibilidad legacy
+      // Limpiar NaN/undefined antes de Firebase (evita error "value contains NaN")
+      const safePay = typeof _stripNaNForFirebase==='function'
+        ? _stripNaNForFirebase(payload)
+        : payload;
+
       const templateData = {
         id: editingTemplate?.id || undefined,
         name: String(config.name||'').trim(),
         emoji: config.emoji || '🎮',
-        description: payload.summary || '',
-        summary: payload.summary || '',
+        description: safePay.summary || '',
+        summary: safePay.summary || '',
         schemaVersion: '2.0',
-        exportedAt: payload.exportedAt,
-        // Nuevo: config plano + agrupado + runtime
-        config: payload.config,          // plano — compatible con legacy runtime
-        grouped: payload.grouped,        // por secciones — nuevo
-        runtime: payload.runtime || {},  // spec + timeline + gameState
-        // Metadatos de validación
-        valid: payload.valid,
-        warnings: payload.warnings || [],
+        exportedAt: safePay.exportedAt,
+        config: safePay.config,
+        grouped: safePay.grouped,
+        runtime: safePay.runtime || {},
+        valid: safePay.valid,
+        warnings: safePay.warnings || [],
       };
 
       let saved;

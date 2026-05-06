@@ -838,7 +838,13 @@ function App(){
 
     // Runtime pre-calculado para guardar en room (lo usa UniversalRuntime v2)
     let runtimeSpec = null;
-    try{ if(typeof resolveRuntime==='function') runtimeSpec = resolveRuntime(cfg); }catch(e){}
+    try{
+      if(typeof resolveRuntime==='function'){
+        const raw = resolveRuntime(cfg);
+        // Limpiar NaN antes de Firebase
+        runtimeSpec = typeof _stripNaNForFirebase==='function' ? _stripNaNForFirebase(raw) : raw;
+      }
+    }catch(e){ console.warn('createRoom runtimeSpec:', e.message); }
 
     await db.set(`rooms/${code}`,{
       code, gameType, customTitle, status:'lobby', hostId:myId,

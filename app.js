@@ -1,4 +1,22 @@
 // ═══════════════════════════════════════════════════════════════
+
+// ── HELPER: limpiar NaN/undefined antes de guardar en Firebase ──
+function _stripNaNForFirebase(obj){
+  if(obj === null || obj === undefined) return null;
+  if(Array.isArray(obj)) return obj.map(_stripNaNForFirebase);
+  if(typeof obj === 'object'){
+    const out = {};
+    for(const k of Object.keys(obj)){
+      const v = obj[k];
+      if(typeof v === 'number' && isNaN(v)) out[k] = null;
+      else if(v === undefined) out[k] = null;
+      else out[k] = _stripNaNForFirebase(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
 // app.js — BOARDGAMEZ OS v1.4
 // Firebase Auth con signInWithRedirect (compatible GitHub Pages)
 // ═══════════════════════════════════════════════════════════════
@@ -224,9 +242,18 @@ async function seedPresetTemplates(uid){
         let runtimeSpec = {};
         let grouped = {};
         try{
-          if(typeof resolveRuntime === 'function') runtimeSpec = resolveRuntime(p.config);
-          if(window.SchemaUtils?.groupConfigForStorage) grouped = window.SchemaUtils.groupConfigForStorage(p.config);
-        }catch(e){}
+          // resolveRuntime y SchemaUtils cargan DESPUÉS de app.js
+          // Usar window.* para acceder a ellos en tiempo de ejecución (no en carga)
+          if(typeof window.RuntimeResolver?.resolveRuntime === 'function'){
+            runtimeSpec = window.RuntimeResolver.resolveRuntime(p.config);
+          }
+          if(window.SchemaUtils?.groupConfigForStorage){
+            grouped = window.SchemaUtils.groupConfigForStorage(p.config);
+          }
+          // Limpiar NaN antes de guardar en Firebase
+          runtimeSpec = _stripNaNForFirebase(runtimeSpec);
+          grouped     = _stripNaNForFirebase(grouped);
+        }catch(e){ console.warn('runtime gen error:', e.message); }
         await _db.ref(`gameTemplates/${uid}/${p.id}`).set({
           id: p.id,
           uid,
