@@ -289,7 +289,213 @@ function PhaseBand({ spec, room, onCheck, isHost }){
 }
 
 // ── RONDA VISUAL ─────────────────────────────────────────────────
-function RoundBadge({ current, total, spec }){
+function RoundBadge({ current, total, spec }
+
+// ── TURNO ACTIVO — reloj + fases del turno + recordatorios ──────
+// El corazón del asistente de turno: muestra en qué paso está el
+// jugador activo, bloquea avanzar si hay recordatorio pendiente,
+// y registra el tiempo que tarda cada turno.
+function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onPhaseAction, db, session }){
+  const [turnStart]    = React.useState(()=>Date.now());
+  const [elapsed,  setElapsed]   = React.useState(0);
+  const [confirmed, setConfirmed] = React.useState({});
+
+  // Timer local del turno
+  React.useEffect(()=>{
+    const t = setInterval(()=>setElapsed(Math.floor((Date.now()-turnStart)/1000)),500);
+    return ()=>clearInterval(t);
+  },[turnStart]);
+
+  const phases   = spec._phases || [];
+  const checklist= spec._checklist || [];
+  const turnPhases = phases.filter(p=>p.scope==='turn');
+  if(!turnPhases.length) return null;
+
+  // Fase actual del turno (guardada en room por jugador activo)
+  const curTurnPhase = room.turnPhase || turnPhases[0]?.id;
+  const curPhaseIdx  = turnPhases.findIndex(p=>p.id===curTurnPhase);
+  const curPhaseObj  = turnPhases[curPhaseIdx] || turnPhases[0];
+
+  // Checks de la fase actual
+  const phaseChecks = checklist.filter(c=>c.phaseId===curTurnPhase||c.phaseId===curPhaseObj?.id);
+  const roomChecks  = room.checklist || {};
+  const pendingReq  = phaseChecks.filter(c=>{
+    if(!c.required) return false;
+    const v = confirmed[c.id] || roomChecks[c.id];
+    return typeof v==='object' ? !v?.done : !v;
+  });
+  const blocked = pendingReq.length > 0;
+
+  function fmtSecs(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` }
+
+  async function advancePhase(){
+    if(blocked) return;
+    const nextIdx = curPhaseIdx + 1;
+    if(nextIdx >= turnPhases.length){
+      // Último paso — fin de turno
+      onEndTurn(elapsed);
+    } else {
+      const nextPhase = turnPhases[nextIdx];
+      if(db&&session) await db.set(`rooms/${session.code}/turnPhase`, nextPhase.id).catch(()=>{});
+    }
+  }
+
+  async function toggleCheck(checkId){
+    const cur = confirmed[checkId] || roomChecks[checkId];
+    const curDone = typeof cur==='object' ? cur?.done : !!cur;
+    setConfirmed(prev=>({...prev,[checkId]:!curDone}));
+    if(db&&session) await db.set(`rooms/${session.code}/checklist/${checkId}`,
+      typeof roomChecks[checkId]==='object'
+        ? {...roomChecks[checkId], done:!curDone}
+        : !curDone
+    ).catch(()=>{});
+  }
+
+  const isActive = isMyTurn || isHost;
+
+  return(
+    <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,
+      border:`2px solid ${blocked?'rgba(255,107,53,.4)':'rgba(0,245,255,.25)'}`,
+      background:`linear-gradient(135deg,${blocked?'rgba(255,107,53,.06)':'rgba(0,245,255,.04)'},rgba(0,0,0,.1))`,
+      transition:'border .3s,background .3s'}}>
+
+      {/* Header — jugador + timer */}
+      <div style={{padding:'10px 14px',borderBottom:'1px solid rgba(255,255,255,.06)',
+        display:'flex',alignItems:'center',gap:10}}>
+        <div style={{fontSize:'1.4rem'}}>{currentPlayer?.emoji||'👤'}</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:'var(--font-label)',fontWeight:700,fontSize:'13px',
+            color:'#fff',display:'flex',alignItems:'center',gap:6}}>
+            {currentPlayer?.name||'Jugador'}
+            {isMyTurn&&<span style={{fontFamily:'var(--font-ui)',fontSize:'7px',
+              color:'var(--cyan)',letterSpacing:2,background:'rgba(0,245,255,.1)',
+              padding:'1px 5px',borderRadius:3}}>TU TURNO</span>}
+          </div>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+            color:'rgba(255,255,255,.3)',marginTop:1}}>
+            {curPhaseObj?.description||''}
+          </div>
+        </div>
+        {/* Reloj de ajedrez */}
+        <div style={{textAlign:'center',background:'rgba(0,0,0,.3)',borderRadius:10,
+          padding:'6px 12px',border:`1px solid ${elapsed>60?'rgba(255,107,53,.3)':'rgba(255,255,255,.1)'}`}}>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'1.1rem',
+            color:elapsed>120?'var(--red)':elapsed>60?'var(--orange)':'var(--cyan)',
+            letterSpacing:1,lineHeight:1}}>
+            {fmtSecs(elapsed)}
+          </div>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
+            color:'rgba(255,255,255,.25)',marginTop:2}}>TURNO</div>
+        </div>
+      </div>
+
+      {/* Pasos del turno — stepper horizontal */}
+      <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:4,
+        overflowX:'auto',borderBottom:'1px solid rgba(255,255,255,.05)'}}>
+        {turnPhases.map((p,i)=>{
+          const isPast   = i < curPhaseIdx;
+          const isCur    = p.id === curTurnPhase;
+          const isFuture = i > curPhaseIdx;
+          return(
+            <React.Fragment key={p.id}>
+              {i>0&&<div style={{flex:'0 0 12px',height:1,
+                background:isPast||isCur?'rgba(0,245,255,.3)':'rgba(255,255,255,.1)'}}/>}
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',
+                gap:3,flexShrink:0,opacity:isFuture?.4:1}}>
+                <div style={{width:26,height:26,borderRadius:'50%',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:'11px',fontWeight:900,
+                  border:`2px solid ${isCur?'var(--cyan)':isPast?'rgba(0,255,157,.4)':'rgba(255,255,255,.15)'}`,
+                  background:isCur?'rgba(0,245,255,.15)':isPast?'rgba(0,255,157,.1)':'transparent',
+                  color:isCur?'var(--cyan)':isPast?'var(--green)':'rgba(255,255,255,.3)'}}>
+                  {isPast?'✓':i+1}
+                </div>
+                <div style={{fontFamily:'var(--font-label)',fontSize:'9px',fontWeight:700,
+                  color:isCur?'var(--cyan)':isPast?'var(--green)':'rgba(255,255,255,.3)',
+                  textAlign:'center',maxWidth:60,lineHeight:1.2}}>
+                  {p.label}
+                </div>
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Recordatorios / checks de la fase actual */}
+      {phaseChecks.length>0&&(
+        <div style={{padding:'8px 14px',
+          background:blocked?'rgba(255,107,53,.04)':'transparent',
+          borderBottom:'1px solid rgba(255,255,255,.05)'}}>
+          {blocked&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+              <div style={{fontSize:'1rem'}}>⚠️</div>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                color:'var(--orange)'}}>Pendiente antes de continuar</div>
+            </div>
+          )}
+          {phaseChecks.map(c=>{
+            const v    = confirmed[c.id] ?? (roomChecks[c.id]);
+            const done = typeof v==='object'?v?.done:!!v;
+            return(
+              <button key={c.id} onClick={()=>isActive&&toggleCheck(c.id)}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',
+                  padding:'7px 10px',borderRadius:8,marginBottom:4,
+                  border:`1px solid ${done?'rgba(0,255,157,.2)':c.required?'rgba(255,107,53,.25)':'rgba(255,255,255,.08)'}`,
+                  background:done?'rgba(0,255,157,.05)':c.required?'rgba(255,107,53,.04)':'rgba(255,255,255,.02)',
+                  cursor:isActive?'pointer':'default',textAlign:'left',transition:'all .15s'}}>
+                <div style={{width:20,height:20,borderRadius:5,flexShrink:0,
+                  border:`2px solid ${done?'var(--green)':c.required?'var(--orange)':'rgba(255,255,255,.2)'}`,
+                  background:done?'var(--green)':'transparent',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:'11px',color:'var(--bg)',fontWeight:900,transition:'all .15s'}}>
+                  {done?'✓':''}
+                </div>
+                <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:600,
+                  color:done?'rgba(255,255,255,.35)':c.required?'rgba(255,200,100,.9)':'rgba(255,255,255,.75)',
+                  textDecoration:done?'line-through':'none'}}>
+                  {c.label}
+                </div>
+                {c.required&&!done&&(
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'6px',letterSpacing:1,
+                    color:'var(--orange)',background:'rgba(255,107,53,.12)',
+                    padding:'2px 5px',borderRadius:3,flexShrink:0}}>REQ</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Botón de avanzar / terminar turno */}
+      {isActive&&(
+        <div style={{padding:'10px 14px'}}>
+          <button onClick={advancePhase} disabled={blocked}
+            style={{width:'100%',padding:'13px',borderRadius:12,border:'none',
+              cursor:blocked?'not-allowed':'pointer',
+              fontFamily:'var(--font-display)',fontSize:'.95rem',fontWeight:700,
+              letterSpacing:1.5,transition:'all .2s',
+              background:blocked
+                ?'rgba(255,255,255,.06)'
+                : curPhaseIdx>=turnPhases.length-1
+                  ?'linear-gradient(135deg,rgba(0,255,157,.2),rgba(0,245,255,.15))'
+                  :'rgba(0,245,255,.1)',
+              color:blocked?'rgba(255,255,255,.2)'
+                :curPhaseIdx>=turnPhases.length-1?'var(--green)':'var(--cyan)',
+              boxShadow:blocked?'none':`0 4px 16px ${curPhaseIdx>=turnPhases.length-1?'rgba(0,255,157,.15)':'rgba(0,245,255,.1)'}`}}>
+            {blocked
+              ?`⏸ Completa el recordatorio`
+              :curPhaseIdx>=turnPhases.length-1
+                ?`✓ TURNO TERMINADO (${fmtSecs(elapsed)})`
+                :`→ ${turnPhases[curPhaseIdx+1]?.label}`
+            }
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+){
   if(!spec.hasRounds) return null;
   const pct = total ? Math.min(100, ((current-1)/total)*100) : 0;
   return(
@@ -670,7 +876,20 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     }
     window._runtimeSpec = s;
     return s;
-  },[resolvedConfig, resolvedRuntime]);
+  },[resolvedConfig, resolvedRuntime, resolverReady]);
+
+  // Forzar recálculo del spec cuando RuntimeResolver carga (puede cargarse después del runtime)
+  const [resolverReady, setResolverReady] = useState(!!window.RuntimeResolver?.resolveRuntime);
+  useEffect(()=>{
+    if(resolverReady) return;
+    const check = setInterval(()=>{
+      if(window.RuntimeResolver?.resolveRuntime){
+        setResolverReady(true);
+        clearInterval(check);
+      }
+    }, 200);
+    return ()=>clearInterval(check);
+  },[resolverReady]);
 
   useEffect(()=>{ if(myId&&session.code) setupPresence(session.code,myId); return()=>teardownPresence(); },[session.code,myId]);
   useEffect(()=>{
@@ -709,6 +928,11 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
       if(spec && !room.currentPhase && spec._phases?.length){
         const firstPhase = spec._phases[0];
         if(firstPhase?.id) db.set(`rooms/${session.code}/currentPhase`, firstPhase.id).catch(()=>{});
+      }
+      // Inicializar fase de turno si hay fases de scope:turn
+      if(spec && !room.turnPhase && spec._phases?.length){
+        const firstTurnPhase = spec._phases.find(p=>p.scope==='turn');
+        if(firstTurnPhase?.id) db.set(`rooms/${session.code}/turnPhase`, firstTurnPhase.id).catch(()=>{});
       }
     } else if(room.status==='lobby'){
       setShowEndScreen(false); setVictoryResult(null); setToast(null); setShowRematchOverlay(false);
@@ -896,8 +1120,50 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         {/* Ronda */}
         <RoundBadge current={currentRound} total={spec.totalRounds} spec={spec}/>
 
-        {/* Turno */}
-        {spec.hasTurns&&currentTurnPlayer&&(
+        {/* Asistente de turno — reloj + fases + recordatorios */}
+        {spec.hasTurns && currentTurnPlayer && spec._phases?.filter(p=>p.scope==='turn').length > 0 && (
+          <TurnAssistant
+            spec={spec}
+            room={room}
+            currentPlayer={currentTurnPlayer}
+            isHost={effectiveIsHost}
+            isMyTurn={currentTurnPlayer?.id === myId}
+            onEndTurn={async (turnSecs)=>{
+              snd('round');
+              // Registrar tiempo del turno en historial del jugador
+              const updatedPlayers = (room.players||[]).map(p=>
+                p.id===currentTurnPlayer.id
+                  ? {...p, turnHistory:[...(p.turnHistory||[]),{round:currentRound,secs:turnSecs}]}
+                  : p
+              );
+              // Avanzar al siguiente jugador y resetear fase del turno
+              const active  = updatedPlayers.filter(p=>!p.eliminated);
+              const cur     = room.currentTurnIdx||0;
+              const next    = (cur+1)%Math.max(1,active.length);
+              const firstTurnPhase = spec._phases?.find(p=>p.scope==='turn')?.id || null;
+              await db.set(`rooms/${session.code}`,{
+                ...room,
+                players:   updatedPlayers,
+                currentTurnIdx: next,
+                turnPhase: firstTurnPhase,
+                // Resetear checks de tipo 'turn' en checklist
+                checklist: Object.fromEntries(
+                  Object.entries(room.checklist||{}).map(([k,v])=>{
+                    const specCheck = spec._checklist?.find(c=>c.id===k);
+                    if(specCheck?.autoReset==='turn') return [k, typeof v==='object'?{...v,done:false}:false];
+                    return [k,v];
+                  })
+                ),
+              });
+              showToast(`↩ Turno de ${active[next]?.name||'siguiente'}`,'var(--gold)');
+            }}
+            onPhaseAction={handleCheckAction}
+            db={db}
+            session={session}
+          />
+        )}
+        {/* Turno simple (sin fases definidas) */}
+        {spec.hasTurns && currentTurnPlayer && !spec._phases?.filter(p=>p.scope==='turn').length && (
           <div style={{background:'rgba(255,212,71,.05)',border:'1px solid rgba(255,212,71,.2)',
             borderRadius:10,padding:'8px 12px',marginBottom:10,
             display:'flex',alignItems:'center',gap:8}}>

@@ -2498,10 +2498,10 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game B
     return Object.keys(map).map(key=>({key,...map[key]})).filter(x=>x&&x.config).sort((a,b)=>(a.order||999)-(b.order||999));
   },[]);
 
-  const [selectedPresetKey, setSelectedPresetKey] = React.useState('');
+  const [selectedPresetKey, setSelectedPresetKey] = React.useState(''); // '' = nada seleccionado
   const selectedPreset = React.useMemo(()=>{
-    if(!presets.length) return null;
-    return presets.find(p=>String(p.key||p.id)===String(selectedPresetKey))||presets[0];
+    if(!presets.length||!selectedPresetKey) return null;
+    return presets.find(p=>String(p.key||p.id)===String(selectedPresetKey))||null;
   },[presets,selectedPresetKey]);
 
   const livePayload = React.useMemo(()=>{
@@ -2671,6 +2671,7 @@ function SchemaDrivenBuilder({ initialConfig = {}, onSave, onBack, title='Game B
                   onChange={e=>setSelectedPresetKey(e.target.value)}
                   style={{minHeight:42, fontSize:'0.86rem', padding:'8px 10px'}}
                 >
+                  <option value="">— Selecciona un preset —</option>
                   {[...presets].sort((a,b)=>(a.order||999)-(b.order||999)).map((preset)=>(
                     <option key={preset.id || preset.key} value={String(preset.key || preset.id)}>
                       {(preset.emoji || '🎮') + ' ' + (preset.name || preset.label || preset.key)}
