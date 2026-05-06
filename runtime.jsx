@@ -912,6 +912,26 @@ function sortPlayers(players, spec){
   return [...sorted, ...elim];
 }
 
+
+// ── WAITING BADGE — aparece cuando no es tu turno ───────────────
+function WaitingBadge({ currentPlayer }){
+  return(
+    <div style={{borderRadius:12,padding:'10px 14px',marginBottom:12,
+      background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.07)',
+      display:'flex',alignItems:'center',gap:10}}>
+      <div style={{fontSize:'1.2rem',animation:'osBlink 1.5s ease-in-out infinite'}}>⏳</div>
+      <div>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+          color:'rgba(255,255,255,.45)'}}>Esperando turno</div>
+        <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+          color:'rgba(255,255,255,.25)',marginTop:2}}>
+          Turno de {currentPlayer?.name||'otro jugador'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── UNIVERSAL RUNTIME v3 ─────────────────────────────────────────
 function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig }){
   const [room,             setRoom]            = useState(null);
@@ -1209,42 +1229,78 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         {/* Ronda */}
         <RoundBadge current={currentRound} total={spec.totalRounds} spec={spec}/>
 
+        {/* Para jugadores no-host cuando no es su turno */}
+        {spec.hasTurns && currentTurnPlayer && !effectiveIsHost &&
+          currentTurnPlayer.id !== myId &&
+          spec._phases?.filter(p=>p.scope==='turn').length > 0 && (
+          <WaitingBadge currentPlayer={currentTurnPlayer}/>
+        )}
+
         {/* Asistente de turno — reloj + fases + recordatorios */}
-        {spec.hasTurns && currentTurnPlayer && spec._phases?.filter(p=>p.scope==='turn').length > 0 && (
+        {spec.hasTurns && currentTurnPlayer && spec._phases?.filter(p=>p.scope==='turn').length > 0 &&
+         (effectiveIsHost || currentTurnPlayer.id === myId) && (
           <TurnAssistant
             spec={spec}
             room={room}
             currentPlayer={currentTurnPlayer}
             isHost={effectiveIsHost}
-            isMyTurn={currentTurnPlayer?.id === myId}
+            isMyTurn={currentTurnPlayer?.id === myId || effectiveIsHost}
             onEndTurn={async (turnSecs)=>{
               snd('round');
-              // Registrar tiempo del turno en historial del jugador
               const updatedPlayers = (room.players||[]).map(p=>
                 p.id===currentTurnPlayer.id
                   ? {...p, turnHistory:[...(p.turnHistory||[]),{round:currentRound,secs:turnSecs}]}
                   : p
               );
-              // Avanzar al siguiente jugador y resetear fase del turno
               const active  = updatedPlayers.filter(p=>!p.eliminated);
               const cur     = room.currentTurnIdx||0;
               const next    = (cur+1)%Math.max(1,active.length);
               const firstTurnPhase = spec._phases?.find(p=>p.scope==='turn')?.id || null;
+
+              // Detectar si TODOS los jugadores completaron su turno en esta vuelta
+              // Si next === 0 (volvemos al primero) → todos terminaron → fase de ronda
+              const completedFullRound = next === 0;
+              const roundPhases = (spec._phases||[]).filter(p=>p.scope==='round');
+              const curRoundPhase = room.currentPhase;
+              const curRoundPhaseIdx = roundPhases.findIndex(p=>p.id===curRoundPhase);
+
+              // Si hay fases de ronda pendientes después de que todos juegan → avanzar fase
+              let nextRoundPhase = curRoundPhase;
+              if(completedFullRound && roundPhases.length > 0){
+                const nextRPIdx = curRoundPhaseIdx + 1;
+                if(nextRPIdx < roundPhases.length){
+                  nextRoundPhase = roundPhases[nextRPIdx].id;
+                  const phaseName = roundPhases[nextRPIdx].label;
+                  showToast(`📍 Fase: ${phaseName}`,'var(--purple)');
+                  snd('round');
+                } else {
+                  // Todas las fases de ronda completadas → cerrar ronda automáticamente
+                  nextRoundPhase = roundPhases[0]?.id || curRoundPhase;
+                }
+              }
+
+              // Reset checks según scope
+              const resetChecklist = Object.fromEntries(
+                Object.entries(room.checklist||{}).map(([k,v])=>{
+                  const sc = spec._checklist?.find(c=>c.id===k);
+                  if(sc?.autoReset==='turn') return [k, typeof v==='object'?{...v,done:false}:false];
+                  if(sc?.autoReset==='round' && completedFullRound) return [k, typeof v==='object'?{...v,done:false}:false];
+                  return [k,v];
+                })
+              );
+
               await db.set(`rooms/${session.code}`,{
                 ...room,
-                players:   updatedPlayers,
+                players: updatedPlayers,
                 currentTurnIdx: next,
                 turnPhase: firstTurnPhase,
-                // Resetear checks de tipo 'turn' en checklist
-                checklist: Object.fromEntries(
-                  Object.entries(room.checklist||{}).map(([k,v])=>{
-                    const specCheck = spec._checklist?.find(c=>c.id===k);
-                    if(specCheck?.autoReset==='turn') return [k, typeof v==='object'?{...v,done:false}:false];
-                    return [k,v];
-                  })
-                ),
+                currentPhase: nextRoundPhase,
+                checklist: resetChecklist,
               });
-              showToast(`↩ Turno de ${active[next]?.name||'siguiente'}`,'var(--gold)');
+
+              if(!completedFullRound || roundPhases.length === 0){
+                showToast(`↩ Turno de ${active[next]?.name||'siguiente'}`,'var(--gold)');
+              }
             }}
             onPhaseAction={handleCheckAction}
             db={db}
