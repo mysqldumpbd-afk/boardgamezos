@@ -493,217 +493,215 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
   );
 }
 
-// ── PLAYER ACTION CARD v3 ────────────────────────────────────────
-function PlayerActionCard({ player, spec, actions, captureActions, resultActions, statusIndicators,
-  isHost, myId, onAction, currentRound, presence }){
-  const [modal, setModal] = useState(null);
+// ── PLAYER ACTION CARD v4 — diseño premium ──────────────────────
+function PlayerActionCard({ player, spec, actions, captureActions, resultActions,
+  statusIndicators, isHost, myId, onAction, currentRound, presence }){
+  const [modal,    setModal]    = useState(null);
   const [expanded, setExpanded] = useState(false);
-  const isMe = player.id === myId;
+  const isMe   = player.id === myId;
   const canAct = isHost || isMe;
+  const isTurn = player._isTurn;
 
-  const primary   = actions.filter(a => !a.secondary && !player.eliminated && _canSee(a,isHost,isMe));
-  const secondary = actions.filter(a =>  a.secondary && !player.eliminated && _canSee(a,isHost,isMe));
-
-  // Acciones de captura del nuevo motor
-  const captures = (captureActions||[]).filter(a => !player.eliminated && isHost);
-  // Resultados del nuevo motor
-  const results  = (resultActions||[]).filter(a => !player.eliminated);
-  // Indicadores de estado
-  const indicators = (statusIndicators||[]);
-
-  const display = getScoreDisplay(player, spec);
+  const primary   = actions.filter(a=>!a.secondary&&!player.eliminated&&_canSee(a,isHost,isMe));
+  const secondary = actions.filter(a=> a.secondary&&!player.eliminated&&_canSee(a,isHost,isMe));
+  const captures  = (captureActions||[]).filter(a=>!player.eliminated&&isHost);
+  const results   = (resultActions||[]).filter(a=>!player.eliminated);
+  const indicators= (statusIndicators||[]);
+  const display   = getScoreDisplay(player, spec);
 
   function fire(action, payload){ setModal(null); onAction(action, player.id, payload||{}); }
-
   function clickAction(action){
     snd('tap');
-    if(action.type==='direct') fire(action,{});
-    else if(action.type==='numeric_modal') setModal({action, type:'calc'});
-    else if(action.type==='option_selector') setModal({action, type:'option'});
-    else if(action.type==='confirm_action') setModal({action, type:'confirm'});
-    else if(action.type==='undo') fire(action,{});
+    if(action.type==='numeric_modal') setModal({action,type:'calc'});
+    else if(action.type==='option_selector') setModal({action,type:'option'});
+    else if(action.type==='confirm_action') setModal({action,type:'confirm'});
     else fire(action,{});
   }
 
-  if(player.eliminated){
-    return(
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
-        borderRadius:12,background:'rgba(255,59,92,.04)',border:'1px solid rgba(255,59,92,.1)',
-        marginBottom:8,opacity:.45}}>
-        <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',color:'var(--red)',width:22,textAlign:'center'}}>
-          #{player.finalPosition||'?'}
-        </div>
-        <div style={{fontSize:'1.2rem'}}>{player.emoji}</div>
-        <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
-          color:'rgba(255,255,255,.35)'}}>
-          {player.name} <span style={{color:'var(--red)'}}>💀</span>
-        </div>
-        <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',color:'rgba(255,255,255,.25)'}}>
-          {display.main} {display.unit}
-        </div>
-      </div>
-    );
-  }
+  // ── Eliminado — fila compacta ─────────────────────────────────
+  if(player.eliminated) return(
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',
+      borderRadius:11,background:'rgba(255,59,92,.03)',border:'1px solid rgba(255,59,92,.08)',
+      marginBottom:6,opacity:.4}}>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'.75rem',color:'var(--red)',
+        width:18,textAlign:'center',flexShrink:0}}>#{player.finalPosition||'?'}</div>
+      <div style={{fontSize:'1.1rem',flexShrink:0}}>{player.emoji}</div>
+      <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+        color:'rgba(255,255,255,.3)'}}>{player.name} 💀</div>
+      {display.main!==null&&<div style={{fontFamily:'var(--font-display)',fontSize:'.8rem',
+        color:'rgba(255,255,255,.2)'}}>{display.main}<span style={{fontSize:'.55rem',marginLeft:2,opacity:.5}}>{display.unit}</span></div>}
+    </div>
+  );
 
-  const isTurn = spec.hasTurns && player.id === (player._isTurn ? player.id : null);
+  // ── Color del borde según estado ─────────────────────────────
+  const borderColor = isTurn ? 'rgba(0,245,255,.3)'
+    : isMe ? 'rgba(155,93,229,.2)'
+    : 'rgba(255,255,255,.06)';
+  const bgColor = isTurn ? 'rgba(0,245,255,.04)'
+    : isMe ? 'rgba(155,93,229,.03)'
+    : 'rgba(255,255,255,.02)';
 
   return(
-    <div style={{marginBottom:10,borderRadius:14,
-      background:`rgba(255,255,255,${isTurn?'.05':'.025'})`,
-      border:`1px solid ${isTurn?'rgba(0,245,255,.25)':'rgba(255,255,255,.07)'}`,
-      transition:'border .2s,background .2s'}}>
+    <div style={{marginBottom:8,borderRadius:16,background:bgColor,
+      border:`1.5px solid ${borderColor}`,transition:'all .2s',overflow:'hidden'}}>
 
       {/* Modals */}
-      {modal?.type==='calc' && (
-        <GameCalc action={modal.action} player={player}
-          onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>
-      )}
-      {modal?.type==='option' && (
-        <OptionSelectorModal action={modal.action} player={player}
-          onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>
-      )}
-      {modal?.type==='confirm' && (
-        <ConfirmModal_R action={modal.action} player={player} spec={spec}
-          onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>
-      )}
+      {modal?.type==='calc'   && <GameCalc action={modal.action} player={player} onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>}
+      {modal?.type==='option' && <OptionSelectorModal action={modal.action} player={player} onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>}
+      {modal?.type==='confirm'&& <ConfirmModal_R action={modal.action} player={player} spec={spec} onConfirm={p=>fire(modal.action,p)} onCancel={()=>setModal(null)}/>}
 
-      {/* Fila principal */}
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px'}}>
+      {/* ── FILA PRINCIPAL ──────────────────────────────────── */}
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'11px 13px'}}>
+
+        {/* Avatar */}
         <div style={{position:'relative',flexShrink:0}}>
-          <div style={{width:40,height:40,borderRadius:11,display:'flex',alignItems:'center',
-            justifyContent:'center',fontSize:'1.4rem',
-            background:`rgba(255,255,255,.06)`,border:'1px solid rgba(255,255,255,.1)'}}>
+          <div style={{width:42,height:42,borderRadius:12,display:'flex',alignItems:'center',
+            justifyContent:'center',fontSize:'1.5rem',
+            background: isTurn?'rgba(0,245,255,.1)':isMe?'rgba(155,93,229,.1)':'rgba(255,255,255,.05)',
+            border:`1.5px solid ${isTurn?'rgba(0,245,255,.25)':isMe?'rgba(155,93,229,.2)':'rgba(255,255,255,.08)'}`,
+            transition:'all .2s'}}>
             {player.emoji}
           </div>
-          {presence?.[player.id] && (
-            <div style={{position:'absolute',bottom:-2,right:-2,width:9,height:9,borderRadius:'50%',
-              background:'var(--green)',border:'2px solid var(--bg)'}}/>
+          {/* Presencia online */}
+          {presence?.[player.id]&&(
+            <div style={{position:'absolute',bottom:-1,right:-1,width:8,height:8,
+              borderRadius:'50%',background:'var(--green)',border:'2px solid var(--bg)'}}/>
+          )}
+          {/* Token primer jugador */}
+          {player.hasFirstPlayerToken&&(
+            <div style={{position:'absolute',top:-4,right:-4,fontSize:'.7rem',
+              lineHeight:1,filter:'drop-shadow(0 0 4px rgba(255,212,71,.6))'}}>👑</div>
           )}
         </div>
 
+        {/* Info */}
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:'var(--font-label)',fontSize:'13px',fontWeight:700,
-            color:'#fff',marginBottom:2,display:'flex',alignItems:'center',gap:5}}>
-            {player.name}
-            {player.hasFirstPlayerToken && <span title="Primer jugador">👑</span>}
-            {player.id===myId && <span style={{fontFamily:'var(--font-ui)',fontSize:'7px',
-              color:'var(--cyan)',letterSpacing:2}}>TÚ</span>}
-            {isTurn && <span style={{fontFamily:'var(--font-ui)',fontSize:'7px',
-              color:'var(--orange)',letterSpacing:1,background:'rgba(255,107,53,.15)',
-              padding:'1px 5px',borderRadius:4}}>TURNO</span>}
+          <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:2}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'13px',fontWeight:700,
+              color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {player.name}
+            </div>
+            {player.id===myId&&<div style={{fontFamily:'var(--font-ui)',fontSize:'6px',
+              letterSpacing:2,color:'var(--cyan)',background:'rgba(0,245,255,.1)',
+              padding:'1px 4px',borderRadius:3,flexShrink:0}}>TÚ</div>}
+            {isTurn&&<div style={{fontFamily:'var(--font-ui)',fontSize:'6px',
+              letterSpacing:1.5,color:'var(--orange)',background:'rgba(255,107,53,.12)',
+              padding:'1px 5px',borderRadius:3,flexShrink:0}}>TURNO</div>}
           </div>
-          {/* Indicadores de estado activos */}
-          {indicators.filter(ind=>player['status_'+ind.id]).length>0 && (
-            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-              {indicators.filter(ind=>player['status_'+ind.id]).map(ind=>(
-                <span key={ind.id} style={{fontFamily:'var(--font-label)',fontSize:'9px',
-                  padding:'1px 5px',borderRadius:4,
-                  background:`rgba(${ind.color||'0,245,255'},.15)`,
-                  color:ind.color||'var(--cyan)',fontWeight:700}}>
-                  {ind.icon} {ind.label}
+          {/* Status indicators */}
+          {indicators.filter(i=>player['status_'+i.id]).length>0&&(
+            <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+              {indicators.filter(i=>player['status_'+i.id]).map(i=>(
+                <span key={i.id} style={{fontFamily:'var(--font-label)',fontSize:'8px',fontWeight:700,
+                  padding:'1px 5px',borderRadius:3,
+                  background:`rgba(${i.color||'0,245,255'},.12)`,
+                  color:i.color||'var(--cyan)'}}>
+                  {i.icon} {i.label}
                 </span>
               ))}
             </div>
           )}
         </div>
 
-        {/* Score principal — solo si hay algo que mostrar */}
-        {display.main !== null && (
-          <div style={{textAlign:'right',flexShrink:0}}>
-            <div style={{fontFamily:'var(--font-display)',fontSize:'1.5rem',
-              color: display.color || 'var(--gold)',lineHeight:1}}>
+        {/* Score */}
+        {display.main!==null&&(
+          <div style={{textAlign:'right',flexShrink:0,minWidth:36}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1.6rem',
+              color:display.color,lineHeight:1,letterSpacing:-1}}>
               {display.main}
             </div>
-            <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
-              color:'rgba(255,255,255,.25)',marginTop:1}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
+              color:'rgba(255,255,255,.2)',marginTop:1}}>
               {display.unit}
             </div>
           </div>
         )}
 
-        {/* Expand toggle */}
-        <button onClick={()=>setExpanded(e=>!e)}
-          style={{background:'none',border:'1px solid rgba(255,255,255,.08)',borderRadius:6,
-            padding:'4px 7px',cursor:'pointer',color:'rgba(255,255,255,.3)',fontSize:'10px'}}>
-          {expanded?'▲':'▼'}
-        </button>
+        {/* Expand — solo si hay acciones secundarias o capturas */}
+        {canAct&&(secondary.length>0||captures.length>0||results.length>0)&&(
+          <button onClick={()=>setExpanded(e=>!e)}
+            style={{width:26,height:26,background:'rgba(255,255,255,.05)',
+              border:'1px solid rgba(255,255,255,.08)',borderRadius:6,
+              cursor:'pointer',color:'rgba(255,255,255,.25)',fontSize:'9px',flexShrink:0,
+              display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {expanded?'▲':'▼'}
+          </button>
+        )}
       </div>
 
-      {/* Acciones primarias */}
-      {canAct && primary.length>0 && (
-        <div style={{display:'flex',gap:6,padding:'0 12px 10px',flexWrap:'wrap'}}>
+      {/* ── ACCIONES PRIMARIAS ──────────────────────────────── */}
+      {canAct&&primary.length>0&&(
+        <div style={{padding:'0 10px 10px',display:'flex',gap:5,flexWrap:'wrap'}}>
           {primary.map(a=>(
             <button key={a.id} onClick={()=>clickAction(a)}
-              style={{flex:1,minWidth:80,padding:'10px 8px',borderRadius:10,
-                border:`1px solid ${a.color}33`,cursor:'pointer',
+              style={{flex:1,minWidth:90,padding:'10px 6px',borderRadius:10,cursor:'pointer',
+                border:`1px solid ${a.color}30`,
+                background:`linear-gradient(135deg,${a.color}15,rgba(0,0,0,.1))`,
+                color:a.dangerous?'var(--red)':a.color||'#fff',
                 fontFamily:'var(--font-display)',fontSize:'12px',fontWeight:700,letterSpacing:.5,
-                background:`linear-gradient(135deg,${a.color}18,rgba(255,255,255,.02))`,
-                color: a.dangerous?'var(--red)':a.color||'#fff',
-                boxShadow:`0 2px 8px ${a.color}22`,transition:'all .12s'}}>
-              <span style={{marginRight:4}}>{a.icon}</span>{a.label}
+                boxShadow:`0 2px 10px ${a.color}18`,transition:'transform .1s,box-shadow .1s'}}>
+              <span style={{marginRight:5}}>{a.icon}</span>{a.label}
             </button>
           ))}
         </div>
       )}
 
-      {/* Acciones del nuevo motor — resultados y capturas */}
-      {canAct && expanded && (captures.length>0 || results.length>0) && (
-        <div style={{padding:'0 12px 10px'}}>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
-            color:'rgba(255,255,255,.2)',marginBottom:5}}>ACCIONES DEL MOTOR</div>
-          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-            {results.map(r=>(
-              <button key={r.id}
-                onClick={()=>{snd('tap'); onAction({id:r.id,label:r.label,icon:r.icon,
-                  color:r.color,type:'direct',category:'result'}, player.id, {effect:r.effect});}}
-                style={{padding:'7px 10px',borderRadius:8,border:`1px solid ${r.color||'#FFD447'}33`,
-                  background:`rgba(255,255,255,.03)`,cursor:'pointer',
-                  fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
-                  color:r.color||'var(--gold)'}}>
-                {r.icon} {r.label}
-              </button>
-            ))}
-            {captures.map(c=>(
-              <button key={c.id}
-                onClick={()=>{
-                  const act = {id:c.id,label:c.label,icon:c.icon||'📝',
-                    color:c.color||'#FFD447',type:'numeric_modal',category:'capture',
-                    allowNegative:false, quickValues:c.quickValues||[]};
-                  setModal({action:act, type:'calc'});
-                }}
-                style={{padding:'7px 10px',borderRadius:8,border:`1px solid ${c.color||'#FFD447'}33`,
-                  background:`rgba(255,255,255,.03)`,cursor:'pointer',
-                  fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
-                  color:c.color||'var(--gold)'}}>
-                🧮 {c.label}
-              </button>
-            ))}
-          </div>
+      {/* ── ACCIONES EXPANDIDAS ─────────────────────────────── */}
+      {canAct&&expanded&&(
+        <div style={{borderTop:'1px solid rgba(255,255,255,.05)',padding:'8px 10px 10px'}}>
+          {(results.length>0||captures.length>0)&&(
+            <>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.18)',marginBottom:5}}>ACCIONES</div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:6}}>
+                {results.map(r=>(
+                  <button key={r.id} onClick={()=>{snd('tap');onAction({id:r.id,label:r.label,
+                    icon:r.icon,color:r.color,type:'direct',category:'result'},player.id,{effect:r.effect});}}
+                    style={{padding:'6px 10px',borderRadius:8,cursor:'pointer',
+                      border:`1px solid ${r.color||'#FFD447'}25`,background:'rgba(255,255,255,.03)',
+                      fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                      color:r.color||'var(--gold)'}}>
+                    {r.icon} {r.label}
+                  </button>
+                ))}
+                {captures.map(c=>(
+                  <button key={c.id} onClick={()=>{
+                    setModal({action:{id:c.id,label:c.label,icon:c.icon||'📝',
+                      color:c.color||'#FFD447',type:'numeric_modal',category:'capture',
+                      allowNegative:false,quickValues:c.quickValues||[]},type:'calc'});
+                  }} style={{padding:'6px 10px',borderRadius:8,cursor:'pointer',
+                    border:`1px solid rgba(255,212,71,.2)`,background:'rgba(255,255,255,.03)',
+                    fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                    color:'var(--gold)'}}>
+                    🧮 {c.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {secondary.length>0&&(
+            <>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.18)',marginBottom:5}}>MÁS</div>
+              <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                {secondary.map(a=>(
+                  <button key={a.id} onClick={()=>clickAction(a)}
+                    style={{padding:'6px 10px',borderRadius:8,cursor:'pointer',
+                      border:'1px solid rgba(255,255,255,.08)',background:'rgba(255,255,255,.03)',
+                      fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                      color:'rgba(255,255,255,.5)'}}>
+                    {a.icon} {a.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
-
-      {/* Acciones secundarias desplegables */}
-      {canAct && expanded && secondary.length>0 && (
-        <div style={{padding:'0 12px 10px'}}>
-          <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
-            color:'rgba(255,255,255,.2)',marginBottom:5}}>MÁS ACCIONES</div>
-          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-            {secondary.map(a=>(
-              <button key={a.id} onClick={()=>clickAction(a)}
-                style={{padding:'7px 10px',borderRadius:8,
-                  border:`1px solid rgba(255,255,255,.1)`,background:'rgba(255,255,255,.04)',
-                  cursor:'pointer',fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
-                  color:'rgba(255,255,255,.55)'}}>
-                {a.icon} {a.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
+
 
 // ── HOST PANEL v3 ────────────────────────────────────────────────
 function HostPanel({ spec, room, onHostAction, isOpen, onToggle }){

@@ -1654,6 +1654,19 @@ function SectionBlock({ section, index, config, isOpen, onToggle, onChange, onCo
             />
           )}
 
+          {/* FlowDiagramBuilder — renderizado especial para la sección de asistente de flujo */}
+          {section.id === 'flow_assistance' && (config.useFlowAssistance || config.useTurns) && (
+            <div style={{marginBottom:16}}>
+              <FlowDiagramBuilder
+                config={config}
+                onChange={(updates)=>{
+                  if(updates.gamePhases)    onChange('gamePhases',    updates.gamePhases);
+                  if(updates.phaseChecklist)onChange('phaseChecklist',updates.phaseChecklist);
+                }}
+              />
+            </div>
+          )}
+
           {visibleFields.map((field, idx)=>(
             <AnimatedFieldMount key={field.id} delay={Math.min(idx * 28, 140)}>
               <FieldRenderer
@@ -2343,6 +2356,428 @@ function RuntimePreviewPanel({ payload }){
   );
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// FlowDiagramBuilder — editor visual de fases con drag & drop
+// Se integra en builder-vnext.jsx como sección de la flow_assistance
+// Guarda directamente en config.gamePhases y config.phaseChecklist
+// ═══════════════════════════════════════════════════════════════
+
+function FlowDiagramBuilder({ config, onChange }){
+  const [phases, setPhases] = React.useState(()=>{
+    return Array.isArray(config?.gamePhases) ? config.gamePhases : [];
+  });
+  const [checks, setChecks] = React.useState(()=>{
+    return Array.isArray(config?.phaseChecklist) ? config.phaseChecklist : [];
+  });
+  const [dragIdx,   setDragIdx]   = React.useState(null);
+  const [dragOver,  setDragOver]  = React.useState(null);
+  const [editing,   setEditing]   = React.useState(null); // {type:'phase'|'check', id}
+  const [editForm,  setEditForm]  = React.useState({});
+
+  // Sync to parent config
+  React.useEffect(()=>{
+    onChange({ gamePhases: phases, phaseChecklist: checks });
+  },[phases, checks]);
+
+  // ── PHASE CRUD ──────────────────────────────────────────────
+  function addPhase(scope){
+    const id = `phase_${Date.now()}`;
+    const newPhase = {
+      id, label: scope==='turn'?'Nuevo paso de turno':'Nueva fase de ronda',
+      order: phases.length+1, scope, owner: scope==='turn'?'player':'host',
+      trigger: scope==='turn'?'turn_start':'manual', description:''
+    };
+    setPhases(p=>[...p, newPhase]);
+    setEditing({type:'phase', id});
+    setEditForm(newPhase);
+  }
+
+  function updatePhase(id, fields){
+    setPhases(p=>p.map(ph=>ph.id===id?{...ph,...fields}:ph));
+  }
+
+  function deletePhase(id){
+    setPhases(p=>p.filter(ph=>ph.id!==id));
+    setChecks(c=>c.filter(ch=>ch.phaseId!==id));
+  }
+
+  // ── CHECK CRUD ──────────────────────────────────────────────
+  function addCheck(phaseId){
+    const id = `check_${Date.now()}`;
+    const newCheck = {
+      id, label:'Nuevo recordatorio', phaseId,
+      required: false, autoReset:'turn', visibleTo:'all'
+    };
+    setChecks(c=>[...c, newCheck]);
+    setEditing({type:'check', id});
+    setEditForm(newCheck);
+  }
+
+  function updateCheck(id, fields){
+    setChecks(c=>c.map(ch=>ch.id===id?{...ch,...fields}:ch));
+  }
+
+  function deleteCheck(id){
+    setChecks(c=>c.filter(ch=>ch.id!==id));
+  }
+
+  // ── DRAG & DROP ──────────────────────────────────────────────
+  function handleDragStart(e, idx){
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function handleDragOver(e, idx){
+    e.preventDefault();
+    setDragOver(idx);
+  }
+  function handleDrop(e, idx){
+    e.preventDefault();
+    if(dragIdx===null||dragIdx===idx){ setDragIdx(null); setDragOver(null); return; }
+    const reordered = [...phases];
+    const [moved] = reordered.splice(dragIdx,1);
+    reordered.splice(idx,0,moved);
+    setPhases(reordered.map((p,i)=>({...p,order:i+1})));
+    setDragIdx(null); setDragOver(null);
+  }
+  function handleDragEnd(){ setDragIdx(null); setDragOver(null); }
+
+  // ── EDIT MODAL ───────────────────────────────────────────────
+  function openEdit(type, item){
+    setEditing({type, id:item.id});
+    setEditForm({...item});
+  }
+  function saveEdit(){
+    if(!editing) return;
+    if(editing.type==='phase') updatePhase(editing.id, editForm);
+    else updateCheck(editing.id, editForm);
+    setEditing(null);
+  }
+
+  const turnPhases  = phases.filter(p=>p.scope==='turn');
+  const roundPhases = phases.filter(p=>p.scope==='round');
+
+  const nodeStyle = (isOver, isDragging, color='#9B5DE5') => ({
+    borderRadius:12, border:`1.5px solid ${isOver?color+'88':color+'33'}`,
+    background: isOver?`${color}18`:`${color}0A`,
+    transition:'all .15s',
+    opacity: isDragging ? .4 : 1,
+    cursor:'grab',
+  });
+
+  const btnSm = (color='var(--cyan)') => ({
+    padding:'4px 8px', borderRadius:6, border:`1px solid ${color}33`,
+    background:'transparent', color, cursor:'pointer',
+    fontFamily:'var(--font-label)', fontSize:'10px', fontWeight:700
+  });
+
+  return(
+    <div style={{fontFamily:'var(--font-body)'}}>
+
+      {/* ── EDIT MODAL ────────────────────────────────────────── */}
+      {editing&&(
+        <div style={{position:'fixed',inset:0,zIndex:999,background:'rgba(0,0,0,.8)',
+          backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'#0D0D1C',borderRadius:20,padding:'24px 20px',
+            width:'100%',maxWidth:380,border:'1px solid rgba(155,93,229,.3)'}}>
+            <div style={{fontFamily:'var(--font-display)',fontSize:'1rem',letterSpacing:1,
+              color:'var(--purple)',marginBottom:16}}>
+              {editing.type==='phase'?'✏️ Editar fase':'✏️ Editar recordatorio'}
+            </div>
+
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <div>
+                <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+                  color:'rgba(255,255,255,.3)',marginBottom:4}}>NOMBRE</div>
+                <input className="os-input" value={editForm.label||''} onChange={e=>setEditForm(f=>({...f,label:e.target.value}))}/>
+              </div>
+
+              {editing.type==='phase'&&(
+                <>
+                  <div>
+                    <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+                      color:'rgba(255,255,255,.3)',marginBottom:4}}>DESCRIPCIÓN (aparece como contexto)</div>
+                    <input className="os-input" value={editForm.description||''} placeholder="ej: Coloca tus meeples en habitaciones"
+                      onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}/>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+                        color:'rgba(255,255,255,.3)',marginBottom:4}}>ALCANCE</div>
+                      <select className="os-input" value={editForm.scope||'turn'}
+                        onChange={e=>setEditForm(f=>({...f,scope:e.target.value}))}
+                        style={{width:'100%'}}>
+                        <option value="turn">⚡ Turno del jugador</option>
+                        <option value="round">🔄 Fase global de ronda</option>
+                      </select>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+                        color:'rgba(255,255,255,.3)',marginBottom:4}}>QUIÉN</div>
+                      <select className="os-input" value={editForm.owner||'player'}
+                        onChange={e=>setEditForm(f=>({...f,owner:e.target.value}))}
+                        style={{width:'100%'}}>
+                        <option value="player">Jugador</option>
+                        <option value="host">Host</option>
+                        <option value="all">Todos</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {editing.type==='check'&&(
+                <div style={{display:'flex',gap:10,alignItems:'center',
+                  padding:'8px 12px',borderRadius:8,background:'rgba(255,255,255,.04)',
+                  border:'1px solid rgba(255,255,255,.08)'}}>
+                  <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'12px',
+                    color:'rgba(255,255,255,.6)'}}>
+                    ¿Bloquea el avance del turno?
+                  </div>
+                  <button onClick={()=>setEditForm(f=>({...f,required:!f.required}))}
+                    style={{padding:'5px 12px',borderRadius:8,border:'none',cursor:'pointer',
+                      fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                      background:editForm.required?'rgba(255,107,53,.2)':'rgba(255,255,255,.08)',
+                      color:editForm.required?'var(--orange)':'rgba(255,255,255,.4)'}}>
+                    {editForm.required?'🔒 Sí bloquea':'💡 Solo avisa'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{display:'flex',gap:8,marginTop:16}}>
+              <button className="btn btn-ghost" style={{flex:1,marginBottom:0}}
+                onClick={()=>setEditing(null)}>Cancelar</button>
+              <button className="btn btn-purple" style={{flex:1,marginBottom:0}}
+                onClick={saveEdit}>✓ Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SECCIÓN: PASOS DEL TURNO ────────────────────────── */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:1,
+            color:'var(--cyan)'}}>⚡ Pasos del turno del jugador</div>
+          <div style={{flex:1,height:1,background:'rgba(0,245,255,.15)'}}/>
+          <button style={btnSm('var(--cyan)')} onClick={()=>addPhase('turn')}>+ Paso</button>
+        </div>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'10px',color:'rgba(255,255,255,.3)',
+          marginBottom:10}}>
+          Se repiten para cada jugador en su turno. Arrastra para reordenar.
+        </div>
+
+        {turnPhases.length===0&&(
+          <div style={{textAlign:'center',padding:'14px',borderRadius:10,
+            border:'1px dashed rgba(0,245,255,.15)',background:'rgba(0,245,255,.03)'}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.25)'}}>
+              Sin pasos de turno. Agrega uno para mostrar contexto durante el turno.
+            </div>
+          </div>
+        )}
+
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {turnPhases.map((p,i)=>{
+            const phIdx = phases.findIndex(ph=>ph.id===p.id);
+            const phaseChecks = checks.filter(c=>c.phaseId===p.id);
+            return(
+              <div key={p.id}
+                draggable onDragStart={e=>handleDragStart(e,phIdx)}
+                onDragOver={e=>handleDragOver(e,phIdx)}
+                onDrop={e=>handleDrop(e,phIdx)}
+                onDragEnd={handleDragEnd}
+                style={{...nodeStyle(dragOver===phIdx, dragIdx===phIdx,'#00F5FF'),
+                  padding:'10px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{color:'rgba(255,255,255,.2)',cursor:'grab',fontSize:'1rem',flexShrink:0}}>⠿</div>
+                  <div style={{width:22,height:22,borderRadius:6,background:'rgba(0,245,255,.15)',
+                    border:'1px solid rgba(0,245,255,.3)',display:'flex',alignItems:'center',
+                    justifyContent:'center',fontFamily:'var(--font-display)',fontSize:'10px',
+                    color:'var(--cyan)',flexShrink:0,fontWeight:700}}>{i+1}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+                      color:'var(--cyan)'}}>{p.label}</div>
+                    {p.description&&<div style={{fontFamily:'var(--font-label)',fontSize:'9px',
+                      color:'rgba(255,255,255,.3)',marginTop:1}}>{p.description}</div>}
+                  </div>
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
+                    color:'rgba(255,255,255,.3)',marginRight:4}}>
+                    {p.owner==='player'?'jugador':p.owner==='host'?'host':'todos'}
+                  </div>
+                  <button style={btnSm('rgba(0,245,255,.5)')} onClick={()=>openEdit('phase',p)}>✏️</button>
+                  <button style={btnSm('rgba(255,59,92,.5)')} onClick={()=>deletePhase(p.id)}>✕</button>
+                </div>
+                {/* Recordatorios de esta fase */}
+                {phaseChecks.length>0&&(
+                  <div style={{marginTop:6,paddingLeft:30,display:'flex',flexDirection:'column',gap:3}}>
+                    {phaseChecks.map(c=>(
+                      <div key={c.id} style={{display:'flex',alignItems:'center',gap:6,
+                        padding:'4px 8px',borderRadius:6,
+                        background:c.required?'rgba(255,107,53,.06)':'rgba(255,212,71,.05)',
+                        border:`1px solid ${c.required?'rgba(255,107,53,.2)':'rgba(255,212,71,.15)'}`}}>
+                        <div style={{fontSize:'.75rem'}}>{c.required?'🔒':'💡'}</div>
+                        <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'10px',
+                          color:c.required?'rgba(255,107,53,.8)':'rgba(255,212,71,.7)'}}>{c.label}</div>
+                        <button style={btnSm('rgba(255,255,255,.3)')} onClick={()=>openEdit('check',c)}>✏️</button>
+                        <button style={btnSm('rgba(255,59,92,.4)')} onClick={()=>deleteCheck(c.id)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{marginTop:6,paddingLeft:30}}>
+                  <button style={btnSm('rgba(255,212,71,.5)')} onClick={()=>addCheck(p.id)}>
+                    + recordatorio
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── SECCIÓN: FASES GLOBALES DE RONDA ───────────────── */}
+      <div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+          <div style={{fontFamily:'var(--font-display)',fontSize:'.85rem',letterSpacing:1,
+            color:'var(--purple)'}}>🔄 Fases globales de ronda</div>
+          <div style={{flex:1,height:1,background:'rgba(155,93,229,.15)'}}/>
+          <button style={btnSm('var(--purple)')} onClick={()=>addPhase('round')}>+ Fase</button>
+        </div>
+        <div style={{fontFamily:'var(--font-label)',fontSize:'10px',color:'rgba(255,255,255,.3)',
+          marginBottom:10}}>
+          Ocurren después de que todos los jugadores terminan su turno.
+          El host navega entre ellas desde el Panel del Host.
+        </div>
+
+        {roundPhases.length===0&&(
+          <div style={{textAlign:'center',padding:'14px',borderRadius:10,
+            border:'1px dashed rgba(155,93,229,.15)',background:'rgba(155,93,229,.03)'}}>
+            <div style={{fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.25)'}}>
+              Sin fases de ronda. Para juegos con fases globales (Fallout, Azul, Dead of Winter).
+            </div>
+          </div>
+        )}
+
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {roundPhases.map((p,i)=>{
+            const phIdx = phases.findIndex(ph=>ph.id===p.id);
+            const phaseChecks = checks.filter(c=>c.phaseId===p.id);
+            return(
+              <div key={p.id}
+                draggable onDragStart={e=>handleDragStart(e,phIdx)}
+                onDragOver={e=>handleDragOver(e,phIdx)}
+                onDrop={e=>handleDrop(e,phIdx)}
+                onDragEnd={handleDragEnd}
+                style={{...nodeStyle(dragOver===phIdx, dragIdx===phIdx,'#9B5DE5'),
+                  padding:'10px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{color:'rgba(255,255,255,.2)',cursor:'grab',fontSize:'1rem',flexShrink:0}}>⠿</div>
+                  <div style={{width:22,height:22,borderRadius:6,background:'rgba(155,93,229,.15)',
+                    border:'1px solid rgba(155,93,229,.3)',display:'flex',alignItems:'center',
+                    justifyContent:'center',fontFamily:'var(--font-display)',fontSize:'10px',
+                    color:'var(--purple)',flexShrink:0,fontWeight:700}}>{i+1}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+                      color:'var(--purple)'}}>{p.label}</div>
+                    {p.description&&<div style={{fontFamily:'var(--font-label)',fontSize:'9px',
+                      color:'rgba(255,255,255,.3)',marginTop:1}}>{p.description}</div>}
+                  </div>
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
+                    color:'rgba(255,255,255,.3)',marginRight:4}}>
+                    {p.owner==='host'?'host':p.owner==='all'?'todos':'jugador'}
+                  </div>
+                  <button style={btnSm('rgba(155,93,229,.6)')} onClick={()=>openEdit('phase',p)}>✏️</button>
+                  <button style={btnSm('rgba(255,59,92,.5)')} onClick={()=>deletePhase(p.id)}>✕</button>
+                </div>
+                {phaseChecks.length>0&&(
+                  <div style={{marginTop:6,paddingLeft:30,display:'flex',flexDirection:'column',gap:3}}>
+                    {phaseChecks.map(c=>(
+                      <div key={c.id} style={{display:'flex',alignItems:'center',gap:6,
+                        padding:'4px 8px',borderRadius:6,
+                        background:c.required?'rgba(255,107,53,.06)':'rgba(155,93,229,.05)',
+                        border:`1px solid ${c.required?'rgba(255,107,53,.2)':'rgba(155,93,229,.2)'}`}}>
+                        <div style={{fontSize:'.75rem'}}>{c.required?'🔒':'💡'}</div>
+                        <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'10px',
+                          color:c.required?'rgba(255,107,53,.8)':'rgba(155,93,229,.7)'}}>{c.label}</div>
+                        <button style={btnSm('rgba(255,255,255,.3)')} onClick={()=>openEdit('check',c)}>✏️</button>
+                        <button style={btnSm('rgba(255,59,92,.4)')} onClick={()=>deleteCheck(c.id)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{marginTop:6,paddingLeft:30}}>
+                  <button style={btnSm('rgba(155,93,229,.5)')} onClick={()=>addCheck(p.id)}>
+                    + recordatorio
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── VISUAL FLOW PREVIEW ─────────────────────────────── */}
+      {(turnPhases.length>0||roundPhases.length>0)&&(
+        <div style={{marginTop:20,padding:'12px 14px',borderRadius:12,
+          background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.06)'}}>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+            color:'rgba(255,255,255,.25)',marginBottom:8}}>VISTA PREVIA DEL FLUJO</div>
+          <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',overflowX:'auto'}}>
+            {/* Turnos de jugador */}
+            {turnPhases.map((p,i)=>(
+              <React.Fragment key={p.id}>
+                <div style={{padding:'5px 10px',borderRadius:8,
+                  background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.25)',
+                  fontFamily:'var(--font-label)',fontSize:'10px',fontWeight:700,
+                  color:'var(--cyan)',whiteSpace:'nowrap',flexShrink:0}}>
+                  {p.label}
+                </div>
+                {i<turnPhases.length-1&&<div style={{color:'rgba(255,255,255,.2)',fontSize:'.8rem'}}>→</div>}
+              </React.Fragment>
+            ))}
+            {/* Separador: todos los jugadores */}
+            {turnPhases.length>0&&roundPhases.length>0&&(
+              <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                <div style={{color:'rgba(255,255,255,.2)',fontSize:'.8rem'}}>→</div>
+                <div style={{padding:'3px 8px',borderRadius:6,
+                  background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',
+                  fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1,
+                  color:'rgba(255,255,255,.3)',whiteSpace:'nowrap'}}>
+                  todos ×N
+                </div>
+                <div style={{color:'rgba(255,255,255,.2)',fontSize:'.8rem'}}>→</div>
+              </div>
+            )}
+            {/* Fases de ronda */}
+            {roundPhases.map((p,i)=>(
+              <React.Fragment key={p.id}>
+                <div style={{padding:'5px 10px',borderRadius:8,
+                  background:'rgba(155,93,229,.1)',border:'1px solid rgba(155,93,229,.25)',
+                  fontFamily:'var(--font-label)',fontSize:'10px',fontWeight:700,
+                  color:'var(--purple)',whiteSpace:'nowrap',flexShrink:0}}>
+                  {p.label}
+                </div>
+                {i<roundPhases.length-1&&<div style={{color:'rgba(255,255,255,.2)',fontSize:'.8rem'}}>→</div>}
+              </React.Fragment>
+            ))}
+            {roundPhases.length>0&&(
+              <>
+                <div style={{color:'rgba(255,255,255,.2)',fontSize:'.8rem'}}>→</div>
+                <div style={{padding:'5px 10px',borderRadius:8,
+                  background:'rgba(0,255,157,.08)',border:'1px solid rgba(0,255,157,.2)',
+                  fontFamily:'var(--font-label)',fontSize:'10px',fontWeight:700,
+                  color:'var(--green)',whiteSpace:'nowrap',flexShrink:0}}>
+                  🔄 Nueva ronda
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // MY GAMES SCREEN — lista de juegos guardados (vnext)
