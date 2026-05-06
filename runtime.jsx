@@ -319,7 +319,7 @@ function RoundBadge({ current, total, spec }){
 // Dos modos:
 // 'agile'      — 1 botón grande "Terminé mi turno" + recordatorios informativos
 // 'regulatory' — stepper de fases con checks bloqueantes
-function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onPhaseAction, db, session }){
+function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onPhaseAction, onAction, db, session }){
   const [turnStart]    = React.useState(()=>Date.now());
   const [elapsed,  setElapsed]   = React.useState(0);
   const [confirmed, setConfirmed] = React.useState({});
@@ -442,9 +442,28 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
           </div>
         )}
 
-        {/* Botón único — grande, sin fricción */}
+        {/* Acciones del turno ágil */}
         {isActive&&(
-          <div style={{padding:'0 12px 12px'}}>
+          <div style={{padding:'0 12px 12px',display:'flex',flexDirection:'column',gap:8}}>
+
+            {/* Botón de misión/victoria si el juego lo tiene */}
+            {spec.playerActions?.some(a=>a.id==='add_win'||a.category==='score'&&a.id!=='add_points') && (
+              <button onClick={()=>{
+                snd('score');
+                // Llamar la acción de victoria directamente
+                const winAction = spec.playerActions?.find(a=>a.id==='add_win');
+                if(winAction) onAction && onAction(winAction, currentPlayer?.id, {});
+              }}
+                style={{width:'100%',padding:'13px',borderRadius:12,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-display)',fontSize:'1rem',fontWeight:700,letterSpacing:1.5,
+                  background:'linear-gradient(135deg,rgba(255,212,71,.18),rgba(255,107,53,.1))',
+                  color:'var(--gold)',
+                  boxShadow:'0 4px 16px rgba(255,212,71,.12)',transition:'all .15s'}}>
+                🎯 RESOLVÍ UNA MISIÓN
+              </button>
+            )}
+
+            {/* Botón principal — terminar turno */}
             <button onClick={()=>onEndTurn(elapsed)}
               style={{width:'100%',padding:'16px',borderRadius:12,border:'none',cursor:'pointer',
                 fontFamily:'var(--font-display)',fontSize:'1.1rem',fontWeight:700,letterSpacing:2,
@@ -891,14 +910,14 @@ function _canSee(action, isHost, isMe){
 
 function getScoreDisplay(player, spec){
   const pu = spec.primaryUnit;
-  // Sin registros ni victoria por puntos — no mostrar score
-  const noScore = (!spec.registers||spec.registers.length===0) &&
-    (spec.victoryMode==='manual'||spec.victoryMode==='objective');
+  // Sin registros ni victoria por puntos/wins — no mostrar score
+  const hasRegs = spec.registers && spec.registers.length > 0;
+  const noScore = !hasRegs && (spec.victoryMode==='manual'||spec.victoryMode==='objective');
   if(noScore) return { main:null, unit:'', color:'rgba(255,255,255,.2)' };
-  if(pu==='lives')  return { main:player.lives??'—', unit:'❤️', color:'var(--red)' };
-  if(pu==='wins')   return { main:player.wins??0,    unit:'🏆', color:'var(--gold)' };
-  if(pu==='coins')  return { main:player.coins??0,   unit:'🪙', color:'var(--gold)' };
-  if(pu==='resources') return { main:player.resources??0, unit:'📦', color:'var(--orange)' };
+  if(pu==='lives')   return { main:player.lives??'—',       unit:'❤️', color:'var(--red)' };
+  if(pu==='wins')    return { main:player.wins??0,           unit:'🎯', color:'var(--green)' };
+  if(pu==='coins')   return { main:player.coins??0,          unit:'🪙', color:'var(--gold)' };
+  if(pu==='resources') return { main:player.resources??0,   unit:'📦', color:'var(--orange)' };
   if(pu==='objectives') return { main:player.objectives??0, unit:'🎯', color:'var(--purple)' };
   return { main:player.points??0, unit:'pts', color:'var(--cyan)' };
 }
@@ -1303,6 +1322,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
               }
             }}
             onPhaseAction={handleCheckAction}
+            onAction={handlePlayerAction}
             db={db}
             session={session}
           />
@@ -1473,17 +1493,32 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
       <div style={{width:'100%',maxWidth:380,marginBottom:20}}>
         {players.slice(0,6).map((p,i)=>{
           const display = getScoreDisplay(p,spec);
+          // Calcular tiempo total de todos los turnos del jugador
+          const totalTurnSecs = (p.turnHistory||[]).reduce((s,t)=>s+(t.secs||0),0);
+          const avgTurnSecs   = p.turnHistory?.length
+            ? Math.round(totalTurnSecs/p.turnHistory.length) : null;
+          const showTime = spec.trackTurnDuration && totalTurnSecs > 0;
+          function fmtS(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
           return(
-            <div key={p.id} className={`player-row ${i===0?'winner-row':''}`} style={{marginBottom:6}}>
+            <div key={p.id} className={`player-row ${i===0?'winner-row':''}`}
+              style={{marginBottom:6,flexWrap:'wrap'}}>
               <div className="player-pos">{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
               <div className="player-emoji">{p.emoji}</div>
               <div style={{flex:1}}>
                 <div className="player-name" style={{color:p.color||'#fff'}}>
                   {p.name}{p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:5}}>TÚ</span>}
                 </div>
+                {showTime&&(
+                  <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+                    color:'rgba(255,255,255,.3)',marginTop:1}}>
+                    ⏱ total {fmtS(totalTurnSecs)}
+                    {avgTurnSecs&&` · prom ${fmtS(avgTurnSecs)}`}
+                    {` · ${p.turnHistory?.length||0} turnos`}
+                  </div>
+                )}
               </div>
               <div className="player-stat" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.55)'}}>
-                {display.main} {display.unit}
+                {display.main !== null ? `${display.main} ${display.unit}` : (showTime ? fmtS(totalTurnSecs) : '—')}
               </div>
             </div>
           );

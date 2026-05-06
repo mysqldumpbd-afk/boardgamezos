@@ -178,47 +178,53 @@ nemesisAssist: {
     id:'mision_cumplida', order:17, name:'Misión Cumplida', emoji:'🎯',
     color:'#00FF9D', category:'card_game', complexity:'low',
     validates:['turns','flow_assistance','turn_timer'],
-    valueAdd:['Un botón: terminé mi turno','Recordatorio informativo de tomar carta','Reloj de ajedrez por jugador'],
+    valueAdd:[
+      'Reloj de ajedrez por jugador',
+      'Botón: Terminé mi turno',
+      'Botón: Resolví una misión',
+      'Recordatorio informativo: toma tu carta',
+      'Marcador de misiones cumplidas',
+      'Cooperativo con competencia interna',
+    ],
     config:{
-      name:'Misión Cumplida', emoji:'🎯', type:'individual',
+      name:'Misión Cumplida', emoji:'🎯',
+      type:'cooperative',         // cooperativo pero con métricas individuales
       minPlayers:2, maxPlayers:6,
-      // Sin rondas — solo turnos hasta que alguien complete su misión
-      useRounds:false,
-      useTurns:true, turnOrder:'rotative', useFirstPlayerToken:false,
-      // Victoria manual — el host declara ganador cuando alguien cumple la misión
+      useRounds: false,           // sin rondas — flujo libre hasta que alguien declara victoria
+      useTurns: true, turnOrder:'rotative', useFirstPlayerToken:false,
       victoryMode:'manual', manualWinMode:'host_end',
-      registers:[],  // sin puntos — el objetivo es medir tiempo
+      registers:['wins'],         // wins = misiones cumplidas por jugador
       playMode:'minimal',
-      playObjects:[],
-      objectControlScope:'all',
-      useFlowAssistance:true,
-      // Modo ágil: un solo botón de fin de turno
-      turnAssistMode:'agile',
+      playObjects:['victory_button'],   // botón "Resolví una misión"
+      victoryButtonLabel: 'Resolví una misión 🎯',
+      victoryButtonScope: 'round',      // cuenta como victoria de turno/ronda
+      objectControlScope:'all',         // cualquier jugador puede pulsar
+      useFlowAssistance: true,
+      turnAssistMode: 'agile',          // un botón, sin bloqueos
+      trackTurnDuration: true,          // reloj de ajedrez
 
+      // Fases del turno — solo informativas en modo ágil
       gamePhases:[
-        {id:'play_card', label:'Juega una carta', order:1, scope:'turn', owner:'player',
-          trigger:'turn_start', description:'Juega una carta de tu mano'},
-        {id:'draw_card', label:'Toma una carta',  order:2, scope:'turn', owner:'player',
-          trigger:'manual', description:'Toma una carta del mazo (mano de 4)'},
-        {id:'end_turn',  label:'Fin de turno',    order:3, scope:'turn', owner:'player',
-          trigger:'manual', description:''},
+        {id:'play_turn',  label:'Tu turno',      order:1, scope:'turn', owner:'player',
+          trigger:'turn_start',
+          description:'Juega cartas, cumple misiones o ayuda a un compañero'},
+        {id:'draw_card',  label:'Toma una carta', order:2, scope:'turn', owner:'player',
+          trigger:'manual',
+          description:'Toma una carta del mazo para completar tu mano (4 cartas)'},
       ],
 
+      // Recordatorio informativo — NO bloquea (required:false)
       phaseChecklist:[
-        // required:false = recordatorio informativo, NO bloquea
-        {id:'draw_reminder', label:'Recuerda tomar tu carta del mazo', phaseId:'draw_card',
-          visibleTo:'all', required:false, autoReset:'turn'},
+        {id:'draw_reminder', label:'Recuerda tomar tu carta del mazo',
+          phaseId:'draw_card', visibleTo:'all', required:false, autoReset:'turn'},
       ],
 
       phaseLifecycle:[
-        // blocksAdvance:false = solo recuerda, no bloquea
-        {id:'draw_card_life', phaseId:'draw_card', label:'Tomar carta',
-          reset:'turn', autoEnter:true, autoExit:false, blocksAdvance:false}
+        {id:'draw_life', phaseId:'draw_card', label:'Tomar carta',
+          reset:'turn', autoEnter:true, autoExit:false, blocksAdvance:false},
       ],
 
-      useTimer:false,
-      trackTurnDuration:true,
-      trackRoundHistory:false,
+      trackRoundHistory: false,
     }
   },
 
