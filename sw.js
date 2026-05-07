@@ -2,7 +2,7 @@
 // Simple network-first for CDN, cache-first for local JSX files.
 // No addAll on install — avoids crashing on CDN failures.
 
-const VERSION = 'bgos-v4';
+const VERSION = 'bgos-v5';
 const LOCAL_FILES = [
   '/boardgamezos/styles.css',
   '/boardgamezos/app.js',

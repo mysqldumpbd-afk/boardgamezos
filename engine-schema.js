@@ -412,6 +412,8 @@ window.ENGINE_SCHEMA = {
           id: "winConditions",
           type: "list_text",
           label: "Condiciones especiales de victoria",
+          placeholder: "ej: Full (3+2 iguales), Generala (5 iguales), Par, Corrida, Flush...",
+          sublabel: "Solo de referencia. Para botones activos usa el Asistente de flujo.",
           default: []
         }
       ]
@@ -555,14 +557,15 @@ window.ENGINE_SCHEMA = {
         {
           id: "modifiers",
           type: "multi_select",
-          label: "Modificadores",
+          label: "Modificadores activos en este juego",
+          sublabel: "Para Cubilete y juegos de dados: usa 'Botones del turno' en el Asistente de flujo para Full, Par, etc.",
           default: [],
           options: [
-            { value: "bonus", label: "Bonus" },
-            { value: "penalty", label: "Penalización" },
-            { value: "multiplier", label: "Multiplicador" },
-            { value: "steal", label: "Robo" },
-            { value: "shield", label: "Escudo" },
+            { value: "bonus", label: "Bonus (+)" },
+            { value: "penalty", label: "Penalización (-)" },
+            { value: "multiplier", label: "Multiplicador (×)" },
+            { value: "steal", label: "Robo (quitar pts a otro)" },
+            { value: "shield", label: "Escudo (protege de penalizaciones)" },
             { value: "block", label: "Bloqueo" }
           ]
         },
@@ -1086,13 +1089,17 @@ window.ENGINE_SCHEMA = {
         {
           id: "customRules",
           type: "list_text",
-          label: "Triggers o reglas del juego",
+          label: "Recordatorios de reglas especiales",
+          placeholder: "ej: Generala servida = 50 pts directos",
+          sublabel: "Solo texto de referencia para el host. Para acciones reales usa el Asistente de flujo.",
           default: []
         },
         {
           id: "specialEvents",
           type: "list_text",
-          label: "Eventos especiales",
+          label: "Eventos especiales del juego",
+          placeholder: "ej: Epidemia, El camino se cierra, Traición revelada",
+          sublabel: "Solo texto de referencia. Para disparar acciones reales usa el Asistente de flujo.",
           default: []
         }
       ]

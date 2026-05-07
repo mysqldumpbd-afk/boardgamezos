@@ -1254,6 +1254,33 @@ const FIELD_HELP = {
   saveHistory:         'Guarda el historial en tu cuenta para verlo en Stats después.',
   rematchKeepPlayers:  'En la revancha mantiene los mismos jugadores sin que vuelvan a unirse.',
   rematchResetScore:   'Reinicia todos los scores al iniciar la revancha.',
+
+  // VICTORY
+  winConditions: 'Condiciones especiales que otorgan victoria en el momento. Ej: "Full" (3+2 dados iguales), "Generala" (5 dados iguales), "Corrida" (1-2-3-4-5). En Cubilete estas condiciones terminan tu turno inmediatamente. Estas condiciones son solo recordatorios — para que aparezcan como BOTONES usa "Botones del turno ágil" en el Asistente de flujo.',
+  tiebreak: 'Qué pasa si hay empate al final. Dado/moneda para decidir al azar, el host declara ganador, o se comparte la victoria.',
+
+  // PROGRESS  
+  modifiers: '→ Pad: activa tipos de modificadores que pueden ocurrir en el juego. Bonus: suma extra (+). Penalización: resta (-). Multiplicador: multiplica el score. Robo: quitar puntos a otro jugador. Escudo: protege de penalizaciones. Bloqueo: bloquea el turno. NOTA: para Cubilete, los "movimientos" (Full, Par, Corrida) se configuran mejor como Botones del turno en el Asistente de flujo.',
+  capturedBy: '→ Pad: quién puede usar la calculadora. host=solo el organizador. self=cada jugador ingresa el suyo. all=cualquiera.',
+  customCounterName: 'Nombre del contador personalizado. Ej: "Energía" en King of Tokyo, "Monedas" en Coup, "Radiación" en Fallout.',
+
+  // TOOLS - clarify score_input
+  playObjects: '→ Pad: • "Calculadora/captura manual" = el botón + para ingresar puntos (lo más común). • "Dados" = botón de dado integrado. • "Botón de victoria" = botón para marcar ronda ganada. Para juegos de cartas, activa solo la calculadora.',
+
+  // RULES section
+  customRules: 'Escribe aquí recordatorios de reglas especiales del juego. No tienen funcionalidad — son solo texto de referencia para el host. Ej: "Si sacas Generala servida = 50 pts", "No se puede atacar al Sheriff". Para que sean BOTONES activos usa el Asistente de flujo.',
+  specialEvents: 'Eventos que pueden ocurrir durante el juego. Son solo texto de referencia. Ej: "Epidemia", "El camino se cierra", "Traición revelada". Para que disparen acciones reales usa el Asistente de flujo.',
+
+  // HISTORY
+  trackingLevel: 'Mínimo: solo resultado final. Normal: resultado + scores por ronda. Detallado: todo incluyendo tiempos y eventos.',
+  trackWinnerReason: 'Guarda la razón exacta de victoria. Ej: "Llegó a 100 puntos", "Último en pie".',
+  trackRoundHistory: '→ Pantalla final: muestra el historial de puntos por ronda en la pantalla de resultados.',
+  trackTimers: '→ Pantalla final: muestra cuánto tiempo tardó cada jugador en sus turnos.',
+
+  // FINISH
+  endConditions: 'Condiciones adicionales para terminar la partida. Ej: "Mazo agotado", "Todos pasan", "Objetivo completado".',
+  exportFormat: 'Formato para exportar los resultados al terminar. JSON para análisis, texto para compartir.',
+  rematchKeepConfig: 'En la revancha usa exactamente la misma configuración sin tener que reconfigurar nada.',
 };
 
 // ── AGILE TURN BUTTONS EDITOR ────────────────────────────────────
@@ -1555,6 +1582,13 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
       <div style={wrapStyle}>
         <div style={labelStyle}>{field.label}</div>
         {HelpText}
+        {field.sublabel&&(
+          <div style={{fontFamily:'var(--font-label)',fontSize:'10px',color:'rgba(255,212,71,.65)',
+            marginBottom:6,padding:'5px 8px',borderRadius:6,
+            background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.15)'}}>
+            💡 {field.sublabel}
+          </div>
+        )}
         <select
           className="os-select"
           disabled={disabled}
@@ -1577,6 +1611,13 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
       <div style={wrapStyle}>
         <div style={labelStyle}>{field.label}</div>
         {HelpText}
+        {field.sublabel&&(
+          <div style={{fontFamily:'var(--font-label)',fontSize:'10px',color:'rgba(255,212,71,.65)',
+            marginBottom:6,padding:'5px 8px',borderRadius:6,
+            background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.15)'}}>
+            💡 {field.sublabel}
+          </div>
+        )}
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
           {(field.options || []).map(opt=>{
             const active = current.includes(opt.value);
@@ -1620,7 +1661,22 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
   if(field.type === 'list_text'){
     return (
       <div style={wrapStyle}>
-        <ListTextField label={field.label} value={Array.isArray(value) ? value : []} onChange={set} disabled={disabled} />
+        <div style={labelStyle}>{field.label}</div>
+        {HelpText}
+        {field.sublabel&&(
+          <div style={{fontFamily:'var(--font-label)',fontSize:'10px',color:'rgba(255,212,71,.65)',
+            marginBottom:6,padding:'5px 8px',borderRadius:6,
+            background:'rgba(255,212,71,.06)',border:'1px solid rgba(255,212,71,.15)'}}>
+            💡 {field.sublabel}
+          </div>
+        )}
+        <ListTextField
+          label=""
+          placeholder={field.placeholder||'Escribe y presiona + para agregar'}
+          value={Array.isArray(value) ? value : []}
+          onChange={set}
+          disabled={disabled}
+        />
         {reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}
       </div>
     );
