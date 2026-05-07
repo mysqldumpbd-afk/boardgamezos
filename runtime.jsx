@@ -866,6 +866,31 @@ function HostPanel({ spec, room, onHostAction, isOpen, onToggle }){
             </div>
           )}
 
+          {/* Fin de partida cooperativa */}
+          {spec?.type==='cooperative'&&(
+            <div style={{marginBottom:8}}>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.2)',marginBottom:5}}>FIN DE PARTIDA</div>
+              <div style={{display:'flex',gap:7}}>
+                <button onClick={()=>onHostAction('end_victory')}
+                  style={{flex:1,padding:'12px 6px',borderRadius:10,border:'none',cursor:'pointer',
+                    fontFamily:'var(--font-display)',fontSize:'.85rem',fontWeight:700,letterSpacing:1,
+                    background:'linear-gradient(135deg,rgba(0,255,157,.2),rgba(0,245,255,.12))',
+                    color:'var(--green)',boxShadow:'0 4px 14px rgba(0,255,157,.2)'}}>
+                  🏆 GANAMOS
+                </button>
+                <button onClick={()=>onHostAction('end_defeat')}
+                  style={{flex:1,padding:'12px 6px',borderRadius:10,border:'none',cursor:'pointer',
+                    fontFamily:'var(--font-display)',fontSize:'.85rem',fontWeight:700,letterSpacing:1,
+                    background:'linear-gradient(135deg,rgba(255,59,92,.25),rgba(255,107,53,.12))',
+                    color:'var(--red)',boxShadow:'0 4px 14px rgba(255,59,92,.2)',
+                    animation:'none'}}>
+                  💀 FALLAMOS
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Acciones peligrosas */}
           {danger.map(a=>(
             <button key={a.id} onClick={()=>{snd('elim');onHostAction(a.id);}}
@@ -1203,6 +1228,20 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
           winner:{id:w?.id,name:w?.name,emoji:w?.emoji}});
         break;
       }
+      case 'end_victory':{
+        // Cooperative victory — all players win
+        snd('victory');
+        await db.set(`rooms/${session.code}`,{...room,status:'finished',endedAt:now,
+          winner:null, cooperativeResult:'victory'});
+        break;
+      }
+      case 'end_defeat':{
+        // Cooperative defeat — all players lose
+        snd('elim');
+        await db.set(`rooms/${session.code}`,{...room,status:'finished',endedAt:now,
+          winner:null, cooperativeResult:'defeat'});
+        break;
+      }
       default: break;
     }
   }
@@ -1503,6 +1542,8 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
 
   const players = sortPlayers(room.players||[], spec);
   const isCooperative = spec.type === 'cooperative';
+  const coopResult   = room.cooperativeResult; // 'victory' | 'defeat' | undefined
+  const isDefeat     = isCooperative && coopResult === 'defeat';
   const winner  = isCooperative ? null : players[0];
   const totalDuration = room.endedAt&&room.startedAt ? fmtDuration(room.endedAt-room.startedAt) : '—';
   const [rematchLoading, setRematchLoading] = useState(false);
@@ -1510,11 +1551,10 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
   const victorySoundFired = React.useRef(false);
 
   useEffect(()=>{
-    // BUG FIX: solo sonar si terminó hace menos de 30s Y no ha sonado ya
     const recentEnd = room.endedAt && (Date.now() - room.endedAt) < 30000;
     if(recentEnd && !victorySoundFired.current){
       victorySoundFired.current = true;
-      snd('victory');
+      snd(isDefeat ? 'elim' : 'victory');
     }
     // Guardar historial de partida al terminar
     if(room && typeof saveSession === 'function'){
@@ -1567,16 +1607,28 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
       const freshPlayers = typeof buildInitialPlayers === 'function'
         ? buildInitialPlayers(basePlayers, spec)
         : basePlayers.map(p=>({...spec.playerInit||{}, ...p}));
-      // Step 3: atomic write — reset room to lobby in ONE operation
-      await db.set(`rooms/${session.code}`, {
-        code:          room.code,
-        gameType:      room.gameType,
-        customTitle:   room.customTitle,
-        hostId:        room.hostId,
-        config:        room.config,
+      // Step 3: atomic write — strip undefined before saving (Firebase rejects undefined)
+      const strip = (obj) => {
+        if(obj===null||obj===undefined) return null;
+        if(Array.isArray(obj)) return obj.map(strip);
+        if(typeof obj==='object') {
+          const out={};
+          Object.keys(obj).forEach(k=>{
+            const v=obj[k];
+            if(v!==undefined) out[k]=strip(v);
+          });
+          return out;
+        }
+        return obj;
+      };
+      const rematchRoom = strip({
+        code:          room.code||session.code,
+        gameType:      room.gameType||'generic:template',
+        customTitle:   room.customTitle||'Partida',
+        hostId:        room.hostId||myId,
+        config:        room.config||null,
         runtimeSpec:   room.runtimeSpec||null,
-        createdAt:     room.createdAt,
-        // Reset game state
+        createdAt:     room.createdAt||Date.now(),
         status:        'lobby',
         players:       freshPlayers,
         currentRound:  1,
@@ -1594,6 +1646,7 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
         rematchPending:false,
         rematchCount:  (room.rematchCount||0)+1,
       });
+      await db.set(`rooms/${session.code}`, rematchRoom);
     } catch(e){
       console.error('Rematch error:', e);
     } finally {
@@ -1602,7 +1655,7 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
   }
 
   return(
-    <div className="end-screen" style={{overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
+    <div className="end-screen" style={{overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background: isDefeat ? 'radial-gradient(circle at 50% 30%,#1A0005 0%,#07070F 65%)' : undefined}}>
       <div className="end-confetti">
         {confetti.map(d=>(
           <div key={d.id} style={{position:'absolute',background:d.c,width:d.sz,height:d.sz,
@@ -1621,13 +1674,27 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
       <div className="end-gamename">{(room.customTitle||'PARTIDA').toUpperCase()}</div>
       {isCooperative ? (
         <div style={{textAlign:'center',marginBottom:8}}>
-          <div style={{fontSize:'2.8rem',marginBottom:8}}>🤝</div>
-          <div className="end-winner-name" style={{color:'var(--green)'}}>¡EQUIPO GANADOR!</div>
+          <div style={{fontSize:'3rem',marginBottom:8,
+            animation: isDefeat ? 'elimPulse 1s ease-in-out infinite' : 'trophyFloat 2.2s ease-in-out infinite'}}>
+            {isDefeat ? '💀' : '🤝'}
+          </div>
+          <div className="end-winner-name"
+            style={{color: isDefeat ? 'var(--red)' : 'var(--green)'}}>
+            {isDefeat ? '¡FALLAMOS!' : '¡EQUIPO GANADOR!'}
+          </div>
+          {isDefeat && (
+            <div style={{fontFamily:'var(--font-label)',fontSize:'12px',
+              color:'rgba(255,107,53,.7)',marginTop:6,letterSpacing:.5}}>
+              Mejor suerte la próxima vez
+            </div>
+          )}
           <div style={{display:'flex',gap:6,justifyContent:'center',flexWrap:'wrap',marginTop:8,marginBottom:4}}>
             {players.map(p=>(
               <div key={p.id} style={{padding:'4px 10px',borderRadius:20,
-                background:'rgba(0,255,157,.1)',border:'1px solid rgba(0,255,157,.25)',
-                fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,color:'var(--green)'}}>
+                background: isDefeat ? 'rgba(255,59,92,.1)' : 'rgba(0,255,157,.1)',
+                border: `1px solid ${isDefeat ? 'rgba(255,59,92,.25)' : 'rgba(0,255,157,.25)'}`,
+                fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+                color: isDefeat ? 'var(--red)' : 'var(--green)'}}>
                 {p.emoji} {p.name}
               </div>
             ))}
