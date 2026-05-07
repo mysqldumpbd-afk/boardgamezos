@@ -1297,10 +1297,11 @@ function AgileTurnButtonsEditor({ value, onChange, disabled, fieldId, itemSchema
   });
 
   const EFFECTS = [
-    { value:'log_event',    label:'📝 Solo registrar el evento', desc:'Aparece en el log pero no cambia el score' },
-    { value:'add_win',      label:'🏆 Suma una victoria/misión', desc:'Incrementa el contador de victorias del jugador' },
-    { value:'add_points',   label:'🔢 Suma puntos (pide valor)', desc:'Abre la calculadora para ingresar cuántos' },
-    { value:'end_game_loss',label:'🚫 Termina partida (derrota)', desc:'Registra la acción y notifica al host' },
+    { value:'log_event',    label:'📝 Solo registrar el evento',    desc:'Aparece en el log, no cambia score ni vidas. Ideal para declarar combinaciones (Cubilete), eventos de cartas, etc.' },
+    { value:'add_win',      label:'🏆 Suma una victoria/misión',    desc:'Incrementa el contador de victorias del jugador. Ideal para Love Letter, Misión Cumplida.' },
+    { value:'add_points',   label:'🔢 Suma puntos',                 desc:'Abre la calculadora para ingresar cuántos puntos.' },
+    { value:'lose_life',    label:'❤️ Perder una vida',             desc:'Resta 1 vida al jugador. Si llega a 0 → eliminado automáticamente. Ideal para Cubilete, Bang!' },
+    { value:'end_game_loss',label:'🚫 Termina partida',             desc:'Notifica al host para terminar la partida. Ideal para "Me quedé sin opciones" en cooperativos.' },
   ];
 
   const EMOJIS = ['🎯','🏆','🃏','💡','⚡','🎲','💀','🚫','✅','🔥','⭐','🎁','🗡️','🛡️','💰','❤️','🎴','👾','🏅','🎪'];

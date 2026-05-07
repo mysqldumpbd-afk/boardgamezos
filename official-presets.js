@@ -30,31 +30,79 @@ window.OFFICIAL_PRESETS = {
   cubilete: {
     id:'cubilete', order:2, name:'Cubilete', emoji:'🎲', color:'#FFD447',
     category:'dice_party', complexity:'medium',
-    validates:['turns','lives','tools'],
-    valueAdd:['5 vidas por jugador','Dados integrados','Perder vida = un turno'],
+    validates:['turns','lives','tools','entities','flow_assistance'],
+    valueAdd:[
+      '5 vidas por jugador — pierdes si no superas la combinación',
+      'Botones para declarar: Par, Doble Par, Corrida, Full, Póker, Generala',
+      'Combinación activa visible para todos en pantalla',
+      'Dado d6 integrado — hasta 2 tiradas por turno',
+      'Botón grande: Perdí (pierdo una vida)',
+      'Eliminación automática al llegar a 0 vidas',
+    ],
     config:{
       name:'Cubilete', emoji:'🎲', type:'individual',
       minPlayers:2, maxPlayers:8,
-      useRounds:true, rounds:'libre', roundClose:'manual',
+      // Sin rondas formales — el juego fluye hasta que queda uno
+      useRounds:false,
       useTurns:true, turnOrder:'rotative', useFirstPlayerToken:false,
-      victoryMode:'lives', primaryUnit:'lives',
+      victoryMode:'elimination',
       registers:['lives'],
-      playMode:'minimal',
+      playMode:'enhanced',
       playObjects:['dice_tool'],
       objectControlScope:'all',
       useTools:true, tools:['dice'], diceType:'d6',
       useFlowAssistance:true,
       turnAssistMode:'agile',
+
+      // Botones del turno — el jugador declara su combinación y opcionalmente pierde
+      // Los jugadores físicamente verifican si la combinación supera la anterior
       agileTurnButtons:[
-        { label:'Perdí una vida', icon:'❤️', effect:'log_event' },
+        // Declarar combinación (log_event = solo registra, no cambia vidas)
+        { label:'Par',        icon:'🎲', effect:'log_event' },
+        { label:'Doble Par',  icon:'🎲', effect:'log_event' },
+        { label:'Corrida',    icon:'🎯', effect:'log_event' },
+        { label:'Full',       icon:'🔥', effect:'log_event' },
+        { label:'Póker',      icon:'⭐', effect:'log_event' },
+        { label:'Generala',   icon:'👑', effect:'log_event' },
+        // Perder vida (cuando no puedes superar la combinación anterior)
+        { label:'Perdí (- vida)', icon:'❤️', effect:'lose_life' },
       ],
+
+      // Fases del turno — informativas, no bloquean
       gamePhases:[
-        { id:'roll_dice', label:'Tirar dados', order:1, scope:'turn', owner:'player',
-          trigger:'turn_start', description:'Tira los dados y aplica el resultado' },
+        { id:'roll1', label:'1ª tirada', order:1, scope:'turn',
+          owner:'player', trigger:'turn_start',
+          description:'Tira el dado. Puedes tirar hasta 2 veces.' },
+        { id:'roll2', label:'2ª tirada (opcional)', order:2, scope:'turn',
+          owner:'player', trigger:'manual',
+          description:'Si quieres mejorar tu combinación, tira de nuevo.' },
+        { id:'declare', label:'Declarar combinación', order:3, scope:'turn',
+          owner:'player', trigger:'manual',
+          description:'Declara tu combinación. ¿Superas la anterior? Si no → pierdes una vida.' },
       ],
+
       phaseChecklist:[
-        { id:'apply_result', label:'¿Aplicaste el resultado al marcador?',
-          phaseId:'roll_dice', required:false, autoReset:'turn', visibleTo:'all' },
+        { id:'beats_prev', label:'¿Tu combinación supera la del jugador anterior?',
+          phaseId:'declare', required:false, autoReset:'turn', visibleTo:'all' },
+      ],
+
+      // Entidad: muestra la combinación activa en mesa para que todos la vean
+      externalEntities:[
+        { id:'active_combo', label:'Combinación en juego', icon:'🎲',
+          entityType:'status', stateType:'status',
+          defaultState:'ninguna',
+          visibleTo:'all',
+          description:'La combinación que debe superar el siguiente jugador' },
+      ],
+
+      // Jerarquía de combinaciones como referencia (no funcional, solo recordatorio)
+      winConditions:[
+        'Generala (5 iguales) — LA MÁS ALTA',
+        'Póker (4 iguales)',
+        'Full (3+2 iguales)',
+        'Corrida (1-2-3-4-5 o 2-3-4-5-6)',
+        'Doble Par (2+2)',
+        'Par (2 iguales) — LA MÁS BAJA',
       ],
     }
   },

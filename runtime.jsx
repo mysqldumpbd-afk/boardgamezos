@@ -495,6 +495,7 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
                 snd(btn.effect==='end_game_loss'?'elim':'score');
                 if(btn.effect==='add_win') onAction&&onAction({id:'add_win',icon:btn.icon||'🎯',label:btn.label,color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
                 else if(btn.effect==='add_points') onAction&&onAction({id:'add_points',icon:btn.icon||'➕',label:btn.label,color:'var(--cyan)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
+                else if(btn.effect==='lose_life') onAction&&onAction({id:'lose_life',icon:btn.icon||'❤️',label:btn.label,color:'var(--red)',type:'direct',category:'lives'},currentPlayer?.id,{});
                 else onAction&&onAction({id:btn.effect||'log_event',icon:btn.icon||'📝',label:btn.label,color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
               }}
                 style={{padding:'11px',borderRadius:10,border:'none',cursor:'pointer',
