@@ -366,6 +366,146 @@ function GenericSetup({onBack,hostPlayer,onCreateRoom}){
 }
 
 // ── GENERIC LOBBY ────────────────────────────────────────────────
+
+// ── PLAYER ORDER LIST — drag & drop para reordenar en lobby ─────
+function PlayerOrderList({ players, hostId, myId, presence, isHost, onReorder }){
+  const [dragIdx, setDragIdx] = React.useState(null);
+  const [dragOver, setDragOver] = React.useState(null);
+  const [localOrder, setLocalOrder] = React.useState(players.map(p=>p.id));
+  const saveTimer = React.useRef(null);
+
+  // Sync when Firebase updates players
+  React.useEffect(()=>{
+    setLocalOrder(players.map(p=>p.id));
+  },[players.map(p=>p.id).join(',')]);
+
+  const ordered = localOrder
+    .map(id => players.find(p=>p.id===id))
+    .filter(Boolean);
+
+  function handleDragStart(e, idx){
+    if(!isHost) return;
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function handleDragOver(e, idx){
+    e.preventDefault();
+    if(!isHost||dragIdx===null) return;
+    setDragOver(idx);
+  }
+  function handleDrop(e, idx){
+    e.preventDefault();
+    if(!isHost||dragIdx===null||dragIdx===idx) { setDragIdx(null); setDragOver(null); return; }
+    const next = [...localOrder];
+    const [moved] = next.splice(dragIdx,1);
+    next.splice(idx,0,moved);
+    setLocalOrder(next);
+    setDragIdx(null); setDragOver(null);
+    // Save to Firebase with debounce
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(()=>{
+      const reordered = next.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+      onReorder(reordered);
+    },300);
+  }
+  function handleDragEnd(){ setDragIdx(null); setDragOver(null); }
+
+  // Touch support
+  const touchStartY = React.useRef(null);
+  const touchIdx    = React.useRef(null);
+  function handleTouchStart(e, idx){
+    if(!isHost) return;
+    touchStartY.current = e.touches[0].clientY;
+    touchIdx.current    = idx;
+    setDragIdx(idx);
+  }
+  function handleTouchMove(e){
+    if(!isHost||touchIdx.current===null) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    // Find which element we're over
+    const els = document.querySelectorAll('[data-player-row]');
+    let overIdx = null;
+    els.forEach((el,i)=>{
+      const rect = el.getBoundingClientRect();
+      if(y >= rect.top && y <= rect.bottom) overIdx=i;
+    });
+    if(overIdx !== null) setDragOver(overIdx);
+  }
+  function handleTouchEnd(e){
+    if(!isHost||touchIdx.current===null) return;
+    const from = touchIdx.current;
+    const to   = dragOver;
+    setDragIdx(null); setDragOver(null);
+    touchIdx.current = null;
+    if(to===null||to===from) return;
+    const next=[...localOrder];
+    const [moved]=next.splice(from,1);
+    next.splice(to,0,moved);
+    setLocalOrder(next);
+    const reordered=next.map(id=>players.find(p=>p.id===id)).filter(Boolean);
+    onReorder(reordered);
+  }
+
+  return(
+    <div onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+      {ordered.map((p,i)=>{
+        const prs = presence[p.id];
+        const st  = p.id===hostId&&!prs?'online':(!prs?'pending':prs.status);
+        const col = getPresenceColor(st);
+        const isDragging = dragIdx===i;
+        const isOver     = dragOver===i && dragIdx!==null && dragIdx!==i;
+        return(
+          <div key={p.id}
+            data-player-row={i}
+            draggable={isHost}
+            onDragStart={e=>handleDragStart(e,i)}
+            onDragOver={e=>handleDragOver(e,i)}
+            onDrop={e=>handleDrop(e,i)}
+            onDragEnd={handleDragEnd}
+            onTouchStart={e=>handleTouchStart(e,i)}
+            className="player-row active"
+            style={{
+              opacity: isDragging ? .4 : 1,
+              transform: isOver ? 'translateY(-2px)' : 'none',
+              borderColor: isOver ? 'rgba(0,245,255,.4)' : undefined,
+              background: isOver ? 'rgba(0,245,255,.06)' : undefined,
+              transition:'transform .15s,background .15s,border-color .15s',
+              animationDelay:i*.06+'s',
+              cursor: isHost ? 'grab' : 'default',
+            }}>
+            {/* Drag handle — only visible for host */}
+            {isHost&&(
+              <div style={{
+                color:'rgba(255,255,255,.2)',fontSize:'1.1rem',
+                flexShrink:0,marginRight:2,letterSpacing:-2,
+                cursor:'grab',userSelect:'none',lineHeight:1,
+                paddingTop:2,
+              }}>⠿</div>
+            )}
+            {/* Turn order number */}
+            <div style={{
+              width:20,height:20,borderRadius:6,flexShrink:0,
+              background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontFamily:'var(--font-display)',fontSize:'10px',
+              color:'rgba(255,255,255,.4)',
+            }}>{i+1}</div>
+            <div className="player-emoji">{p.emoji}</div>
+            <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
+              <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,
+                boxShadow:st!=='offline'?`0 0 6px ${col}`:'none',display:'inline-block'}}/>
+              {p.name}
+              {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
+            </div>
+            {p.id===hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GenericLobby({session,onBack,onStart,isHost,myId,db}){
   const [room,setRoom]=React.useState(null);
   React.useEffect(()=>{
@@ -414,24 +554,25 @@ function GenericLobby({session,onBack,onStart,isHost,myId,db}){
             {(config.winConditions||[]).length>0&&<div className="os-tag gold">🏆 {config.winConditions.length} condiciones</div>}
           </div>
         )}
-        <div className="os-section">JUGADORES · {players.length}</div>
-        {players.map((p,i)=>{
-          const prs=presence[p.id];
-          const st=p.id===room?.hostId&&!prs?'online':(!prs?'pending':prs.status);
-          const col=getPresenceColor(st);
-          return(
-            <div key={p.id} className="player-row active anim-fade" style={{animationDelay:i*.06+'s'}}>
-              <div className="player-emoji">{p.emoji}</div>
-              <div className="player-name" style={{color:p.color||'#fff',display:'flex',alignItems:'center',gap:6}}>
-                <span style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0,
-                  boxShadow:st!=='offline'?`0 0 6px ${col}`:'none',display:'inline-block'}}/>
-                {p.name}
-                {p.id===myId&&<span style={{fontFamily:'var(--font-ui)',fontSize:'.5rem',color:'var(--cyan)',letterSpacing:2,marginLeft:4}}>TÚ</span>}
-              </div>
-              {p.id===room?.hostId&&<div className="os-tag gold" style={{fontSize:'var(--fs-micro)'}}>HOST</div>}
-            </div>
-          );
-        })}
+        <div className="os-section" style={{display:'flex',alignItems:'center',gap:8}}>
+          <span>JUGADORES · {players.length}</span>
+          {effectiveIsHost&&players.length>1&&(
+            <span style={{fontFamily:'var(--font-label)',fontSize:'9px',color:'rgba(255,255,255,.3)',letterSpacing:1}}>
+              ⠿ arrastra para reordenar
+            </span>
+          )}
+        </div>
+        <PlayerOrderList
+          players={players}
+          hostId={room?.hostId}
+          myId={myId}
+          presence={presence}
+          isHost={effectiveIsHost}
+          onReorder={async(newPlayers)=>{
+            snd('tap');
+            await db.set(`rooms/${session.code}/players`, newPlayers);
+          }}
+        />
         <div className="g16"/>
         {effectiveIsHost
           ? <button className="btn btn-cyan" onClick={startGame} disabled={players.length<2}>⚔️ INICIAR PARTIDA</button>
