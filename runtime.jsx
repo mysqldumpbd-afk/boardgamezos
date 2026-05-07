@@ -910,9 +910,17 @@ function getScoreDisplay(player, spec){
 function sortPlayers(players, spec){
   const active   = players.filter(p=>!p.eliminated);
   const elim     = players.filter(p=> p.eliminated);
-  const pu       = spec.primaryUnit;
-  const key      = pu==='lives'?'lives':pu==='wins'?'wins':pu==='coins'?'coins':'points';
-  const sorted   = [...active].sort((a,b)=>(b[key]||0)-(a[key]||0));
+
+  // For elimination games: sort by elimOrder (last eliminated = best position)
+  if(spec.victoryMode==='elimination'||spec.victoryMode==='lives'){
+    const sortedActive = [...active]; // remaining = winners
+    const sortedElim   = [...elim].sort((a,b)=>(b.eliminatedOrder||0)-(a.eliminatedOrder||0));
+    return [...sortedActive, ...sortedElim];
+  }
+
+  const pu     = spec.primaryUnit;
+  const key    = pu==='lives'?'lives':pu==='wins'?'wins':pu==='coins'?'coins':'points';
+  const sorted = [...active].sort((a,b)=>(b[key]||0)-(a[key]||0));
   return [...sorted, ...elim];
 }
 
@@ -1036,7 +1044,8 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
   },[room?.status,room?.startedAt]);
   useEffect(()=>{
     if(room?.status==='finished') setShowEndScreen(true);
-    else setShowEndScreen(false);
+    // When room goes back to 'lobby' (rematch), hide end screen immediately
+    else if(room?.status==='lobby') setShowEndScreen(false);
   },[room?.status]);
   useEffect(()=>{
     if(!room) return;
@@ -1062,7 +1071,12 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
         if(firstTurnPhase?.id) db.set(`rooms/${session.code}/turnPhase`, firstTurnPhase.id).catch(()=>{});
       }
     } else if(room.status==='lobby'){
-      setShowEndScreen(false); setVictoryResult(null); setToast(null); setShowRematchOverlay(false);
+      setShowEndScreen(false);
+      setVictoryResult(null);
+      setToast(null);
+      setShowRematchOverlay(false);
+      // BUG FIX: ensure timer is cleared when going back to lobby
+      if(timerRef.current) clearInterval(timerRef.current);
     }
   },[room?.status,room?.startedAt]);
 
@@ -1238,13 +1252,15 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     </div></div>
   );
 
+  // Calculate effectiveIsHost BEFORE any conditional returns
+  const effectiveIsHost  = isHost||(myId&&room.hostId&&room.hostId===myId);
+
   if(showEndScreen) return(
     <UniversalEndScreen room={room} myId={myId} isHost={effectiveIsHost}
       spec={spec} onBack={onBack} db={db} session={session}/>
   );
 
   const players          = room.players||[];
-  const effectiveIsHost  = isHost||(myId&&room.hostId&&room.hostId===myId);
   const sorted           = sortPlayers(players,spec);
   const currentRound     = room.currentRound||1;
   const activeCount      = players.filter(p=>!p.eliminated).length;
@@ -1475,15 +1491,31 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
 
 // ── UNIVERSAL END SCREEN ─────────────────────────────────────────
 function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
+  // GUARD: spec puede llegar null en dispositivos lentos — esperarlo
+  if(!spec) return(
+    <div style={{position:'fixed',inset:0,background:'var(--bg)',display:'flex',
+      alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
+      <div className="os-spin"/>
+      <div style={{fontFamily:'var(--font-display)',fontSize:'.8rem',color:'rgba(255,255,255,.3)',
+        letterSpacing:2}}>CARGANDO RESULTADOS...</div>
+    </div>
+  );
+
   const players = sortPlayers(room.players||[], spec);
   const isCooperative = spec.type === 'cooperative';
   const winner  = isCooperative ? null : players[0];
   const totalDuration = room.endedAt&&room.startedAt ? fmtDuration(room.endedAt-room.startedAt) : '—';
   const [rematchLoading, setRematchLoading] = useState(false);
   const effectiveIsHostES = isHost||(myId&&room.hostId&&room.hostId===myId);
+  const victorySoundFired = React.useRef(false);
 
   useEffect(()=>{
-    snd('victory');
+    // BUG FIX: solo sonar si terminó hace menos de 30s Y no ha sonado ya
+    const recentEnd = room.endedAt && (Date.now() - room.endedAt) < 30000;
+    if(recentEnd && !victorySoundFired.current){
+      victorySoundFired.current = true;
+      snd('victory');
+    }
     // Guardar historial de partida al terminar
     if(room && typeof saveSession === 'function'){
       try{
@@ -1519,25 +1551,58 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
     spec.victoryMode==='lives'?'❤️':spec.victoryMode==='elimination'?'💀':'🏆';
 
   async function handleRematch(){
-    if(!effectiveIsHostES) return;
-    snd('round'); setRematchLoading(true);
-    await db.set(`rooms/${session.code}/rematchPending`,true);
-    await new Promise(r=>setTimeout(r,2500));
-    const freshPlayers = (room.players||[]).map(p=>({
-      ...spec.playerInit,
-      id:p.id,name:p.name,emoji:p.emoji,color:p.color,isHost:p.isHost||false,
-    }));
-    await db.set(`rooms/${session.code}`,{
-      ...room,status:'lobby',players:freshPlayers,
-      currentRound:1,rounds:[],events:[],currentPhase:null,
-      checklist:null,startedAt:null,endedAt:null,winner:null,
-      rematchPending:false,rematchCode:null,
-    });
-    setRematchLoading(false);
+    if(!effectiveIsHostES||rematchLoading) return;
+    snd('round');
+    setRematchLoading(true);
+    try{
+      // Step 1: signal all devices that rematch is coming
+      await db.set(`rooms/${session.code}/rematchPending`, true);
+      // Brief pause so all devices see the overlay
+      await new Promise(r=>setTimeout(r,1200));
+      // Step 2: build fresh players with correct initial state
+      const basePlayers = (room.players||[]).map(p=>({
+        id:p.id, name:p.name, emoji:p.emoji, color:p.color,
+        isHost:p.isHost||false,
+      }));
+      const freshPlayers = typeof buildInitialPlayers === 'function'
+        ? buildInitialPlayers(basePlayers, spec)
+        : basePlayers.map(p=>({...spec.playerInit||{}, ...p}));
+      // Step 3: atomic write — reset room to lobby in ONE operation
+      await db.set(`rooms/${session.code}`, {
+        code:          room.code,
+        gameType:      room.gameType,
+        customTitle:   room.customTitle,
+        hostId:        room.hostId,
+        config:        room.config,
+        runtimeSpec:   room.runtimeSpec||null,
+        createdAt:     room.createdAt,
+        // Reset game state
+        status:        'lobby',
+        players:       freshPlayers,
+        currentRound:  1,
+        currentTurnIdx:0,
+        turnPhase:     null,
+        currentPhase:  null,
+        checklist:     null,
+        entities:      null,
+        rounds:        [],
+        events:        [],
+        startedAt:     null,
+        endedAt:       null,
+        winner:        null,
+        turnStartedAt: null,
+        rematchPending:false,
+        rematchCount:  (room.rematchCount||0)+1,
+      });
+    } catch(e){
+      console.error('Rematch error:', e);
+    } finally {
+      setRematchLoading(false);
+    }
   }
 
   return(
-    <div className="end-screen">
+    <div className="end-screen" style={{overflowY:"scroll",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
       <div className="end-confetti">
         {confetti.map(d=>(
           <div key={d.id} style={{position:'absolute',background:d.c,width:d.sz,height:d.sz,
@@ -1547,7 +1612,11 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
       </div>
       <div className="end-trophy">{winEmoji}</div>
       <div className="end-label">
-        {spec.victoryMode==='lives'?'ÚLTIMO CON VIDA':spec.victoryMode==='wins'?'MÁS VICTORIAS':'CAMPEÓN'}
+        {spec.victoryMode==='lives'?'ÚLTIMO CON VIDA'
+          :spec.victoryMode==='wins'?'MÁS VICTORIAS'
+          :spec.victoryMode==='elimination'?'ÚLTIMO EN PIE'
+          :spec.victoryMode==='manual'?'GANADOR'
+          :'CAMPEÓN'}
       </div>
       <div className="end-gamename">{(room.customTitle||'PARTIDA').toUpperCase()}</div>
       {isCooperative ? (
@@ -1570,9 +1639,15 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
           <div style={{fontSize:'2.6rem',marginBottom:6}}>{winner.emoji}</div>
           <div className="end-winner-name" style={{color:winner.color||'#fff'}}>{winner.name}</div>
           <div className="end-stats">
-            {spec.primaryUnit==='points'?`${winner.points||0} PUNTOS · ${totalDuration}`:
-             spec.primaryUnit==='wins'?`${winner.wins||0} MISIONES · ${totalDuration}`:
-             spec.primaryUnit==='lives'?`${winner.lives||0} VIDAS · ${totalDuration}`:totalDuration}
+            {spec.victoryMode==='elimination'
+              ? `ÚLTIMO EN PIE · ${totalDuration}`
+              : spec.primaryUnit==='points'
+                ? `${winner.points||0} PUNTOS · ${totalDuration}`
+                : spec.primaryUnit==='wins'
+                  ? `${winner.wins||0} ${spec.victoryMode==='wins'?'VICTORIAS':'MISIONES'} · ${totalDuration}`
+                  : spec.primaryUnit==='lives'
+                    ? `${winner.lives||0} VIDAS · ${totalDuration}`
+                    : totalDuration}
           </div>
         </>
       )}
@@ -1604,7 +1679,13 @@ function UniversalEndScreen({ room, myId, isHost, spec, onBack, db, session }){
                 )}
               </div>
               <div className="player-stat" style={{color:i===0?'var(--gold)':'rgba(255,255,255,.55)'}}>
-                {display.main !== null ? `${display.main} ${display.unit}` : (showTime ? fmtS(totalTurnSecs) : '—')}
+                {display.main !== null
+                  ? `${display.main} ${display.unit}`
+                  : p.eliminated
+                    ? `💀 #${p.finalPosition||i+1}`
+                    : showTime
+                      ? fmtS(totalTurnSecs)
+                      : i===0 ? '🏆' : `#${i+1}`}
               </div>
             </div>
           );
