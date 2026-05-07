@@ -323,29 +323,40 @@ function PhaseBand({ spec, room, onCheck, isHost }){
           </div>
         )}
 
-        {/* Entidades externas — tokens, bolsa, etc. */}
+        {/* Entidades externas — se muestran prominentemente */}
         {entities.length > 0 && (
           <div>
             <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
               color:'rgba(255,255,255,.2)',marginBottom:5}}>ENTIDADES</div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
               {entities.map(e=>{
-                const roomEntities = room.entities||{};
-                const val = roomEntities[e.entityType==='token'
-                  ? e.id.replace('entity_','') : e.id.replace('entity_','')]?.value
-                  ?? e.defaultState ?? '—';
+                const eKey    = e.id.replace('entity_','');
+                const roomEnt = room.entities||{};
+                // Leer de room.entities (guardado por handleSetEntity)
+                const rawVal  = roomEnt[eKey];
+                const val     = typeof rawVal === 'string' ? rawVal
+                              : rawVal?.value ?? e.defaultState ?? '—';
+                const specEnt = spec._entities?.find(en=>en.id===eKey);
+                const icon    = specEnt?.icon || '🔹';
+                const isEmpty = val === '—' || val === 'ninguna' || val === 'ninguno' || val === '';
                 return(
-                  <div key={e.id} style={{padding:'5px 10px',borderRadius:8,
-                    background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)',
-                    display:'flex',alignItems:'center',gap:5}}>
-                    <span style={{fontSize:'1rem'}}>{
-                      (()=>{ const raw=e.id.replace('entity_',''); const found=spec._entities?.find(en=>en.id===raw); return found?.icon||'🔹'; })()
-                    }</span>
-                    <div>
-                      <div style={{fontFamily:'var(--font-label)',fontSize:'10px',fontWeight:700,
-                        color:'rgba(255,255,255,.6)',lineHeight:1}}>{e.label}</div>
-                      <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',
-                        color:'rgba(255,255,255,.3)',marginTop:1}}>{String(val)}</div>
+                  <div key={e.id} style={{
+                    padding:'7px 11px',borderRadius:10,
+                    background: isEmpty ? 'rgba(255,255,255,.03)' : 'rgba(155,93,229,.1)',
+                    border: `1px solid ${isEmpty ? 'rgba(255,255,255,.08)' : 'rgba(155,93,229,.35)'}`,
+                    display:'flex',alignItems:'center',gap:7,
+                    transition:'all .2s',flex:'1 0 auto',minWidth:100,maxWidth:180}}>
+                    <span style={{fontSize:'1.1rem',flexShrink:0}}>{icon}</span>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:1.5,
+                        color:'rgba(255,255,255,.3)',lineHeight:1,marginBottom:2}}>
+                        {e.label.toUpperCase()}
+                      </div>
+                      <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+                        color: isEmpty ? 'rgba(255,255,255,.25)' : 'var(--purple)',
+                        lineHeight:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {isEmpty ? 'ninguna' : String(val)}
+                      </div>
                     </div>
                   </div>
                 );
@@ -389,7 +400,7 @@ function RoundBadge({ current, total, spec }){
 // ── TURNO ACTIVO — asistente simplificado ──────────────────────
 // Modelo: contexto de fase (informativo) + botones de acción + un botón de terminar turno
 // Sin stepper, sin bloqueos por defecto. Máxima agilidad.
-function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onAction, db, session }){
+function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn, onAction, onSetEntity, db, session }){
   const [elapsed, setElapsed] = React.useState(0);
   const [confirmed, setConfirmed] = React.useState({});
   const turnStart = room.turnStartedAt || Date.now();
@@ -496,7 +507,21 @@ function TurnAssistant({ spec, room, currentPlayer, isHost, isMyTurn, onEndTurn,
                 if(btn.effect==='add_win') onAction&&onAction({id:'add_win',icon:btn.icon||'🎯',label:btn.label,color:'var(--gold)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
                 else if(btn.effect==='add_points') onAction&&onAction({id:'add_points',icon:btn.icon||'➕',label:btn.label,color:'var(--cyan)',type:'direct',category:'score'},currentPlayer?.id,{value:1});
                 else if(btn.effect==='lose_life') onAction&&onAction({id:'lose_life',icon:btn.icon||'❤️',label:btn.label,color:'var(--red)',type:'direct',category:'lives'},currentPlayer?.id,{});
-                else onAction&&onAction({id:btn.effect||'log_event',icon:btn.icon||'📝',label:btn.label,color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
+                else if(btn.effect==='eliminate') onAction&&onAction({id:'eliminate',icon:btn.icon||'💀',label:btn.label,color:'var(--red)',type:'confirm_action',category:'elimination'},currentPlayer?.id,{});
+                else if(btn.effect==='log_event'){
+                  // Si hay entidad de estado en el juego → actualiza la entidad visible
+                  const statusEntity = (spec._entities||[]).find(e=>e.entityType==='status'||e.stateType==='status');
+                  if(statusEntity){
+                    const eId = statusEntity.id.replace('entity_','');
+                    onSetEntity && onSetEntity(eId, `${btn.icon||''} ${btn.label}`, currentPlayer?.name||'');
+                  }
+                  // También registra en el log normal
+                  onAction&&onAction({id:'log_event',icon:btn.icon||'📝',label:btn.label,
+                    color:'rgba(155,93,229,.7)',type:'direct',category:'system'},
+                    currentPlayer?.id,{note:btn.label});
+                } else {
+                  onAction&&onAction({id:btn.effect||'log_event',icon:btn.icon||'📝',label:btn.label,color:'rgba(255,255,255,.3)',type:'direct',category:'system'},currentPlayer?.id,{note:btn.label});
+                }
               }}
                 style={{padding:'11px',borderRadius:10,border:'none',cursor:'pointer',
                   fontFamily:'var(--font-display)',fontSize:'.9rem',fontWeight:700,letterSpacing:1,
@@ -1065,6 +1090,14 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
     if(action.id==='eliminate')  showToast(`💀 ${pname} eliminado`,'var(--red)');
   }
 
+  // Acción especial: log_event con entityTarget → actualiza entidad visible en pantalla
+  async function handleSetEntity(entityId, value, playerName){
+    if(!room||!session) return;
+    const entities = {...(room.entities||{}), [entityId]: value};
+    await db.set(`rooms/${session.code}/entities`, entities);
+    showToast(`${playerName}: ${value}`,'var(--purple)');
+  }
+
   async function handleHostAction(actionId){
     if(!room||!spec) return;
     const now = Date.now();
@@ -1336,6 +1369,7 @@ function UniversalRuntime({ session, onBack, isHost, myId, db, templateConfig })
             }}
             onPhaseAction={handleCheckAction}
             onAction={handlePlayerAction}
+            onSetEntity={handleSetEntity}
             db={db}
             session={session}
           />

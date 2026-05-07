@@ -1301,6 +1301,7 @@ function AgileTurnButtonsEditor({ value, onChange, disabled, fieldId, itemSchema
     { value:'add_win',      label:'🏆 Suma una victoria/misión',    desc:'Incrementa el contador de victorias del jugador. Ideal para Love Letter, Misión Cumplida.' },
     { value:'add_points',   label:'🔢 Suma puntos',                 desc:'Abre la calculadora para ingresar cuántos puntos.' },
     { value:'lose_life',    label:'❤️ Perder una vida',             desc:'Resta 1 vida al jugador. Si llega a 0 → eliminado automáticamente. Ideal para Cubilete, Bang!' },
+    { value:'eliminate',     label:'💀 Eliminar jugador',           desc:'Elimina a este jugador del juego. Si queda 1 → gana automáticamente. Ideal para Cubilete, Bang!' },
     { value:'end_game_loss',label:'🚫 Termina partida',             desc:'Notifica al host para terminar la partida. Ideal para "Me quedé sin opciones" en cooperativos.' },
   ];
 

@@ -19,7 +19,7 @@ window.OFFICIAL_PRESETS = {
       useRounds:true, rounds:'libre', roundClose:'auto',
       useTurns:false,
       victoryMode:'elimination',
-      registers:['lives'],
+      registers:[],  // sin vidas — eliminación directa por ronda
       playMode:'minimal',
       playObjects:[],
       objectControlScope:'host',
@@ -46,7 +46,7 @@ window.OFFICIAL_PRESETS = {
       useRounds:false,
       useTurns:true, turnOrder:'rotative', useFirstPlayerToken:false,
       victoryMode:'elimination',
-      registers:['lives'],
+      registers:[],  // sin vidas — eliminación directa por ronda
       playMode:'enhanced',
       playObjects:['dice_tool'],
       objectControlScope:'all',
@@ -65,7 +65,8 @@ window.OFFICIAL_PRESETS = {
         { label:'Póker',      icon:'⭐', effect:'log_event' },
         { label:'Generala',   icon:'👑', effect:'log_event' },
         // Perder vida (cuando no puedes superar la combinación anterior)
-        { label:'Perdí (- vida)', icon:'❤️', effect:'lose_life' },
+        // Quien no puede superar → eliminado directo (no pierde vida, sale del juego)
+        { label:'No pude superar', icon:'💀', effect:'eliminate' },
       ],
 
       // Fases del turno — informativas, no bloquean
@@ -281,7 +282,7 @@ window.OFFICIAL_PRESETS = {
       useRounds:true, rounds:'libre', roundClose:'manual',
       useTurns:true, turnOrder:'rotative', useFirstPlayerToken:false,
       victoryMode:'elimination',
-      registers:['lives'],
+      registers:[],  // sin vidas — eliminación directa por ronda
       playMode:'enhanced',
       playObjects:['dice_tool'],
       objectControlScope:'host',
