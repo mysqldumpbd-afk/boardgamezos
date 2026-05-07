@@ -1183,8 +1183,286 @@ function _fieldDepth(field, seen = new Set()){
   return maxParentDepth;
 }
 
+
+
+// ── FIELD HELP TEXTS — textos explicativos por campo ────────────
+// Se muestran debajo de cada campo en el builder
+// Formato: "→ Pad:" indica qué aparece en la pantalla de partida
+const FIELD_HELP = {
+  // GENERAL
+  name:          'El nombre que aparece en la sala y en la pantalla de partida.',
+  description:   'Una línea que describe la esencia del juego. Ej: "Último en pie gana".',
+  type:          'Individual: cada quien. Equipos: grupos con score compartido. Cooperativo: todos ganan o pierden juntos.',
+  roomAccess:    'Quién puede unirse. "Código" es lo más común — compartes el código de 4 letras.',
+  minPlayers:    'Mínimo de jugadores para iniciar la sala.',
+  maxPlayers:    'Máximo permitido. Jugadores extras no podrán unirse.',
+  // STRUCTURE
+  useRounds:     '→ Pad: muestra "RONDA 2/5" con barra de progreso.',
+  rounds:        '"Libre" = sin límite, el host cierra cuando quiere. Número fijo = la partida termina al completarlas.',
+  roundClose:    '"Manual" = host toca Cerrar ronda. "Auto" = se cierra al completar todos los turnos.',
+  roundTimerSecs:'Tiempo máximo por ronda en segundos. Al expirar se cierra automáticamente.',
+  useTurns:      '→ Pad: muestra "TURNO · Nombre" y avanza al siguiente. Sin esto, todos juegan simultáneamente.',
+  turnOrder:     'Rotativo: izquierda a derecha. Fijo: mismo orden siempre. Aleatorio: sorteo cada ronda.',
+  useFirstPlayerToken: '→ Pad: muestra 👑 en quien tiene el token. Se pasa desde el Panel del Host.',
+  useTimer:      '→ Pad: aparece un reloj visible para todos.',
+  timerScope:    'Por turno: X seg por jugador. Por ronda: toda la ronda. Por partida: tiempo total.',
+  timerSecs:     'Duración en segundos. Ej: 60 = 1 min, 300 = 5 min.',
+  // VICTORY
+  victoryMode:   '→ Pad: Puntos=calculadora, Victorias=contador 🏆, Vidas=❤️, Eliminación=auto, Manual=host decide.',
+  pointsWinMode: 'Más puntos gana (Strike, KoT), menos gana (UNO, Golf), o llegar exactamente a X.',
+  pointsValidation: '"Al instante" = ganador en cuanto alcanzan. "Fin de ronda" = solo al cerrar la ronda.',
+  targetScore:   'Puntos exactos para ganar. Ej: 100 en Azul, 20 en King of Tokyo.',
+  winsTarget:    '→ Pad: contador de victorias 🏆. Nro de victorias de ronda para ganar. Ej: 4 en Love Letter.',
+  tiebreak:      'Cómo se rompe el empate: dado/moneda, el host decide, o se comparte la victoria.',
+  // PROGRESS
+  registers:     '→ Pad: Puntos=calculadora. Victorias=contador 🏆. Vidas=❤️. Puedes activar varios.',
+  captureType:   'Manual: alguien ingresa el valor. Automática: el sistema lo calcula.',
+  valueNature:   'Solo positivos (no hay penalizaciones). Pos+neg (hay daño o penalizaciones). Decimales.',
+  accumulation:  'Global: un solo total. Por ronda: historial de cada ronda + total. Reinicia: vuelve a 0 cada ronda.',
+  modifiers:     'Bonus, penalización, multiplicador, escudo. Activa los que apliquen a tu juego.',
+  capturedBy:    '→ Pad: quién ve la calculadora. Host=organizador, Self=cada jugador el suyo, All=cualquiera.',
+  scoreVisibility: 'Si los demás pueden ver el score de otros mientras juegan.',
+  // TOOLS
+  useTools:      '→ Pad: aparecen botones de herramientas (dado 🎲, moneda 🪙, ruleta 🎡).',
+  diceType:      'd6=dado clásico. d4/d8/d12/d20=dados de rol. Personalizado=tú defines las caras.',
+  diceCustomSides: 'Las caras separadas por coma. Ej: "1,2,3,Pierde turno,+5,Doble".',
+  coinUse:       'Para qué se usa la moneda: decisión neutral, desempate, o primer jugador.',
+  wheelSegments: 'Los segmentos separados por coma. Ej: "+1,+2,+5,Pierde turno,Bonus,Nada".',
+  // PLAY
+  playMode:      'Mínimo: solo lo esencial visible (recomendado). Mejorado: más opciones en el pad.',
+  playObjects:   '→ Pad: Calculadora=ingresar puntos. Botón victoria=marcar ronda ganada. Token 👑=pasar primer jugador.',
+  victoryButtonLabel: '→ Pad: texto exacto del botón de victoria. Ej: "Gané esta ronda", "Completé misión".',
+  scoreInputLabel:    '→ Pad: etiqueta de la calculadora. Ej: "Puntos de ronda", "Daño recibido", "Felicidad".',
+  scoreInputTarget:   '→ Pad: a qué registro suma la calculadora. "points" para la mayoría.',
+  scoreInputAllowNegative: '→ Pad: si la calculadora acepta negativos (penalizaciones). Muestra el botón ±.',
+  scoreInputQuickValues:   '→ Pad: valores de acceso rápido en la calculadora. Ej: 1,5,10,50 = botones grandes.',
+  objectControlScope: '→ Pad: quién puede usar los botones. host=organizador. all=cada quien el suyo.',
+  // ROLES
+  scoreCapture:  '→ Pad: quién ve la calculadora. host=organizador. self=cada jugador el suyo. all=cualquiera.',
+  roundCloseWho: 'Quién puede cerrar una ronda. Normalmente solo el host para evitar cierres accidentales.',
+  // FLOW ASSISTANCE
+  useFlowAssistance:  '→ Pad: activa el asistente de flujo con pasos del turno, recordatorios y fases de ronda.',
+  turnAssistMode:     '⚡ Ágil: 1 botón grande + notas informativas (para juegos rápidos). 📋 Regulatorio: pasos obligatorios antes de avanzar (Fallout, Azul).',
+  trackTurnDuration:  '→ Pad: reloj sincronizado entre dispositivos. Al final muestra tiempos totales y promedio por jugador.',
+  showNoOptionsButton:'→ Pad: agrega botón "Me quedé sin opciones". Para juegos donde a veces no puedes hacer nada.',
+  agileTurnButtons:   '→ Pad: botones que aparecen en el turno antes de "Terminé mi turno". Define nombre, ícono y qué registran. Ej: "Resolví misión", "Full", "Generala".',
+  turnPhaseReminders: '→ Pad: notas 💡 informativas durante el turno. Ej: "Recuerda tomar una carta del mazo".',
+  roundPhasesEnabled: '→ Pad: activa fases globales después de que TODOS terminan su turno. Ej: resolver amenazas, contar puntos.',
+  cooperativeTeamName:'→ Pantalla final: nombre del equipo cuando todos ganan juntos.',
+  // FINISH
+  showEndScreen:       'Muestra pantalla de resultados con ranking, ganador y estadísticas.',
+  saveHistory:         'Guarda el historial en tu cuenta para verlo en Stats después.',
+  rematchKeepPlayers:  'En la revancha mantiene los mismos jugadores sin que vuelvan a unirse.',
+  rematchResetScore:   'Reinicia todos los scores al iniciar la revancha.',
+};
+
+// ── AGILE TURN BUTTONS EDITOR ────────────────────────────────────
+// Editor visual para agileTurnButtons y turnPhaseReminders
+// Permite agregar movimientos/recordatorios con nombre, ícono y efecto
+function AgileTurnButtonsEditor({ value, onChange, disabled, fieldId, itemSchema }){
+  const isReminders = fieldId === 'turnPhaseReminders';
+  const items = Array.isArray(value) ? value : [];
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [newItem, setNewItem] = React.useState({
+    label:'', icon: isReminders ? '💡' : '🎯',
+    effect: isReminders ? undefined : 'log_event',
+    required: false,
+  });
+
+  const EFFECTS = [
+    { value:'log_event',    label:'📝 Solo registrar el evento', desc:'Aparece en el log pero no cambia el score' },
+    { value:'add_win',      label:'🏆 Suma una victoria/misión', desc:'Incrementa el contador de victorias del jugador' },
+    { value:'add_points',   label:'🔢 Suma puntos (pide valor)', desc:'Abre la calculadora para ingresar cuántos' },
+    { value:'end_game_loss',label:'🚫 Termina partida (derrota)', desc:'Registra la acción y notifica al host' },
+  ];
+
+  const EMOJIS = ['🎯','🏆','🃏','💡','⚡','🎲','💀','🚫','✅','🔥','⭐','🎁','🗡️','🛡️','💰','❤️','🎴','👾','🏅','🎪'];
+
+  function addItem(){
+    if(!newItem.label.trim()) return;
+    onChange([...items, {...newItem, label:newItem.label.trim()}]);
+    setNewItem({label:'', icon:isReminders?'💡':'🎯', effect:isReminders?undefined:'log_event', required:false});
+    setShowAdd(false);
+    snd('tap');
+  }
+
+  function removeItem(idx){ onChange(items.filter((_,i)=>i!==idx)); snd('tap'); }
+
+  function updateItem(idx, field, val){
+    onChange(items.map((item,i)=>i===idx?{...item,[field]:val}:item));
+  }
+
+  const effectInfo = EFFECTS.find(e=>e.value===newItem.effect);
+
+  return(
+    <div>
+      {/* Lista de items actuales */}
+      {items.length===0&&(
+        <div style={{padding:'10px 12px',borderRadius:8,
+          background:'rgba(255,255,255,.03)',border:'1px dashed rgba(255,255,255,.1)',
+          fontFamily:'var(--font-label)',fontSize:'11px',color:'rgba(255,255,255,.3)',
+          textAlign:'center',marginBottom:8}}>
+          {isReminders ? 'Sin recordatorios. Agrega uno para mostrar notas informativas durante el turno.'
+                       : 'Sin botones. Agrega acciones que aparecerán en el pad del jugador.'}
+        </div>
+      )}
+      <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
+        {items.map((item,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',
+            borderRadius:10,background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.08)'}}>
+            {/* Emoji picker inline */}
+            <select value={item.icon||'🎯'} disabled={disabled}
+              onChange={e=>updateItem(i,'icon',e.target.value)}
+              style={{background:'transparent',border:'none',fontSize:'1.2rem',
+                cursor:'pointer',padding:0,width:30,color:'transparent',
+                WebkitTextFillColor:'transparent',
+                backgroundImage:`url("data:image/svg+xml,<svg/>")`}}>
+              {EMOJIS.map(em=><option key={em} value={em}>{em}</option>)}
+            </select>
+            <div style={{fontSize:'1.2rem',marginLeft:-24,pointerEvents:'none'}}>{item.icon||'🎯'}</div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,color:'#fff'}}>
+                {item.label}
+              </div>
+              {!isReminders&&(
+                <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+                  color:'rgba(255,255,255,.3)',marginTop:1}}>
+                  {EFFECTS.find(e=>e.value===item.effect)?.label||item.effect||'registrar'}
+                </div>
+              )}
+              {isReminders&&(
+                <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:1,
+                  color:item.required?'rgba(255,107,53,.7)':'rgba(255,212,71,.6)',marginTop:1}}>
+                  {item.required?'🔒 Bloquea el turno':'💡 Solo informativo'}
+                </div>
+              )}
+            </div>
+            {!disabled&&<button onClick={()=>removeItem(i)}
+              style={{background:'none',border:'none',cursor:'pointer',
+                color:'rgba(255,59,92,.5)',fontSize:'1rem',padding:'2px 4px'}}>✕</button>}
+          </div>
+        ))}
+      </div>
+
+      {/* Form de agregar */}
+      {!showAdd&&!disabled&&(
+        <button onClick={()=>setShowAdd(true)}
+          style={{width:'100%',padding:'9px',borderRadius:10,cursor:'pointer',
+            border:'1px dashed rgba(255,255,255,.15)',background:'transparent',
+            fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+            color:'rgba(255,255,255,.4)',display:'flex',alignItems:'center',
+            justifyContent:'center',gap:6}}>
+          ＋ {isReminders?'Agregar recordatorio':'Agregar botón'}
+        </button>
+      )}
+
+      {showAdd&&(
+        <div style={{padding:'14px',borderRadius:12,
+          background:'rgba(0,245,255,.04)',border:'1px solid rgba(0,245,255,.15)'}}>
+          <div style={{fontFamily:'var(--font-ui)',fontSize:'8px',letterSpacing:2,
+            color:'rgba(0,245,255,.6)',marginBottom:10}}>
+            {isReminders?'NUEVO RECORDATORIO':'NUEVO BOTÓN'}
+          </div>
+
+          {/* Emoji */}
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+              color:'rgba(255,255,255,.3)',marginBottom:5}}>ICONO</div>
+            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+              {EMOJIS.map(em=>(
+                <button key={em} onClick={()=>setNewItem(n=>({...n,icon:em}))}
+                  style={{width:34,height:34,borderRadius:8,border:`1px solid ${newItem.icon===em?'rgba(0,245,255,.4)':'rgba(255,255,255,.08)'}`,
+                    background:newItem.icon===em?'rgba(0,245,255,.1)':'rgba(255,255,255,.03)',
+                    cursor:'pointer',fontSize:'1.1rem'}}>
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Nombre */}
+          <div style={{marginBottom:10}}>
+            <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+              color:'rgba(255,255,255,.3)',marginBottom:5}}>
+              {isReminders?'TEXTO DEL RECORDATORIO':'NOMBRE DEL BOTÓN'}
+            </div>
+            <input className="os-input"
+              value={newItem.label}
+              onChange={e=>setNewItem(n=>({...n,label:e.target.value}))}
+              placeholder={isReminders?'ej: Recuerda tomar una carta del mazo':'ej: Resolví una misión · Full · Par · Me pasé'}
+              onKeyDown={e=>e.key==='Enter'&&addItem()}/>
+          </div>
+
+          {/* Efecto (solo para botones) */}
+          {!isReminders&&(
+            <div style={{marginBottom:10}}>
+              <div style={{fontFamily:'var(--font-ui)',fontSize:'7px',letterSpacing:2,
+                color:'rgba(255,255,255,.3)',marginBottom:5}}>QUÉ HACE AL PRESIONARLO</div>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {EFFECTS.map(e=>(
+                  <button key={e.value} onClick={()=>setNewItem(n=>({...n,effect:e.value}))}
+                    style={{padding:'8px 12px',borderRadius:9,cursor:'pointer',textAlign:'left',
+                      border:`1px solid ${newItem.effect===e.value?'rgba(0,245,255,.4)':'rgba(255,255,255,.08)'}`,
+                      background:newItem.effect===e.value?'rgba(0,245,255,.08)':'rgba(255,255,255,.02)'}}>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'12px',fontWeight:700,
+                      color:newItem.effect===e.value?'var(--cyan)':'rgba(255,255,255,.7)'}}>{e.label}</div>
+                    <div style={{fontFamily:'var(--font-label)',fontSize:'9px',
+                      color:'rgba(255,255,255,.3)',marginTop:2}}>{e.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bloquea (solo para recordatorios) */}
+          {isReminders&&(
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,
+              padding:'8px 12px',borderRadius:8,background:'rgba(255,255,255,.04)',
+              border:'1px solid rgba(255,255,255,.08)'}}>
+              <div style={{flex:1,fontFamily:'var(--font-label)',fontSize:'11px',
+                color:'rgba(255,255,255,.6)'}}>¿Bloquea el avance del turno?</div>
+              <button onClick={()=>setNewItem(n=>({...n,required:!n.required}))}
+                style={{padding:'5px 12px',borderRadius:8,border:'none',cursor:'pointer',
+                  fontFamily:'var(--font-label)',fontSize:'11px',fontWeight:700,
+                  background:newItem.required?'rgba(255,107,53,.2)':'rgba(255,255,255,.08)',
+                  color:newItem.required?'var(--orange)':'rgba(255,255,255,.4)'}}>
+                {newItem.required?'🔒 Sí bloquea':'💡 Solo avisa'}
+              </button>
+            </div>
+          )}
+
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-ghost" style={{flex:1,marginBottom:0}}
+              onClick={()=>setShowAdd(false)}>Cancelar</button>
+            <button className="btn btn-cyan" style={{flex:1,marginBottom:0}}
+              onClick={addItem} disabled={!newItem.label.trim()}>
+              ✓ Agregar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FieldRenderer({ field, value, config, onChange, depth = 0 }){
   const visible = window.SchemaUtils.isVisible(field, config);
+  if(!visible) return null;
+
+  // HelpText: show below the field label for non-toggle fields
+  const helpStr = FIELD_HELP[field.id] || field.helpText;
+  const HelpText = helpStr && field.type !== 'toggle' ? (
+    <div style={{
+      fontFamily:'var(--font-label)', fontSize:'11px',
+      color:'rgba(255,255,255,.38)', lineHeight:1.5,
+      marginTop:4, marginBottom:6, padding:'6px 10px',
+      borderRadius:8, background:'rgba(255,255,255,.03)',
+      border:'1px solid rgba(255,255,255,.06)',
+      borderLeft:'2px solid rgba(0,245,255,.25)',
+    }}>
+      {helpStr}
+    </div>
+  ) : null;
   const disabled = !visible;
   const reason = _disabledReason(field, config);
 
@@ -1239,6 +1517,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
     return (
       <div style={wrapStyle}>
         <div style={labelStyle}>{field.label}</div>
+        {HelpText}
         <input
           className="os-input"
           disabled={disabled}
@@ -1275,6 +1554,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
     return (
       <div style={wrapStyle}>
         <div style={labelStyle}>{field.label}</div>
+        {HelpText}
         <select
           className="os-select"
           disabled={disabled}
@@ -1296,6 +1576,7 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
     return (
       <div style={wrapStyle}>
         <div style={labelStyle}>{field.label}</div>
+        {HelpText}
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
           {(field.options || []).map(opt=>{
             const active = current.includes(opt.value);
@@ -1375,6 +1656,22 @@ function FieldRenderer({ field, value, config, onChange, depth = 0 }){
 
   if(field.type === 'entities_editor'){
     return <div style={wrapStyle}><ExternalEntitiesEditor value={Array.isArray(value)?value:[]} onChange={set} disabled={disabled} />{reason && <div style={{fontFamily:'var(--font-label)',fontSize:'var(--fs-micro)',color:'rgba(255,255,255,.35)'}}>{reason}</div>}</div>;
+  }
+
+  if(field.type === 'list'){
+    return (
+      <div style={wrapStyle}>
+        <div style={labelStyle}>{field.label}</div>
+        {HelpText}
+        <AgileTurnButtonsEditor
+          value={Array.isArray(value)?value:[]}
+          onChange={set}
+          disabled={disabled}
+          fieldId={field.id}
+          itemSchema={field.itemSchema}
+        />
+      </div>
+    );
   }
 
   return null;
